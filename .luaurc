@@ -1,0 +1,6 @@
+{
+ "aliases": {
+  "lest": ".lest/core",
+  "spike": "."
+ }
+}

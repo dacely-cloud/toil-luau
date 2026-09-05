@@ -1,0 +1,84 @@
+{
+    "name": "@toilluau/core",
+    "version": "0.1.0",
+    "description": "React 19 for Roblox/Luau: the real React reconciler compiled to WebAssembly-ready Luau, with a Roblox UI host, a CSS engine, and animations. Build with roblox-ts, run on Roblox or a native Lest runtime.",
+    "type": "module",
+    "license": "Apache-2.0",
+    "author": "Dacely",
+    "homepage": "https://toil.org",
+    "keywords": [
+        "toil",
+        "toilluau",
+        "react",
+        "react-19",
+        "roblox",
+        "luau",
+        "roblox-ts",
+        "reconciler",
+        "gui"
+    ],
+    "main": "src/host/index.ts",
+    "types": "src/host/index.ts",
+    "exports": {
+        ".": {
+            "types": "./src/host/index.ts",
+            "default": "./src/host/index.ts"
+        },
+        "./react": {
+            "types": "./src/vendor/toil-react/index.d.ts",
+            "default": "./src/vendor/toil-react/index.js"
+        },
+        "./reconciler": {
+            "types": "./src/vendor/toil-react-reconciler/index.d.ts",
+            "default": "./src/vendor/toil-react-reconciler/index.js"
+        },
+        "./scheduler": {
+            "types": "./src/vendor/toil-scheduler/index.d.ts",
+            "default": "./src/vendor/toil-scheduler/index.js"
+        }
+    },
+    "files": [
+        "src",
+        "include",
+        "type-shims",
+        ".lest",
+        "scripts",
+        "restore-vendor.sh",
+        "tsconfig.json",
+        "default.project.json",
+        "lest.toml",
+        ".luaurc"
+    ],
+    "scripts": {
+        "prepare": "npm install --no-save --prefix . >/dev/null 2>&1 || true",
+        "restore": "bash restore-vendor.sh",
+        "build": "bash scripts/build.sh",
+        "test": "node scripts/run-native.mjs",
+        "test:spike": "node scripts/run-native.mjs spike",
+        "test:host": "node scripts/run-native.mjs host",
+        "test:css": "node scripts/run-native.mjs css"
+    },
+    "dependencies": {
+        "@toil/react": "file:./src/vendor/toil-react",
+        "@toil/react-reconciler": "file:./src/vendor/toil-react-reconciler",
+        "@toil/scheduler": "file:./src/vendor/toil-scheduler",
+        "react": "19.2.8",
+        "react-reconciler": "0.33.0",
+        "scheduler": "0.27.0"
+    },
+    "devDependencies": {
+        "@babel/generator": "^7.25.0",
+        "@babel/parser": "^7.25.0",
+        "@babel/plugin-transform-block-scoping": "^7.29.7",
+        "@babel/traverse": "^7.25.0",
+        "@rbxts/compiler-types": "^3.0.0-types.0",
+        "@rbxts/types": "^1.0.946",
+        "@types/react": "^19.2.18",
+        "@types/react-reconciler": "^0.33.0",
+        "roblox-ts": "^3.0.0"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/dacely-cloud/toilluau.git"
+    }
+}

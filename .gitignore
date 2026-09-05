@@ -1,0 +1,20 @@
+node_modules/
+out/
+out-probe/
+.lust/
+*.luau~
+*.swp
+.DS_Store
+# build / test scratch
+_probe*
+tmp/
+# the native runner regenerates a runner file; keep it out of git
+specs/out/
+# local env / credentials
+.env
+*.localexample/node_modules/
+example/out/
+# roblox-ts generated
+.lust/
+*.luau~
+node_modules

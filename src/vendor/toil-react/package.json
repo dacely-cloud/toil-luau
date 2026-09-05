@@ -1,0 +1,7 @@
+{
+  "name": "@toil/react",
+  "version": "19.2.8",
+  "description": "Vendored React 19 for the toil-roblox spike (single-copy @toil graph)",
+  "main": "index.js",
+  "types": "index.d.ts"
+}

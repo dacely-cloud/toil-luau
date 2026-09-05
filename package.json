@@ -50,7 +50,6 @@
         ".luaurc"
     ],
     "scripts": {
-        "prepare": "npm install --no-save --prefix . >/dev/null 2>&1 || true",
         "restore": "bash restore-vendor.sh",
         "build": "bash scripts/build.sh",
         "test": "node scripts/run-native.mjs",
@@ -71,8 +70,8 @@
         "@babel/parser": "^7.25.0",
         "@babel/plugin-transform-block-scoping": "^7.29.7",
         "@babel/traverse": "^7.25.0",
-        "@rbxts/compiler-types": "^3.0.0-types.0",
-        "@rbxts/types": "^1.0.946",
+        "@rbxts/compiler-types": "3.0.0-types.0",
+        "@rbxts/types": "1.0.946",
         "@types/react": "^19.2.18",
         "@types/react-reconciler": "^0.33.0",
         "roblox-ts": "^3.0.0"

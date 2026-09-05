@@ -35,9 +35,15 @@ choice: an unscoped name cannot be imported from a roblox-ts project.
   The test runner looks for `LUAU_BIN` or `/tmp/luau-bin/luau`.
 
 The `@toil/*` vendor is **regenerated from pristine npm packages** during the
-build (`restore-vendor.sh`), so you do not hand-edit it. It is committed so the
-package builds without a prior `npm install` of the React packages, but a clean
-`npm install && npm run build` reproduces it exactly.
+build (`restore-vendor.sh`), so you do not hand-edit it. It is committed, so
+the tree is self-documenting, but the canonical build is:
+
+```bash
+npm install && npm run build
+```
+
+`npm install` is required because the build patches `roblox-ts` in
+`node_modules` and reads the pristine React CJS builds from it.
 
 ## Setup
 
@@ -56,9 +62,14 @@ npm test             # run the native Lest suites (spike + host)
 | `react` | 19.2.8 | vendored React runtime source |
 | `react-reconciler` | 0.33.0 | vendored reconciler source |
 | `scheduler` | 0.27.0 | vendored scheduler source |
-| `roblox-ts` | ^3.0.0 | TS -> Luau compiler |
-| `@rbxts/compiler-types` | ^3.0.0-types.0 | roblox-ts compiler types |
-| `@rbxts/types` | ^1.0.946 | Roblox API type definitions |
+| `roblox-ts` | ^3.0.0 | TS -> Luau compiler (patched by the build) |
+| `@rbxts/compiler-types` | 3.0.0-types.0 | roblox-ts compiler types (pinned) |
+| `@rbxts/types` | 1.0.946 | Roblox API type definitions (pinned) |
+
+`@rbxts/*` are pinned to exact versions: a fresh `^`-range install floats to a
+newer `@rbxts/types` that types parts of the vendored React as `any`, which
+roblox-ts rejects. `package-lock.json` pins the whole tree for a
+reproducible install.
 
 ## Build
 
@@ -67,14 +78,21 @@ npm test             # run the native Lest suites (spike + host)
 1. `restore-vendor.sh` - copy pristine `react`/`react-reconciler`/`scheduler`
    CJS builds into `src/vendor/@toil/*`, rewrite cross-requires to the single
    `@toil` graph, and copy the vendored type surface.
-2. `tame-vendor.mjs` - desugar the vendor JS into Luau-parseable JS
+2. `patch-roblox-ts.mjs` - patch the just-installed `roblox-ts` so the tamed
+   vendor `.js` graph compiles (relax the `any`/type-guard diagnostics for
+   `.js`; keep `.ts` strict). Idempotent, so it re-runs on every install.
+3. `tame-vendor.mjs` - desugar the vendor JS into Luau-parseable JS
    (labels, `var`, loose equality, `#` length, etc.).
-3. `this-to-self-param.mjs` - fix `this` in arrow methods the VM needs.
-4. `scope-to-table.mjs` - move the reconciler dev factory's ~1000 scope
+4. `this-to-self-param.mjs` - fix `this` in arrow methods the VM needs.
+5. `scope-to-table.mjs` - move the reconciler dev factory's ~1000 scope
    bindings onto a `__ST` table (Luau caps a function at 200 live locals).
-5. `npx roblox-ts` - compile `src/` (the app + host + polyfills) to Luau in
-   `out/`. The tamed vendor `.js` files pass through verbatim (they are Luau).
-6. `postbuild-fixup.mjs` - escape fixes, `.js` -> `.luau` renames, runtime
+6. `npx roblox-ts --type game` - compile `src/` (the app + host + polyfills)
+   to Luau in `out/` in *game* project type, so the emitted runtime headers
+   point at `ReplicatedStorage/rbxts_include`. The tamed vendor `.js` files
+   pass through verbatim (they are Luau).
+7. `patch-runtime-lib.mjs` - re-patch `include/RuntimeLib.lua` (restored from
+   upstream by roblox-ts) so the native Lest runner can resolve modules.
+8. `postbuild-fixup.mjs` - escape fixes, `.js` -> `.luau` renames, runtime
    headers, dispatcher self-strip, hook tuples.
 
 Output lands in `out/` (Luau), rooted at the DataModel tree described by
@@ -114,9 +132,15 @@ its own:
 
 ```bash
 cd example
-npm install                 # links roblox-ts / @rbxts and the @toil vendor
-npm run build               # roblox-ts -p .  -> example/out/main.luau
+npm run build               # prebuild (prepare.sh) links the toolchain +
+                            # builds the @toilluau/core shim, then roblox-ts
+                            # -p . -> example/out/main.luau
 ```
+
+The example's `prepare.sh` (run automatically before the build) links
+`roblox-ts`/`@rbxts`/the `@toil` vendor from the parent `node_modules`, and
+builds the `@toilluau/core` runtime shim from the package's compiled `out/`.
+Run `npm install` in the parent first (see Setup) so those exist.
 
 It imports the vendored React for JSX and `@toilluau/core` for the host:
 

@@ -233,12 +233,27 @@ local function objKeys(obj)
 	return keys
 end
 
+local _isNaN = function(n) return n ~= n end
+local _parseFloat = function(s) return tonumber(s) end
+local _parseInt = function(s, base)
+	if base == 16 then
+		return tonumber(s, 16) or 0
+	end
+	return math.floor(tonumber(s) or 0)
+end
+local _Number = { isNaN = _isNaN }
+
 return {
 	env = env,
 	strOp = strOp,
 	strMatch = strMatch,
 	strSplit = strSplit,
 	objKeys = objKeys,
+	isNaN = _isNaN,
+	parseFloat = _parseFloat,
+	parseInt = _parseInt,
+	Number = _Number,
+	Math = { round = math.floor },
 	Enum = Enum,
 	UDim2 = UDim2,
 	UDim = UDim,

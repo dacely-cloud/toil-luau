@@ -225,4 +225,183 @@ describe("css engine", function()
 	end)
 end)
 
+-- ------------------------------------------------------------------ css loader
+
+local _loaderMod
+local function loader()
+	if _loaderMod == nil then
+		local ok, mod = pcall(require, "../out/css/loader")
+		if not ok then error("loader require: " .. tostring(mod), 2) end
+		_loaderMod = mod
+	end
+	return _loaderMod
+end
+
+describe("css loader", function()
+	it("parses a simple rule", function()
+		local mod = loader()
+		local rules = mod.parseCss(".card { background-color: #ff0004; width: 200px; }")
+		expect(#rules).toBe(1)
+		expect(rules[1].selector).toBe(".card")
+		expect(rules[1].declarations["background-color"]).toBe("#ff0004")
+		expect(rules[1].declarations["width"]).toBe("200px")
+	end)
+
+	it("parses multiple rules", function()
+		local mod = loader()
+		local rules = mod.parseCss("a { color: red; } b { color: blue; }")
+		expect(#rules).toBe(2)
+		expect(rules[1].selector).toBe("a")
+		expect(rules[2].selector).toBe("b")
+		expect(rules[1].declarations.color).toBe("red")
+		expect(rules[2].declarations.color).toBe("blue")
+	end)
+
+	it("parses comma-separated selector groups", function()
+		local mod = loader()
+		local rules = mod.parseCss("a, b, c { color: red; }")
+		expect(#rules).toBe(1)
+		expect(rules[1].selector).toBe("a, b, c")
+		expect(rules[1].declarations.color).toBe("red")
+	end)
+
+	it("parses @keyframes", function()
+		local mod = loader()
+		local rules = mod.parseCss("@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }")
+		expect(#rules).toBe(1)
+		expect(rules[1].selector).toBe("@keyframes spin")
+		expect(rules[1].keyframes ~= nil).toBe(true)
+		local frames = rules[1].declarations
+		expect(frames["0%"] ~= nil).toBe(true)
+		expect(frames["100%"] ~= nil).toBe(true)
+		expect(frames["0%"]:match("transform: rotate%((%d+)deg%)") == "0").toBe(true)
+		expect(frames["100%"]:match("transform: rotate%((%d+)deg%)") == "360").toBe(true)
+	end)
+
+	it("parses @media with nested rules", function()
+		local mod = loader()
+		local rules = mod.parseCss("@media (max-width: 600px) { .card { width: 100px; } }")
+		expect(#rules).toBe(1)
+		expect(rules[1].selector).toBe(".card")
+		expect(rules[1].media).toBe("(max-width:600px)")
+		expect(rules[1].declarations.width).toBe("100px")
+	end)
+
+	it("parses @import with quoted url", function()
+		local mod = loader()
+		local rules = mod.parseCss("@import \"theme.css\";")
+		expect(#rules).toBe(1)
+		expect(rules[1].selector).toBe("@import")
+		expect(rules[1].importFrom).toBe("theme.css")
+	end)
+
+	it("parses @import with bare url", function()
+		local mod = loader()
+		local rules = mod.parseCss("@import theme.css;")
+		expect(#rules).toBe(1)
+		expect(rules[1].selector).toBe("@import")
+		expect(rules[1].importFrom).toBe("theme.css")
+	end)
+
+	it("skips comments", function()
+		local mod = loader()
+		local css = [[
+			/* block comment */
+			.card {
+			-- line comment
+			width: 10px; /* inline */
+			}
+		]]
+		local rules = mod.parseCss(css)
+		expect(#rules).toBe(1)
+		expect(rules[1].selector).toBe(".card")
+		expect(rules[1].declarations.width).toBe("10px")
+	end)
+
+	it("feeds parsed rules into the cascade engine", function()
+		local mod = loader()
+		local css = [[
+			.btn {
+			background-color: #00ff00;
+			width: 100px;
+			}
+			.btn:hover {
+			background-color: #ff0004;
+			}
+		]]
+		local rules = mod.parseCss(css)
+		local e2 = eng(rules)
+		local normal = e2.computedStyle(mkid("Button", { classes = { "btn" } }), nil, 0, 0, nil)
+		expect(normal["background-color"]).toBe("#00ff00")
+		expect(normal.width).toBe("100px")
+		local hover = e2.computedStyle(mkid("Button", { classes = { "btn" }, states = { "hover" } }), nil, 0, 0, nil)
+		expect(hover["background-color"]).toBe("#ff0004")
+		expect(hover.width).toBe("100px")
+	end)
+
+	it("parses @keyframes and feeds into the engine's keyframes lookup", function()
+		local mod = loader()
+		local css = [[
+			@keyframes grow {
+			0% { width: 0px; }
+			100% { width: 100px; }
+			}
+		]]
+		local rules = mod.parseCss(css)
+		local e2 = eng(rules)
+		local kf = e2.keyframes("grow")
+		expect(kf ~= nil).toBe(true)
+		expect(kf.frames[1].offset).toBe(0)
+		expect(kf.frames[2].offset).toBe(100)
+	end)
+
+	it("parses a full stylesheet with mixed at-rules and normal rules", function()
+		local mod = loader()
+		local css = [[
+			@import "base.css";
+			/* app styles */
+			body { margin: 0; }
+			.header {
+			background-color: #333;
+			padding: 16px;
+			}
+			.header .title {
+			font-size: 24px;
+			color: white;
+			}
+			@keyframes fade {
+			from { opacity: 0; }
+			to { opacity: 1; }
+			}
+			@media (min-width: 768px) {
+			.header { padding: 32px; }
+			}
+		]]
+		local rules = mod.parseCss(css)
+		expect(#rules).toBe(6)
+		expect(rules[1].selector).toBe("@import")
+		expect(rules[1].importFrom).toBe("base.css")
+		local mediaRule = nil
+		for _, r in ipairs(rules) do
+			if r.selector == ".header" and r.media ~= nil then
+			mediaRule = r
+			break
+			end
+		end
+		expect(mediaRule ~= nil).toBe(true)
+		expect(mediaRule.media).toBe("(min-width:768px)")
+		expect(mediaRule.declarations.padding).toBe("32px")
+		local kfRule = nil
+		for _, r in ipairs(rules) do
+			if r.selector == "@keyframes fade" then
+			kfRule = r
+			break
+			end
+		end
+		expect(kfRule ~= nil).toBe(true)
+		expect(kfRule.declarations["from"] ~= nil).toBe(true)
+		expect(kfRule.declarations["to"] ~= nil).toBe(true)
+	end)
+end)
+
 return nil

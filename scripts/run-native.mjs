@@ -79,6 +79,7 @@ function dirLink(target, linkPath) {
 const SUITES = {
 	spike: { env: "specs/_spike_env", specs: ["specs/spike.spec.luau", "specs/globals.spec.luau"] },
 	host: { env: "specs/_spike_env", specs: ["specs/host.spec.luau"] },
+	"host-translator": { env: "specs/_host_env", specs: ["specs/host.translator.spec.luau"] },
 	css: { env: "specs/_css_env", specs: ["specs/css.spec.luau"] },
 };
 
@@ -895,7 +896,11 @@ return { main = main }`
 		// The out/ files are at varying depths, so the fix is to copy
 		// include/ into each out/ subdirectory, and use "./include/RuntimeLib".
 		const rtDst = join(includeDir, "RuntimeLib.lua");
-		if (!existsSync(rtDst)) {
+		const isRootInclude = includeDir === join(ROOT, "include");
+		// The root include/ ships the plain RuntimeLib.lua (no game mock);
+		// patch it too, but force-rewrite it every run because build.sh
+		// restores the plain file from upstream.
+		if (isRootInclude || !existsSync(rtDst)) {
 			try {
 				mkdirSync(includeDir, { recursive: true });
 				// Use the patched Promise and RuntimeLib (lazy game mock)
@@ -1033,6 +1038,12 @@ _globals.parseFloat = function(s)
 	local m = tostring(s):match("^%s*(-?%d+%.?%d*)")
 	return m and tonumber(m) or 0
 end
+_globals.Number = { isNaN = _globals.isNaN }
+-- Bare globals for roblox-host module (shared module-wide per runner comment).
+parseFloat = _globals.parseFloat
+parseInt = _globals.parseInt
+isNaN = _globals.isNaN
+Number = _globals.Number
 _globals.process = { env = { NODE_ENV = "development" } }
 _globals.performance = { now = function() return os.clock() * 1000 end }
 -- The task queues live in _globals (which is injected into every module env

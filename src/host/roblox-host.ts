@@ -168,6 +168,42 @@ function strTrim(s: string): string {
 	return (m[0] as unknown) as string;
 }
 
+/**
+ * Module-local parseFloat/isNaN/parseInt so the mapper does not depend on
+ * the Roblox runtime globals being present in the test env. In Roblox these
+ * shadow the builtins; in the fake env they provide the same behavior.
+ */
+function _parseFloat(v: unknown): number {
+	if (typeOf(v) === "number") return v as number;
+	const s = strTrim(v as string);
+	const m = string.match(s, "^%s*(-?%d+%.?%d*)");
+	const numStr = (m[0] as unknown) as string | undefined;
+	if (numStr === undefined) return NaN;
+	const n = (tonumber as unknown as (s: string) => number | undefined)(numStr);
+	return n !== undefined ? n : NaN;
+}
+function _isNaN(v: number): boolean {
+	return v !== v;
+}
+
+/** Module-local round (shadows the Roblox Math:round global). */
+function _round(v: number): number {
+	return (math.floor as unknown as (n: number) => number)(v + 0.5);
+}
+function _parseInt(v: unknown, base?: number): number {
+	if (typeOf(v) === "number") return Math.floor(v as number);
+	const s = strTrim(v as string);
+	if (base === 16) {
+		const n = (tonumber as unknown as (s: string, b: number) => number | undefined)(s, 16);
+		return n !== undefined ? n : 0;
+	}
+	const m = string.match(s, "^%s*(-?%d+)");
+	const numStr = (m[0] as unknown) as string | undefined;
+	if (numStr === undefined) return 0;
+	const n = (tonumber as unknown as (s: string) => number | undefined)(numStr);
+	return n !== undefined ? Math.floor(n) : 0;
+}
+
 function slice(s: string, start: number, finish?: number): string {
 	if (finish === undefined) return (string.sub(s, start) as unknown) as string;
 	return (string.sub(s, start, finish) as unknown) as string;
@@ -175,6 +211,11 @@ function slice(s: string, start: number, finish?: number): string {
 
 function strFind(s: string, pattern: string, init: number, plain: boolean): number | undefined {
 	return (string.find(s, pattern, init, plain) as unknown) as number | undefined;
+}
+
+/** True if s starts with prefix. */
+function startsWith(s: string, prefix: string): boolean {
+	return s.size() >= prefix.size() && slice(s, 1, prefix.size()) === prefix;
 }
 
 // ------------------------------------------------------------------ tag map
@@ -250,22 +291,22 @@ export function parseLength(value: string | undefined): ParsedLength | undefined
 		return { scale: 0, offset: 0, auto: true };
 	}
 	if (s.size() >= 2 && slice(s, s.size() - 1) === "%") {
-		const n = parseFloat(slice(s, 1, s.size() - 1));
-		if (Number.isNaN(n)) {
+		const n = _parseFloat(slice(s, 1, s.size() - 1));
+		if (_isNaN(n)) {
 			return undefined;
 		}
 		return { scale: n / 100, offset: 0, auto: false };
 	}
 	if (s.size() >= 2 && slice(s, s.size() - 1) === "px") {
-		const n = parseFloat(slice(s, 1, s.size() - 1));
-		if (Number.isNaN(n)) {
+		const n = _parseFloat(slice(s, 1, s.size() - 1));
+		if (_isNaN(n)) {
 			return undefined;
 		}
 		return { scale: 0, offset: n, auto: false };
 	}
 	// A bare number is treated as px.
-	const n = parseFloat(s);
-	if (Number.isNaN(n)) {
+	const n = _parseFloat(s);
+	if (_isNaN(n)) {
 		return undefined;
 	}
 	return { scale: 0, offset: n, auto: false };
@@ -301,14 +342,14 @@ export function parseColor(value: string | undefined): ParsedColor | undefined {
 		let g = 0;
 		let b = 0;
 		if (s.size() === 4) {
-			r = parseInt(slice(s, 2, 2), 16) * 17;
-			g = parseInt(slice(s, 3, 3), 16) * 17;
-			b = parseInt(slice(s, 4, 4), 16) * 17;
+			r = _parseInt(slice(s, 2, 2), 16) * 17;
+			g = _parseInt(slice(s, 3, 3), 16) * 17;
+			b = _parseInt(slice(s, 4, 4), 16) * 17;
 			return { r, g, b, a: 1 };
 		}
-		r = parseInt(slice(s, 2, 3), 16);
-		g = parseInt(slice(s, 4, 5), 16);
-		b = parseInt(slice(s, 6, 7), 16);
+		r = _parseInt(slice(s, 2, 3), 16);
+		g = _parseInt(slice(s, 4, 5), 16);
+		b = _parseInt(slice(s, 6, 7), 16);
 		return { r, g, b, a: 1 };
 	}
 	// rgb() / rgba()
@@ -321,13 +362,13 @@ export function parseColor(value: string | undefined): ParsedColor | undefined {
 			parts.push(strTrim(rawParts[i]));
 		}
 		if (parts.size() >= 3) {
-			const r = clamp255(parseFloat(parts[0]));
-			const g = clamp255(parseFloat(parts[1]));
-			const b = clamp255(parseFloat(parts[2]));
+			const r = clamp255(_parseFloat(parts[0]));
+			const g = clamp255(_parseFloat(parts[1]));
+			const b = clamp255(_parseFloat(parts[2]));
 			let a = 1;
 			if (parts.size() >= 4) {
-					const pa = parseFloat(parts[3]);
-				a = Number.isNaN(pa) ? 1 : clamp01(pa);
+					const pa = _parseFloat(parts[3]);
+				a = _isNaN(pa) ? 1 : clamp01(pa);
 			}
 			return { r, g, b, a };
 		}
@@ -339,8 +380,59 @@ export function parseColor(value: string | undefined): ParsedColor | undefined {
 	return undefined;
 }
 
+/**
+ * Extract the first color token from a box-shadow value.
+ * A box-shadow is "offset-x offset-y blur-radius [spread] color". We scan
+ * for the first token that parseColor can resolve (a named color, #hex,
+ * rgb()/rgba()).
+ */
+export function firstColor(value: string): string {
+	// Tokenize on whitespace. rgb()/rgba() colors contain spaces, so rejoin
+	// tokens that form an rgb(...)/rgba(...) expression before testing.
+	const parts = string.split(value, " ") as unknown as Array<string>;
+	for (let i = 0; i < parts.size(); i++) {
+		let t = strTrim(parts[i]);
+		if (t.size() === 0) continue;
+		// If this token starts an rgb()/rgba() expression, gather until ')'.
+		const isRgbStart = startsWith(t, "rgba(") || startsWith(t, "rgb(");
+		const hasCloseParen = strFind(t, ")", 1, true) !== undefined;
+		if (isRgbStart && !hasCloseParen) {
+			let j = i + 1;
+			while (j < parts.size()) {
+				t = t + " " + strTrim(parts[j]);
+				if (strFind(t, ")", 1, true) !== undefined) break;
+				j++;
+			}
+			i = j;
+		}
+		if (parseColor(t) !== undefined) {
+			return t;
+		}
+	}
+	return "";
+}
+
+/**
+ * Extract the first length token (the blur radius) from a box-shadow value.
+ * We scan for the first token that parseLength can resolve to a positive
+ * pixel offset, skipping the offset-x/offset-y/position tokens (which are
+ * also lengths, but the blur is the 3rd length in the standard order).
+ */
+export function firstLength(value: string): string {
+	const tokens = (string.split(value, " ") as unknown) as Array<string>;
+	for (let i = 0; i < tokens.size(); i++) {
+		const t = strTrim(tokens[i]);
+		if (t.size() === 0) continue;
+		const l = parseLength(t);
+		if (l !== undefined && l.offset > 0 && !l.auto) {
+			return t;
+		}
+	}
+	return "";
+}
+
 function clamp255(n: number): number {
-	if (Number.isNaN(n)) {
+	if (_isNaN(n)) {
 		return 0;
 	}
 	if (n < 0) {
@@ -375,11 +467,11 @@ function parseOffset(v: string | undefined): ParsedOffset {
 	}
 	const s = strTrim(v);
 	if (s.size() >= 1 && slice(s, s.size()) === "%") {
-		const n = parseFloat(slice(s, 1, s.size() - 1));
-		return { scale: Number.isNaN(n) ? 0 : n / 100, offset: 0 };
+		const n = _parseFloat(slice(s, 1, s.size() - 1));
+		return { scale: _isNaN(n) ? 0 : n / 100, offset: 0 };
 	}
-	const n = parseFloat(s);
-	return { scale: 0, offset: Number.isNaN(n) ? 0 : n };
+	const n = _parseFloat(s);
+	return { scale: 0, offset: _isNaN(n) ? 0 : n };
 }
 
 /**
@@ -515,7 +607,7 @@ export function applyStyle(node: HostNode, style: Record<string, string>, env: H
 	const borderW = parseLength(style["border-width"]);
 	const borderColor = parseColor(style["border-color"]);
 	if (borderW !== undefined && borderW.offset > 0) {
-		(inst as Record<string, unknown>)["BorderSizePixel"] = Math.round(borderW.offset);
+		(inst as Record<string, unknown>)["BorderSizePixel"] = _round(borderW.offset);
 		if (borderColor !== undefined) {
 			(inst as Record<string, unknown>)["BorderColor3"] = env.newColor3(
 				borderColor.r,
@@ -604,7 +696,7 @@ export function applyStyle(node: HostNode, style: Record<string, string>, env: H
 	// --- Font size ---
 	const fontSize = parseLength(style["font-size"]);
 	if (fontSize !== undefined && fontSize.offset > 0) {
-		(inst as Record<string, unknown>)["TextSize"] = Math.round(fontSize.offset);
+		(inst as Record<string, unknown>)["TextSize"] = _round(fontSize.offset);
 	}
 
 	// --- Font family (map to Enum.Font) ---
@@ -618,7 +710,7 @@ export function applyStyle(node: HostNode, style: Record<string, string>, env: H
 
 	// --- Font weight ---
 	const fontWeight = style["font-weight"] ?? "";
-	if (fontWeight === "bold" || (fontWeight.size() >= 2 && parseInt(fontWeight) >= 600)) {
+	if (fontWeight === "bold" || (fontWeight.size() >= 2 && _parseInt(fontWeight) >= 600)) {
 		(inst as Record<string, unknown>)["Font"] = env.enumValue("Font.GothamBold");
 	}
 
@@ -639,8 +731,8 @@ export function applyStyle(node: HostNode, style: Record<string, string>, env: H
 	}
 
 	// --- Opacity ---
-	const opacity = parseFloat(style["opacity"] ?? "1");
-	if (!isNaN(opacity) && opacity < 1) {
+	const opacity = _parseFloat(style["opacity"] ?? "1");
+	if (!_isNaN(opacity) && opacity < 1) {
 		const trans = 1 - opacity;
 		(inst as Record<string, unknown>)["BackgroundTransparency"] = trans;
 		(inst as Record<string, unknown>)["TextTransparency"] = trans;
@@ -664,8 +756,8 @@ export function applyStyle(node: HostNode, style: Record<string, string>, env: H
 	// --- Z-index ---
 	const zIndexStr = style["z-index"] ?? "";
 	if (zIndexStr.size() > 0) {
-		const z = parseInt(zIndexStr);
-		if (!isNaN(z)) {
+		const z = _parseInt(zIndexStr);
+		if (!_isNaN(z)) {
 			(inst as Record<string, unknown>)["ZIndex"] = z;
 		}
 	}
@@ -674,6 +766,85 @@ export function applyStyle(node: HostNode, style: Record<string, string>, env: H
 	const rotation = parseRotation(style);
 	if (rotation !== undefined) {
 		(inst as Record<string, unknown>)["Rotation"] = rotation;
+	}
+
+	// --- Box shadow (approximated via UIStroke child) ---
+	const boxShadow = style["box-shadow"] ?? "";
+	if (boxShadow.size() > 0 && boxShadow !== "none") {
+		ensureHelperChild(node, "ToilShadow", "UIStroke", env);
+		const shadow = findHelper(node, "ToilShadow");
+		if (shadow !== undefined) {
+			const s: Record<string, unknown> = shadow as Record<string, unknown>;
+			const shadowColor = parseColor(firstColor(boxShadow));
+			if (shadowColor !== undefined) {
+				s["Color"] = env.newColor3(shadowColor.r, shadowColor.g, shadowColor.b);
+				s["Transparency"] = 1 - shadowColor.a;
+			}
+			const blur = parseLength(firstLength(boxShadow));
+			if (blur !== undefined && blur.offset > 0) {
+				s["Thickness"] = _round(blur.offset);
+			}
+			s["ApplyStrokeMode"] = env.enumValue("StrokeMode.Inset");
+		}
+	}
+
+	// --- Gap (row-gap / column-gap) for UIListLayout ---
+	const display2 = style["display"] ?? "";
+	if (display2 === "flex" || display2 === "inline-flex") {
+		const layout = findHelper(node, "ToilLayout");
+		if (layout !== undefined) {
+			const l: Record<string, unknown> = layout as Record<string, unknown>;
+			const dir = style["flex-direction"] ?? "row";
+			const isColumn = dir === "column" || dir === "column-reverse";
+			const gap = parseLength(style["gap"]);
+			const rowGap = parseLength(style["row-gap"]);
+			const columnGap = parseLength(style["column-gap"]);
+			if (isColumn) {
+			const eff = rowGap ?? gap;
+			if (eff !== undefined && eff.offset > 0) {
+            l["Padding"] = env.newUDim(eff.scale, eff.offset);
+			}
+			} else {
+			const eff = columnGap ?? gap;
+			if (eff !== undefined && eff.offset > 0) {
+            l["Padding"] = env.newUDim(eff.scale, eff.offset);
+			}
+			}
+		}
+	}
+
+	// --- Align-items for UIListLayout ---
+	const alignItems = style["align-items"] ?? "";
+	if (alignItems.size() > 0) {
+		const layout = findHelper(node, "ToilLayout");
+		if (layout !== undefined) {
+			const l: Record<string, unknown> = layout as Record<string, unknown>;
+			const dir = style["flex-direction"] ?? "row";
+			const isColumn = dir === "column" || dir === "column-reverse";
+			if (isColumn) {
+			if (alignItems === "center") {
+            l["HorizontalAlignment"] = env.enumValue("HorizontalAlignment.Center");
+			} else if (alignItems === "flex-end" || alignItems === "end") {
+            l["HorizontalAlignment"] = env.enumValue("HorizontalAlignment.Right");
+			} else if (alignItems === "flex-start" || alignItems === "start" || alignItems === "stretch") {
+            l["HorizontalAlignment"] = env.enumValue("HorizontalAlignment.Left");
+			}
+			} else {
+			if (alignItems === "center") {
+            l["VerticalAlignment"] = env.enumValue("VerticalAlignment.Center");
+			} else if (alignItems === "flex-end" || alignItems === "end") {
+            l["VerticalAlignment"] = env.enumValue("VerticalAlignment.Bottom");
+			} else if (alignItems === "flex-start" || alignItems === "start" || alignItems === "stretch") {
+            l["VerticalAlignment"] = env.enumValue("VerticalAlignment.Top");
+			}
+			}
+		}
+	}
+
+	// --- Letter-spacing (approximated, stored as a custom attribute) ---
+	const letterSpacing = style["letter-spacing"] ?? "";
+	if (letterSpacing.size() > 0) {
+		(inst as Record<string, unknown>)["LetterSpacing"] = letterSpacing;
 	}
 }
 
@@ -703,14 +874,14 @@ function parseRotation(style: Record<string, string>): number | undefined {
 	if (transform.size() > 0) {
 		const m = (string.match(transform, "rotate%((%-(%d+%.*)deg)%)") as unknown) as string | undefined;
 		if (m !== undefined) {
-			return parseFloat(m);
+			return _parseFloat(m);
 		}
 	}
 	// Direct rotation property
 	const rot = style["rotation"] ?? "";
 	if (rot.size() > 0) {
-		const n = parseFloat(rot);
-		if (!isNaN(n)) return n;
+		const n = _parseFloat(rot);
+		if (!_isNaN(n)) return n;
 	}
 	return undefined;
 }

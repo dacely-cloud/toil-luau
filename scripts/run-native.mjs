@@ -14,13 +14,67 @@
  *   "@lest"    -> resolved via .luaurc alias (specs/.lest -> ../.lest symlink)
  */
 
-import { existsSync, readFileSync, writeFileSync, rmSync, symlinkSync, readdirSync, mkdirSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync, rmSync, symlinkSync, readdirSync, mkdirSync, cpSync } from "node:fs";
 import { dirname, resolve, join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const LUAAU = process.env.LUAU_BIN ?? "/tmp/luau-bin/luau";
+const IS_WIN = process.platform === "win32";
+
+/**
+ * Resolve the Luau native binary. Order:
+ *   1. LUAU_BIN env var (explicit, always wins)
+ *   2. `luau` on PATH
+ *   3. platform-specific well-known locations
+ * The original hard-coded /tmp/luau-bin/luau (a Linux CI path); on Windows the
+ * binary is luau.exe and lives elsewhere, so fall through the candidates.
+ */
+function resolveLuauBin() {
+	if (process.env.LUAU_BIN) return process.env.LUAU_BIN;
+	// `luau` / `luau.exe` on PATH.
+	const exe = IS_WIN ? "luau.exe" : "luau";
+	const which = IS_WIN ? "where" : "command";
+	const probe = spawnSync(IS_WIN ? "where" : "sh", IS_WIN ? ["luau.exe"] : ["-c", "command -v luau"], {
+		encoding: "utf8",
+	});
+	const onPath = (probe.stdout ?? "").trim().split(/[\r\n]/).filter(Boolean)[0];
+	if (onPath && existsSync(onPath)) return onPath;
+	const candidates = IS_WIN
+		? [
+			"C:/Program Files/luau/luau.exe",
+			"C:/ProgramData/luau/luau.exe",
+			process.env.LOCALAPPDATA ? join(process.env.LOCALAPPDATA, "luau", "luau.exe") : null,
+		]
+		: ["/tmp/luau-bin/luau", "/usr/local/bin/luau", "/usr/bin/luau", "/opt/luau/luau"];
+	for (const c of candidates) {
+		if (c && existsSync(c)) return c;
+	}
+	// No binary found; return the primary default so the error message names a
+	// concrete path the user can act on.
+	return IS_WIN ? "luau.exe" : "/tmp/luau-bin/luau";
+}
+const LUAAU = resolveLuauBin();
+
+/**
+ * Create a directory symlink `target -> linkPath`, falling back to a recursive
+ * copy when the platform cannot make symlinks (Windows without Developer
+ * Mode / admin). These links only need to exist for the luau runner to resolve
+ * @spike/out and @lest; a real copy is functionally identical.
+ */
+function dirLink(target, linkPath) {
+	if (existsSync(linkPath)) return;
+	mkdirSync(dirname(linkPath), { recursive: true });
+	try {
+		symlinkSync(target, linkPath, IS_WIN ? "junction" : "dir");
+	} catch {
+		try {
+			cpSync(target, linkPath, { recursive: true });
+		} catch {
+			// already exists or permission error
+		}
+	}
+}
 
 const SUITES = {
 	spike: { env: "specs/_spike_env", specs: ["specs/spike.spec.luau", "specs/globals.spec.luau"] },
@@ -2095,13 +2149,7 @@ writeFileSync(luauPath, fixed);
 	const runner = join(ROOT, "tmp-native-runner-" + name + ".luau");
 	writeFileSync(runner, code);
 	const specsLest = join(ROOT, "specs", ".lest");
-	if (!existsSync(specsLest)) {
-		try {
-			symlinkSync("../.lest", specsLest, "dir");
-		} catch {
-			// already exists or permission error
-		}
-	}
+	dirLink("../.lest", specsLest);
 	// Ensure out/.spike exists (symlink to ../out) so @spike/out/... resolves
 	// from spec files in specs/ (which do require("@spike/out/...")).
 	// The .luaurc alias "spike" -> "." resolves relative to the .luaurc file
@@ -2129,13 +2177,7 @@ writeFileSync(luauPath, fixed);
 	// The fix: create a symlink specs/out -> ../out
 	const specsOut = join(ROOT, "specs", "out");
 	const outDir = join(ROOT, "out");
-	if (!existsSync(specsOut)) {
-		try {
-			symlinkSync("../out", specsOut, "dir");
-		} catch {
-			// already exists or permission error
-		}
-	}
+	dirLink("../out", specsOut);
 	if (process.env.DEBUG_RUNNER) {
 		console.error("DEBUG: runner written to " + runner);
 		return 0;

@@ -14,3 +14,5 @@ example/out/
 # local env / credentials
 .env
 *.local
+specs/.spike
+specs/out

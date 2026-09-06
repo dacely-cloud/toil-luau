@@ -12,7 +12,7 @@
     "scripts": {
         "build": "roblox-ts -p .",
         "watch": "roblox-ts -p . -w",
-        "prebuild": "bash scripts/prepare.sh"
+        "prebuild": "node scripts/prepare.mjs"
     },
     "version": "0.1.0"
 }

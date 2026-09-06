@@ -48,8 +48,8 @@ npm install && npm run build
 ## Setup
 
 ```bash
-git clone git@github.com:dacely-cloud/toilluau.git
-cd toilluau
+git clone git@github.com:dacely-cloud/toil-luau.git
+cd toil-luau
 npm install          # installs roblox-ts, @rbxts/*, and the react 19 packages
 npm run build        # full pipeline -> out/ (compiled Luau)
 npm test             # run the native Lest suites (spike + host)
@@ -124,6 +124,33 @@ PASS: roblox host mounts a React tree with CSS styling onto a ScreenGui
 PASS: roblox host exposes the public API
 == run_end: 2 passed, 0 failed, 0 skipped ==
 ```
+
+## Windows
+
+The build pipeline is **Node-only** (no `bash`, no `sed`/`ln`), so it runs on
+Windows with just Node.js and the Git-for-Windows/`luau` toolchain. All three
+platform paths work:
+
+- **Native Windows** (PowerShell or cmd): `npm install` then `npm run build`.
+  `npm run restore` and `example`'s `prebuild` call `node` directly, no shell
+  required.
+- **Git-Bash**: also works, and the committed `*.sh` wrappers still run
+  (`bash scripts/build.sh`) by delegating to the same Node scripts.
+- **WSL / a Linux container**: works exactly as on Linux.
+
+Notes for Windows:
+
+- **Line endings** are forced to LF by `.gitattributes`, so the build's literal
+  string rewrites do not break when your editor or `core.autocrlf` would inject
+  CRLF. If you edit on Windows, `git config core.autocrlf input` (or the
+  `.gitattributes` as-is) keeps the tree LF.
+- **Native test runner** (`npm test`): needs a Luau binary. Set `LUAU_BIN` to
+  your `luau.exe` (or put it on `PATH`). The runner resolves `LUAU_BIN`, then
+  `luau.exe` on `PATH`, then common install locations. Symlinks are created with
+  a **copy fallback**, so the runner works even without Windows Developer Mode
+  or admin rights.
+- **roblox-ts** is invoked as `npx roblox-ts --type game`; npm handles the
+  `.cmd` shim on Windows, so no path adjustment is needed.
 
 ## The example
 

@@ -1,0 +1,24 @@
+# The build pipeline does literal string matching (sed-style replacements in
+# the .mjs scripts and the restore rewrite) that assumes Unix line endings.
+# Force LF on checkout so a Windows editor / core.autocrlf=true round-trip does
+# not inject CRLF and break those patches.
+* text=auto eol=lf
+*.sh text eol=lf
+*.mjs text eol=lf
+*.js text eol=lf
+*.ts text eol=lf
+*.tsx text eol=lf
+*.luau text eol=lf
+*.lua text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+*.toml text eol=lf
+
+# Binaries that must not be text-normalized.
+*.png binary
+*.gif binary
+*.jpg binary
+*.jpeg binary
+*.ico binary
+*.luau-obj binary
+*.luac binary

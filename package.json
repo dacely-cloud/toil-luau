@@ -50,8 +50,8 @@
         ".luaurc"
     ],
     "scripts": {
-        "restore": "bash restore-vendor.sh",
-        "build": "bash scripts/build.sh",
+        "restore": "node restore-vendor.mjs",
+        "build": "node scripts/build.mjs",
         "test": "node scripts/run-native.mjs",
         "test:spike": "node scripts/run-native.mjs spike",
         "test:host": "node scripts/run-native.mjs host",
@@ -78,6 +78,6 @@
     },
     "repository": {
         "type": "git",
-        "url": "git+https://github.com/dacely-cloud/toilluau.git"
+        "url": "git+https://github.com/dacely-cloud/toil-luau.git"
     }
 }

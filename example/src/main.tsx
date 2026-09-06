@@ -1,8 +1,8 @@
 /**
- * toilluau example: a small React app mounted onto a Roblox ScreenGui.
+ * toil-luau example: a small React app mounted onto a Roblox ScreenGui.
  *
- * A roblox-ts project. It uses toilluau's React 19 runtime (the vendored
- * `@toil/react`, single-copy graph) for React + JSX, and toilluau's Roblox UI
+ * A roblox-ts project. It uses toil-luau's React 19 runtime (the vendored
+ * `@toil/react`, single-copy graph) for React + JSX, and toil-luau's Roblox UI
  * host (`mountReactRoot`) to render a styled panel with a clickable counter
  * through the real React 19 reconciler.
  *
@@ -16,8 +16,8 @@
  */
 
 import * as React from "@toil/react";
-import { mountReactRoot } from "@toilluau/core";
-import type { StyleRule } from "@toilluau/core";
+import { mountReactRoot } from "@toil-luau/core";
+import type { StyleRule } from "@toil-luau/core";
 
 // CSS rules fed to the engine. `declarations` are plain CSS property -> value.
 const cssRules: Array<StyleRule> = [
@@ -59,7 +59,7 @@ function App(): React.JSX.Element {
 	const [count, setCount] = React.useState<number>(0);
 	return (
 		<section>
-			<h1>toilluau</h1>
+			<h1>toil-luau</h1>
 			<span>{"React 19 on Roblox Luau. Clicks: " + count}</span>
 			<button onClick={() => setCount(count + 1)}>Click me</button>
 		</section>

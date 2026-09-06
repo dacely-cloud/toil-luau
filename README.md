@@ -1,6 +1,6 @@
 <div align="center">
 
-# toilluau
+# toil-luau
 
 **React 19 for Roblox.**
 
@@ -84,35 +84,35 @@ npm install && npm run build
 React 19 (real reconciler)
         |
         v
- toilluau host config  ->  Roblox Instance tree (Frame / TextLabel / TextButton / ...)
+ toil-luau host config  ->  Roblox Instance tree (Frame / TextLabel / TextButton / ...)
         |
         + CSS engine (selectors, cascade, computed style)
         + animation/transition driver (driven off RunService.Heartbeat)
 ```
 
-The reconciler is the unmodified React 19 runtime (vendored as a single-copy `@toil/*` graph). toilluau supplies the **host config**: each React element tag is mapped to a Roblox GUI class (see [JSX to Roblox map](#-jsx-to-roblox-map)). Styling is resolved by a CSS engine (selectors, cascade, computed style) and applied per node; animations and transitions run off a clock driven by `RunService.Heartbeat`.
+The reconciler is the unmodified React 19 runtime (vendored as a single-copy `@toil/*` graph). toil-luau supplies the **host config**: each React element tag is mapped to a Roblox GUI class (see [JSX to Roblox map](#-jsx-to-roblox-map)). Styling is resolved by a CSS engine (selectors, cascade, computed style) and applied per node; animations and transitions run off a clock driven by `RunService.Heartbeat`.
 
 <br/>
 
 ## The example
 
-`example/` is a standalone roblox-ts project that uses toilluau and builds on its own. It renders a styled, clickable counter panel onto a `ScreenGui`.
+`example/` is a standalone roblox-ts project that uses toil-luau and builds on its own. It renders a styled, clickable counter panel onto a `ScreenGui`.
 
 ```bash
 cd example
 npm run build               # prebuild (prepare.mjs) links the toolchain and
-                            # builds the @toilluau/core shim, then
+                            # builds the @toil-luau/core shim, then
                             # roblox-ts -p . -> example/out/main.luau
 ```
 
-The example's `prebuild` step (run automatically before the build) links `roblox-ts` / `@rbxts` / the `@toil` vendor from the parent `node_modules`, and builds the `@toilluau/core` runtime shim from the package's compiled `out/`. Run `npm install` in the parent first (see [Quick start](#-quick-start)) so those exist.
+The example's `prebuild` step (run automatically before the build) links `roblox-ts` / `@rbxts` / the `@toil` vendor from the parent `node_modules`, and builds the `@toil-luau/core` runtime shim from the package's compiled `out/`. Run `npm install` in the parent first (see [Quick start](#-quick-start)) so those exist.
 
-It imports the vendored React for JSX and `@toilluau/core` for the host:
+It imports the vendored React for JSX and `@toil-luau/core` for the host:
 
 ```tsx
 import * as React from "@toil/react";
-import { mountReactRoot } from "@toilluau/core";
-import type { StyleRule } from "@toilluau/core";
+import { mountReactRoot } from "@toil-luau/core";
+import type { StyleRule } from "@toil-luau/core";
 
 // CSS rules fed to the engine. `declarations` are plain CSS property -> value.
 const cssRules: Array<StyleRule> = [
@@ -126,7 +126,7 @@ function App(): React.JSX.Element {
 	const [count, setCount] = React.useState<number>(0);
 	return (
 		<section>
-			<h1>toilluau</h1>
+			<h1>toil-luau</h1>
 			<span>{"React 19 on Roblox Luau. Clicks: " + count}</span>
 			<button onClick={() => setCount(count + 1)}>Click me</button>
 		</section>
@@ -145,11 +145,11 @@ const handle = mountReactRoot(
 In a real game you mount on the player's `PlayerGui` from a LocalScript:
 
 ```lua
-local toilluau = require(path.to.toilluau)
-local handle = toilluau.mountReactRoot(
+local toil-luau = require(path.to.toil-luau)
+local handle = toil-luau.mountReactRoot(
 	game.Players.LocalPlayer:WaitForChild("PlayerGui"),
 	cssRules,
-	toilluau.React.createElement(App),
+	toil-luau.React.createElement(App),
 	nil,   -- real CSS engine
 	nil    -- real Roblox engine env
 )
@@ -222,7 +222,7 @@ Notes for Windows:
 
 ## Public API
 
-The public entry is `@toilluau/core` (the compiled `src/host/index.ts`).
+The public entry is `@toil-luau/core` (the compiled `src/host/index.ts`).
 
 **Mounting**
 
@@ -273,7 +273,7 @@ Styling comes from the CSS rules you pass to `mountReactRoot` (selectors, cascad
 ## Project layout
 
 ```
-toilluau/
+toil-luau/
   src/
     host/            public host: mountReactRoot, host config, animations
     css/             CSS engine (selectors, cascade, keyframes)
@@ -296,7 +296,7 @@ toilluau/
 
 ## Why this package is scoped
 
-The package is published as **`@toilluau/core`** (scoped). roblox-ts only allows `@`-scoped modules under `node_modules`, so the scope is not a style choice: an unscoped name cannot be imported from a roblox-ts project.
+The package is published as **`@toil-luau/core`** (scoped). roblox-ts only allows `@`-scoped modules under `node_modules`, so the scope is not a style choice: an unscoped name cannot be imported from a roblox-ts project.
 
 <br/>
 

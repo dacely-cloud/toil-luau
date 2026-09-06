@@ -5,15 +5,15 @@
  * Cross-platform port of example/scripts/prepare.sh (which used ln, cp,
  * mv, cat). Runs on Node alone so it works on Windows.
  *
- * The example depends on the parent toilluau package. roblox-ts only allows
- * @scoped modules under node_modules, so @toilluau/core is exposed as a
+ * The example depends on the parent toil-luau package. roblox-ts only allows
+ * @scoped modules under node_modules, so @toil-luau/core is exposed as a
  * compiled-as-.js shim (roblox-ts passes .js under node_modules through
  * verbatim, the same way the @toil/react vendor works).
  *
  * This script:
  *   1. links roblox-ts / @rbxts / @types / the @toil vendor from the parent
  *      node_modules (assumes the parent ran `npm install`),
- *   2. builds the @toilluau/core shim from the parent's compiled out/ Luau.
+ *   2. builds the @toil-luau/core shim from the parent's compiled out/ Luau.
  *
  * Symlinks are created with a copy fallback: on Windows Node can fail to
  * create a symlink without Developer Mode / admin, and a real copy is
@@ -71,8 +71,8 @@ if (!existsSync(join(PARENT, "out", "host", "init.luau"))) {
 }
 
 mkdirSync(join(NM, "@toil"), { recursive: true });
-mkdirSync(join(NM, "@toilluau", "core", "host"), { recursive: true });
-mkdirSync(join(NM, "@toilluau", "core", "css"), { recursive: true });
+mkdirSync(join(NM, "@toil-luau", "core", "host"), { recursive: true });
+mkdirSync(join(NM, "@toil-luau", "core", "css"), { recursive: true });
 
 // --- link toolchain + vendor from the parent --------------------------------
 for (const name of ["roblox-ts", "@rbxts", "@types"]) {
@@ -82,9 +82,9 @@ for (const name of ["react", "react-reconciler", "scheduler"]) {
 	link(join(PARENT_NM, "@toil", name), join(NM, "@toil", name));
 }
 
-// --- build the @toilluau/core shim from the parent's compiled Luau ---------
-rmSync(join(NM, "@toilluau", "core"), { recursive: true, force: true });
-const coreDir = join(NM, "@toilluau", "core");
+// --- build the @toil-luau/core shim from the parent's compiled Luau ---------
+rmSync(join(NM, "@toil-luau", "core"), { recursive: true, force: true });
+const coreDir = join(NM, "@toil-luau", "core");
 mkdirSync(join(coreDir, "host"), { recursive: true });
 mkdirSync(join(coreDir, "css"), { recursive: true });
 
@@ -108,7 +108,7 @@ try {
 
 writeFileSync(
 	join(coreDir, "package.json"),
-	'{ "name": "@toilluau/core", "version": "0.1.0", "main": "host/index.js", "types": "index.d.ts" }\n',
+	'{ "name": "@toil-luau/core", "version": "0.1.0", "main": "host/index.js", "types": "index.d.ts" }\n',
 );
 
 writeFileSync(

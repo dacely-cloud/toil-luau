@@ -1,10 +1,10 @@
 /**
- * Public entry point for toilluau.
+ * Public entry point for toil-luau.
  *
- * toilluau runs the real React 19 reconciler (vendored as @toil/*) on Roblox
+ * toil-luau runs the real React 19 reconciler (vendored as @toil/*) on Roblox
  * Luau. This module re-exports the public surface so a consumer can do:
  *
- *   import { mountReactRoot, React } from "toilluau";
+ *   import { mountReactRoot, React } from "toil-luau";
  *   mountReactRoot(playerGui, cssRules, <MyApp />, undefined, envOverride?);
  *
  * - `mountReactRoot` and friends live in ./host (the Roblox UI host).

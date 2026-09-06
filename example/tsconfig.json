@@ -22,7 +22,7 @@
       "node_modules/@rbxts",
       "node_modules/@toil",
       "../type-shims",
-      "node_modules/@toilluau"
+      "node_modules/@toil-luau"
     ],
     "types": [
       "rbxts",

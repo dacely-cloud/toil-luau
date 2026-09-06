@@ -1,13 +1,13 @@
 {
     "dependencies": {
-        "@toilluau/core": "file:.."
+        "@toil-luau/core": "file:.."
     },
     "devDependencies": {
         "@rbxts/compiler-types": "3.0.0-types.0",
         "@rbxts/types": "1.0.946",
         "roblox-ts": "^3.0.0"
     },
-    "name": "toilluau-example",
+    "name": "toil-luau-example",
     "private": true,
     "scripts": {
         "build": "roblox-ts -p .",

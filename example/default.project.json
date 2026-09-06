@@ -1,5 +1,5 @@
 {
-  "name": "toilluau-example",
+  "name": "toil-luau-example",
   "globIgnorePaths": [
     "**/package.json",
     "**/tsconfig.json"

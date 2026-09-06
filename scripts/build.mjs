@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Full build pipeline for toilluau (React 19 for Roblox/Luau).
+ * Full build pipeline for toil-luau (React 19 for Roblox/Luau).
  *
  * Cross-platform port of scripts/build.sh. The shell script existed only to
  * sequence six steps; this runs them in order under Node so the whole

@@ -1,5 +1,5 @@
 {
-    "name": "@toilluau/core",
+    "name": "@toil-luau/core",
     "version": "0.1.0",
     "description": "React 19 for Roblox/Luau: the real React reconciler compiled to WebAssembly-ready Luau, with a Roblox UI host, a CSS engine, and animations. Build with roblox-ts, run on Roblox or a native Lest runtime.",
     "type": "module",
@@ -8,7 +8,7 @@
     "homepage": "https://toil.org",
     "keywords": [
         "toil",
-        "toilluau",
+        "toil-luau",
         "react",
         "react-19",
         "roblox",

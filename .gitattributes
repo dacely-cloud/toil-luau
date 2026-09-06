@@ -21,11 +21,4 @@
 *.jpeg binary
 *.ico binary
 *.luau-obj binary
-*.luac binar# Binaries that must not be text-normalized.
-*.png binary
-*.gif binary
-*.jpg binary
-*.jpeg binary
-*.ico binary
-*.luau-obj binary
 *.luac binary

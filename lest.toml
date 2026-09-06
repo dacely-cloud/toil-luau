@@ -1,0 +1,14 @@
+# Lest config for the React 19 spike.
+
+[suites.spike]
+include = ["specs/spike.spec.luau", "specs/globals.spec.luau"]
+
+[suites.host]
+include = ["specs/host.spec.luau"]
+
+[settings]
+backend = "native"
+timeout_ms = 2000
+
+[suites._probe_mount]
+include = ["specs/_probe_mount.spec.luau", "specs/_dump_tasklog.spec.luau"]

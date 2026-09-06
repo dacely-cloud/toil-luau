@@ -1,0 +1,35 @@
+{
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": false,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "forceConsistentCasingInFileNames": true,
+    "jsx": "react-jsx",
+    "jsxImportSource": "@toil/react",
+    "module": "commonjs",
+    "moduleDetection": "force",
+    "moduleResolution": "node",
+    "noLib": true,
+    "outDir": "out",
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "strictNullChecks": false,
+    "target": "es2020",
+    "typeRoots": [
+      "node_modules/@rbxts",
+      "node_modules/@toil",
+      "type-shims"
+    ],
+    "types": [
+      "rbxts",
+      "toil-shims",
+      "js-globals"
+    ],
+    "rootDir": "src"
+  },
+  "include": [
+    "src"
+  ]
+}

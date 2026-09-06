@@ -1,0 +1,21 @@
+{
+  "name": "spike",
+  "globIgnorePaths": [
+    "**/package.json",
+    "**/tsconfig.json"
+  ],
+  "tree": {
+    "$className": "DataModel",
+    "ReplicatedStorage": {
+      "rbxts_include": {
+        "$path": "include"
+      },
+      "node_modules": {
+        "$path": "node_modules"
+      },
+      "TS": {
+        "$path": "out"
+      }
+    }
+  }
+}

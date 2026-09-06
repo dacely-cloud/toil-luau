@@ -1,0 +1,16 @@
+node_modules/
+out/
+out-probe/
+.lust/
+*.luau~
+*.swp
+.DS_Store
+# build / test scratch
+_probe*
+tmp/
+specs/out/
+example/node_modules/
+example/out/
+# local env / credentials
+.env
+*.local

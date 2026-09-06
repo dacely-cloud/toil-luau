@@ -1,0 +1,330 @@
+/**
+ * Public entry point for the Roblox UI host.
+ *
+ * `mountReactRoot` creates a ScreenGui, builds the hostConfig, and mounts a
+ * React 19 element tree onto it. Returns a handle with `unmount()`,
+ * `tick(now)`, and the root `gui` instance.
+ */
+
+import * as React from "@toil/react";
+import ReactReconciler from "@toil/react-reconciler";
+import { drainTasks } from "../polyfills";import {
+	type HostEnv,
+	type HostNode,
+	type RobloxInstance,
+	type RobloxClassName,
+	TAG_TO_CLASS,
+	tagNameToInstanceName,
+	applyStyle,
+	buildHostConfig,
+	identityFromProps,
+} from "./roblox-host";
+import {
+	type Clock,
+	type AnimationDriver,
+	makeRealClock,
+	createDriver,
+	tick,
+	startAnimation,
+	startTransition,
+} from "./animations";
+import { createEngine as createRealEngine } from "../css/engine";
+import type {
+	StyleRule,
+	Engine,
+	ElementIdentity,
+	AnimationSpec,
+	KeyframeSet,
+	TransitionSpec,
+} from "./engine-types";
+
+// ------------------------------------------------------------------ Engine env
+
+/**
+ * Build the default HostEnv that reads the real Roblox engine globals.
+ * In tests, a fake env is injected instead.
+ */
+export function makeEngineEnv(): HostEnv {
+	function newInstance(className: RobloxClassName): RobloxInstance {
+		const inst = (Instance as unknown as { new: (c: string) => Instance }).new(className);
+		(inst as unknown as Record<string, unknown>)["Parent"] = undefined;
+		return inst as unknown as RobloxInstance;
+	}
+
+	function newUDim2(xScale: number, xOffset: number, yScale: number, yOffset: number): unknown {
+		return (UDim2 as unknown as { new: (a: number, b: number, c: number, d: number) => UDim2 }).new(xScale, xOffset, yScale, yOffset);
+	}
+
+	function newUDim(scale: number, offset: number): unknown {
+		return (UDim as unknown as { new: (a: number, b: number) => UDim }).new(scale, offset);
+	}
+
+	function newVector2(x: number, y: number): unknown {
+		return (Vector2 as unknown as { new: (a: number, b: number) => Vector2 }).new(x, y);
+	}
+
+	function newColor3(r: number, g: number, b: number): unknown {
+		return (Color3 as unknown as { new: (r: number, g: number, b: number) => Color3 }).new(r, g, b);
+	}
+
+	function enumValue(name: string): unknown {
+		// name is "EnumType.Member" e.g. "Font.GothamBold"
+		const parts = name.split(".");
+		if (parts.size() !== 2) return undefined;
+		const enumTable = (Enum as unknown as Record<string, Record<string, unknown>>)[parts[0]];
+		if (enumTable === undefined) return undefined;
+		return enumTable[parts[1]];
+	}
+
+	function destroy(inst: RobloxInstance): void {
+		(inst as unknown as Instance).Destroy();
+	}
+
+	return {
+		newInstance,
+		newUDim2,
+		newUDim,
+		newVector2,
+		newColor3,
+		enumValue,
+		destroy,
+	};
+}
+
+/**
+ * Default engine: the real CSS engine built from `rules`.
+ * While src/css/engine.ts is being brought up to the Engine contract,
+ * mountReactRoot accepts an explicit engine to override this.
+ */
+export function makeDefaultEngine(rules: Array<StyleRule>): Engine {
+	return createRealEngine(rules) as unknown as Engine;
+}
+
+// ------------------------------------------------------------------ Mount handle
+
+/**
+ * The handle returned by mountReactRoot.
+ */
+export interface MountHandle {
+	/** The ScreenGui instance that hosts the rendered tree. */
+	gui: RobloxInstance;
+	/** Unmount the React tree and destroy the GUI. */
+	unmount: () => void;
+	/** Advance all animations/transitions to the given clock time (seconds). */
+	tick: (now: number) => void;
+}
+
+// ------------------------------------------------------------------ mountReactRoot
+
+/**
+ * Mount a React element tree onto a Roblox ScreenGui.
+ *
+ * @param container - An existing instance to parent the ScreenGui to (e.g. PlayerGui).
+ *                    If undefined, the ScreenGui is not parented (caller must do so).
+ * @param rules - The CSS rules to build the engine from.
+ * @param element - The React element to render.
+ * @param engine - The CSS engine (built from `rules`).
+ * @param env - The Roblox API adapter. Defaults to the real engine globals.
+ * @param clock - The clock for animation timing. Defaults to a real clock.
+ * @returns A MountHandle with gui, unmount(), and tick(now).
+ */
+export function mountReactRoot(
+	container: RobloxInstance | undefined,
+	rules: Array<StyleRule>,
+	element: unknown,
+	engine: Engine | undefined,
+	envOverride?: HostEnv
+): MountHandle {
+	const e = envOverride ?? makeEngineEnv();
+	const c = makeRealClock();
+	const eng = engine ?? makeDefaultEngine(rules);
+
+	// Create the ScreenGui
+	const gui = e.newInstance("ScreenGui");
+	(gui as Record<string, unknown>)["Name"] = "ToilRoot";
+	(gui as Record<string, unknown>)["ResetOnSpawn"] = false;
+	(gui as Record<string, unknown>)["ZIndexBehavior"] = e.enumValue("ZIndexBehavior.Sibling");
+	if (container !== undefined) {
+		(gui as Record<string, unknown>)["Parent"] = container;
+	}
+
+	// Build the HostNode wrapper for the ScreenGui
+	const guiNode: HostNode = {
+		kind: "host",
+		nodeType: "gui",
+		inst: gui,
+		text: "",
+		computed: {},
+		classId: "",
+		classes: "",
+		pendingProps: {},
+		parent: undefined,
+		children: [],
+		layoutOrder: 0,
+		styleState: {},
+		identity: {
+			tagName: "gui",
+			classList: [],
+			attributes: {},
+			states: [],
+		},
+	};
+
+	// Build the style resolver
+	const resolver = {
+		resolve(node: HostNode): Record<string, string> {
+			// Keep the identity fresh from the node's last props, so selectors
+			// re-match even when commitUpdate does not fire.
+			node.identity = identityFromProps(node, node.pendingProps);
+			// Build the ancestor chain from the node's parent chain
+			let ancestors: Array<ElementIdentity> = [];
+			let parent = node.parent;
+			while (parent !== undefined) {
+				ancestors.push(parent.identity);
+				parent = parent.parent;
+			}
+			// Reverse so outermost is first
+			// reverse in place
+			const rev: Array<ElementIdentity> = [];
+			for (let ri = ancestors.size() - 1; ri >= 0; ri--) { rev.push(ancestors[ri]); }
+			ancestors = rev;
+			// Compute sibling index
+			let siblingIndex = 0;
+			let siblingCount = 0;
+			if (node.parent !== undefined) {
+				siblingCount = node.parent.children.size();
+				for (let i = 0; i < siblingCount; i++) {
+					if (node.parent.children[i] === node) {
+						siblingIndex = i;
+						break;
+					}
+				}
+			}
+			return eng.computedStyle(
+				node.identity,
+				ancestors,
+				siblingIndex,
+				siblingCount,
+				node.pendingProps["style"] as Record<string, string> | undefined
+			);
+		},
+		engine,
+	};
+
+	// Build the host config
+	const hostConfig = buildHostConfig(e, resolver);
+
+	// Create the reconciler
+	const reconciler = ReactReconciler(hostConfig);
+
+	// Create the container (10 args, matching src/main.tsx)
+	const root = reconciler.createContainer(
+		guiNode,
+		0, // tag: HostRoot
+		undefined, // hydrationCallbacks
+		false, // isStrictMode
+		undefined, // concurrentUpdatesByDefaultOverride
+		"", // identifierPrefix
+		(errorValue: unknown, _info: unknown): void => {
+			// console.error("uncaught:", errorValue);
+		},
+		(errorValue: unknown, _info: unknown): void => {
+			// console.error("caught:", errorValue);
+		},
+		(errorValue: unknown, _info: unknown): void => {
+			// console.error("recoverable:", errorValue);
+		},
+		(): void => {
+			// console.log("default-indicator");
+		}
+	);
+
+	// Render the element
+	reconciler.updateContainer(element as unknown as React.ReactNode, root, undefined, undefined);
+	drainTasks();
+
+	// Create the animation driver
+	const driver = createDriver(c, eng, e);
+
+	// Start animations found in the initial computed styles
+	// (This would be done in commitUpdate/finalizeInitialChildren in a full
+	// implementation; for the spike we scan the tree once after mount.)
+	scanAndStartAnimations(guiNode, eng, driver);
+
+	// In real Roblox, connect RunService.Heartbeat to drive tick().
+	// Guard: only if game is present (the Lest native backend has a fake game).
+	let heartbeatConnection: { Disconnect: () => void } | undefined;
+	const gameService = (game as unknown as Record<string, unknown>)["GetService"];
+	if (typeOfJS(gameService) === "function") {
+		const runService = (gameService as (name: string) => Record<string, unknown>)("RunService");
+		const heartbeat = (runService as Record<string, unknown>)["Heartbeat"];
+		if (heartbeat !== undefined && typeOfJS((heartbeat as Record<string, unknown>)["Connect"]) === "function") {
+			const hbTable = heartbeat as unknown as Record<string, unknown>;
+			const connectFn = hbTable["Connect"] as (fn: (dt: number) => void) => { Disconnect: () => void };
+			heartbeatConnection = connectFn((_dt: number): void => {
+				tick(driver);
+			});
+		}
+	}
+
+	// Build the handle
+	function doUnmount(): void {
+		if (heartbeatConnection !== undefined) {
+			heartbeatConnection.Disconnect();
+		}
+		// Clear the container
+		for (let i = guiNode.children.size() - 1; i >= 0; i--) {
+			const child = guiNode.children[i];
+			if (child.inst !== undefined) {
+				e.destroy(child.inst);
+			}
+		}
+		e.destroy(gui);
+	}
+
+	function doTick(now: number): void {
+		// Advance the fake clock if needed
+		tick(driver);
+	}
+
+	return {
+		gui,
+		unmount: doUnmount,
+		tick: doTick,
+	};
+}
+
+/**
+ * Scan a mounted tree and start any animations found in computed styles.
+ */
+function scanAndStartAnimations(
+	node: HostNode,
+	engine: Engine,
+	driver: AnimationDriver
+): void {
+	if (node.inst === undefined) return;
+	const computed = node.computed;
+	const animValue = computed["animation"] ?? "";
+	if (animValue.size() > 0) {
+		const specs = engine.parseAnimation(animValue);
+		for (let i = 0; i < specs.size(); i++) {
+			const spec = specs[i];
+			const kf = engine.keyframes(spec.name);
+			if (kf !== undefined) {
+				startAnimation(driver, node, spec, kf);
+			}
+		}
+	}
+	// Recurse into children
+	for (let i = 0; i < node.children.size(); i++) {
+		scanAndStartAnimations(node.children[i], engine, driver);
+	}
+}
+
+// Re-export for consumers
+export { applyStyle, buildHostConfig } from "./roblox-host";
+export { tick, createDriver, startAnimation, startTransition, makeRealClock } from "./animations";
+export { makeFakeClock } from "./animations";
+export type { HostEnv, HostNode, RobloxInstance } from "./roblox-host";
+export type { Clock, AnimationDriver } from "./animations";
+export type { StyleRule, Engine, ElementIdentity, AnimationSpec, KeyframeSet, TransitionSpec } from "./engine-types";

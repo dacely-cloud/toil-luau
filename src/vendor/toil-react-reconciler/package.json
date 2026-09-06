@@ -1,0 +1,7 @@
+{
+  "name": "@toil/react-reconciler",
+  "version": "0.33.0",
+  "description": "Vendored React 19 for the toil-roblox spike (single-copy @toil graph)",
+  "main": "index.js",
+  "types": "index.d.ts"
+}

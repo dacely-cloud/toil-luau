@@ -44,6 +44,7 @@
         ".lest",
         "scripts",
         "restore-vendor.sh",
+        "restore-vendor.mjs",
         "tsconfig.json",
         "default.project.json",
         "lest.toml",

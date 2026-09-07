@@ -1,0 +1,138 @@
+{
+  "name": "Game",
+  "className": "DataModel",
+  "children": [
+    {
+      "name": "Lighting",
+      "className": "Lighting",
+      "guid": "164260",
+      "children": [
+        {
+          "name": "Atmosphere",
+          "className": "Atmosphere",
+          "guid": "164250"
+        },
+        {
+          "name": "Bloom",
+          "className": "BloomEffect",
+          "guid": "164251"
+        },
+        {
+          "name": "DepthOfField",
+          "className": "DepthOfFieldEffect",
+          "guid": "164258"
+        },
+        {
+          "name": "Sky",
+          "className": "Sky",
+          "guid": "164264"
+        },
+        {
+          "name": "SunRays",
+          "className": "SunRaysEffect",
+          "guid": "164269"
+        }
+      ]
+    },
+    {
+      "name": "ReplicatedFirst",
+      "className": "ReplicatedFirst",
+      "guid": "163934"
+    },
+    {
+      "name": "ReplicatedStorage",
+      "className": "ReplicatedStorage",
+      "guid": "164000"
+    },
+    {
+      "name": "ServerScriptService",
+      "className": "ServerScriptService",
+      "guid": "164001"
+    },
+    {
+      "name": "ServerStorage",
+      "className": "ServerStorage",
+      "guid": "164002"
+    },
+    {
+      "name": "SoundService",
+      "className": "SoundService",
+      "guid": "163909"
+    },
+    {
+      "name": "StarterGui",
+      "className": "StarterGui",
+      "guid": "163948"
+    },
+    {
+      "name": "StarterPack",
+      "className": "StarterPack",
+      "guid": "163947"
+    },
+    {
+      "name": "StarterPlayer",
+      "className": "StarterPlayer",
+      "guid": "163946",
+      "children": [
+        {
+          "name": "StarterCharacterScripts",
+          "className": "StarterCharacterScripts",
+          "guid": "164266"
+        },
+        {
+          "name": "StarterPlayerScripts",
+          "className": "StarterPlayerScripts",
+          "guid": "164267"
+        }
+      ]
+    },
+    {
+      "name": "Workspace",
+      "className": "Workspace",
+      "guid": "163055",
+      "children": [
+        {
+          "name": "Baseplate",
+          "className": "Part",
+          "guid": "164262",
+          "children": [
+            {
+              "name": "Texture",
+              "className": "Texture",
+              "guid": "164273"
+            }
+          ]
+        },
+        {
+          "name": "Camera",
+          "className": "Camera",
+          "guid": "164253"
+        },
+        {
+          "name": "SpawnLocation",
+          "className": "SpawnLocation",
+          "guid": "164265",
+          "children": [
+            {
+              "name": "Decal",
+              "className": "Decal",
+              "guid": "164257"
+            }
+          ]
+        },
+        {
+          "name": "Terrain",
+          "className": "Terrain",
+          "guid": "164271",
+          "children": [
+            {
+              "name": "PreloadedTextures",
+              "className": "Folder",
+              "guid": "500247"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

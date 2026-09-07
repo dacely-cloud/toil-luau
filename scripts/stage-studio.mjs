@@ -51,48 +51,101 @@ fs.rmSync(STAGE, { recursive: true, force: true });
 let rewritten = 0;
 let copied = 0;
 
-// JS globals the vendored React graph reads as bare identifiers. Roblox scopes
-// globals per script, so _G is not enough -- each module that uses one has to
-// bind it as a local. See scripts/studio-shim.luau.
-const JS_GLOBALS = [
-	"process",
-	"performance",
-	"queueMicrotask",
-	"setTimeout",
-	"clearTimeout",
-	"setImmediate",
-	"clearImmediate",
-	"console",
-];
-
-const SHIM_REQUIRE =
-	'local _shim = require(game:GetService("ReplicatedStorage"):WaitForChild("ToilShim"))';
-
 let bound = 0;
 
+// Copy the runtime's globals into this module's own environment. Roblox
+// gives each script its own env, so the ~70 JS-semantic helpers the tamed vendor reads
+// bare (typeOfJS, __cat, __arrNew, Object, Symbol, ...) are invisible across
+// module boundaries. Binding them as locals is not an option: these files are
+// already at Luau's 200-local ceiling, which is why scope-to-table.mjs exists.
+// Writing them into getfenv(0) inside a `do` block adds no persistent locals.
+const ENV_PREAMBLE = `-- toil-luau: install the JS-semantics runtime into this module's environment.
+do
+	local _rt = require(game:GetService("ReplicatedStorage"):WaitForChild("ToilRuntime"))
+	local _env = getfenv(0)
+	for _k, _v in pairs(_rt) do
+		if rawget(_env, _k) == nil then
+			_env[_k] = _v
+		end
+	end
+end
+`;
+
 /**
- * Prepend `local <g> = _shim.<g>` for each JS global the module actually reads.
- * Only the used names are bound: these files are already near Luau's 200-local
- * ceiling (scope-to-table.mjs exists for that reason), so binding all eight
- * everywhere would be needless pressure.
+ * Give every staged module the JS runtime in its own environment. Applied
+ * unconditionally: the helper surface is ~70 names (typeOfJS, __cat, __len,
+ * __arrNew, __spikeSetST, ...), so a keyword test would only risk missing one,
+ * and the preamble costs a cached require plus a table copy.
  */
 function bindGlobals(s) {
-	const used = JS_GLOBALS.filter((g) =>
-		new RegExp(`(^|[^._\\w])${g}[^\\w]`).test(s),
-	);
-	if (used.size === 0 || used.length === 0) return s;
-	const preamble =
-		`-- toil-luau: JS globals this module reads bare (see studio-shim.luau)\n` +
-		`${SHIM_REQUIRE}\n` +
-		`local ${used.join(", ")} = ${used.map((g) => "_shim." + g).join(", ")}\n`;
 	bound++;
 	// After the RuntimeLib header when there is one, so TS stays first.
 	const idx = s.indexOf(ROBLOX_HEADER);
 	if (idx >= 0) {
 		const cut = idx + ROBLOX_HEADER.length + 1;
-		return s.slice(0, cut) + preamble + s.slice(cut);
+		return s.slice(0, cut) + ENV_PREAMBLE + s.slice(cut);
 	}
-	return preamble + s;
+	return ENV_PREAMBLE + s;
+}
+
+/**
+ * Port specs/_spike_rt.luau -- the JS-semantics layer the tamed vendor is
+ * compiled against -- into a Roblox ModuleScript.
+ *
+ * It is otherwise pure Luau (no game/script/Instance), but it was written for
+ * the native VM, where getfenv(0) and _G are the same table: it *writes*
+ * getfenv(0).Symbol and *reads* _G.Symbol. On Roblox those are different, so
+ * every install is redirected to _G, and the module exports everything it
+ * defined -- both the _G installs and the implicit `function foo()` globals
+ * that land in its own environment.
+ */
+function stageRuntime() {
+	const src = fs.readFileSync(path.join(ROOT, "specs", "_spike_rt.luau"), "utf8");
+	let s = src
+		// The native entry point: requires a module by file path, which Roblox
+		// cannot resolve. Staged modules use the real RuntimeLib header instead.
+		.replace(
+			/function __spikeRequireTS\(\)[\s\S]*?\nend\n/,
+			"-- __spikeRequireTS removed: staged modules require RuntimeLib directly.\n",
+		)
+		// Installs must land where the reads look.
+		.replace(/getfenv\(0\)\./g, "_G.")
+		.replace(/^--!strict/m, "--!nocheck");
+
+	const header = `--!nocheck
+-- toil-luau: generated from specs/_spike_rt.luau by scripts/stage-studio.mjs.
+-- Do not edit; edit the spec runtime and re-stage.
+local _envBaseline = {}
+for _k in pairs(getfenv(0)) do
+	_envBaseline[_k] = true
+end
+local _gBaseline = {}
+for _k in pairs(_G) do
+	_gBaseline[_k] = true
+end
+`;
+
+	const footer = `
+-- Export everything this module defined so each staged module can copy it into
+-- its own environment: the _G installs above plus the bare \`function foo()\`
+-- helpers, which land in this script's environment rather than in _G.
+local _exported = {}
+for _k, _v in pairs(_G) do
+	if _gBaseline[_k] == nil then
+		_exported[_k] = _v
+	end
+end
+for _k, _v in pairs(getfenv(0)) do
+	if _envBaseline[_k] == nil and _exported[_k] == nil then
+		_exported[_k] = _v
+	end
+end
+return _exported
+`;
+
+	// Drop the original trailing `return true`; the export table replaces it.
+	s = s.replace(/\nreturn true\s*$/, "\n");
+	fs.writeFileSync(path.join(STAGE, "ToilRuntime.luau"), header + s + footer);
 }
 
 /**
@@ -174,8 +227,8 @@ for (const [from, to] of Object.entries(VENDOR)) {
 	copyTree(path.join(OUT, "vendor", from), path.join(STAGE, "node_modules", "@toil", to), true);
 }
 
-// 4. The globals shim every staged module binds from.
-fs.copyFileSync(path.join(ROOT, "scripts", "studio-shim.luau"), path.join(STAGE, "ToilShim.luau"));
+// 4. The JS-semantics runtime every staged module installs into its env.
+stageRuntime();
 
 // 5. The demo LocalScript. `.client.luau` is how Rojo spells a LocalScript.
 const demo = path.join(ROOT, "scripts", "studio-demo.client.luau");

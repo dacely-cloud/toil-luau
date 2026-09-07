@@ -148,8 +148,20 @@ export function mountReactRoot(
 	envOverride?: HostEnv
 ): MountHandle {
 	const e = envOverride ?? makeEngineEnv();
-	const c = makeRealClock();
 	const eng = engine ?? makeDefaultEngine(rules);
+
+	// The animation clock counts seconds since mount, so handle.tick(now) can
+	// pin it to an absolute time (tests drive animations deterministically);
+	// the Heartbeat path leaves the override unset and reads the real clock.
+	const realClock = makeRealClock();
+	const mountedAt = realClock.now();
+	let clockOverride: number | undefined;
+	const c: Clock = {
+		now: (): number => {
+			if (clockOverride !== undefined) return clockOverride;
+			return realClock.now() - mountedAt;
+		},
+	};
 
 	// Create the ScreenGui
 	const gui = e.newInstance("ScreenGui");
@@ -183,8 +195,11 @@ export function mountReactRoot(
 	};
 
 	// Build the style resolver
+	// A function property, not a method: StyleResolver.resolve is called with
+	// a dot (resolver.resolve(node)), so a method form would bind the node to
+	// `self` and leave `node` nil.
 	const resolver = {
-		resolve(node: HostNode): Record<string, string> {
+		resolve: (node: HostNode): Record<string, string> => {
 			// Keep the identity fresh from the node's last props, so selectors
 			// re-match even when commitUpdate does not fire.
 			node.identity = identityFromProps(node, node.pendingProps);
@@ -297,8 +312,9 @@ export function mountReactRoot(
 	}
 
 	function doTick(now: number): void {
-		// Advance the fake clock if needed
+		clockOverride = now;
 		tick(driver);
+		clockOverride = undefined;
 	}
 
 	return {

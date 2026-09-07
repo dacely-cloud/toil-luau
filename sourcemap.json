@@ -42,7 +42,251 @@
     {
       "name": "ReplicatedStorage",
       "className": "ReplicatedStorage",
-      "guid": "164000"
+      "guid": "164000",
+      "children": [
+        {
+          "name": "node_modules",
+          "className": "Folder",
+          "guid": "513449",
+          "children": [
+            {
+              "name": "@toil",
+              "className": "Folder",
+              "guid": "513462",
+              "children": [
+                {
+                  "name": "react",
+                  "className": "Folder",
+                  "guid": "513473",
+                  "children": [
+                    {
+                      "name": "cjs",
+                      "className": "Folder",
+                      "guid": "513490",
+                      "children": [
+                        {
+                          "name": "react-jsx-dev-runtime.development.js",
+                          "className": "ModuleScript",
+                          "guid": "513493",
+                          "filePaths": [
+                            "sync/ReplicatedStorage/node_modules/@toil/react/cjs/react-jsx-dev-runtime.development.js.luau"
+                          ]
+                        },
+                        {
+                          "name": "react-jsx-runtime.development.js",
+                          "className": "ModuleScript",
+                          "guid": "513491",
+                          "filePaths": [
+                            "sync/ReplicatedStorage/node_modules/@toil/react/cjs/react-jsx-runtime.development.js.luau"
+                          ]
+                        },
+                        {
+                          "name": "react.development.js",
+                          "className": "ModuleScript",
+                          "guid": "513497",
+                          "filePaths": [
+                            "sync/ReplicatedStorage/node_modules/@toil/react/cjs/react.development.js.luau"
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "name": "index.js",
+                      "className": "ModuleScript",
+                      "guid": "513483",
+                      "filePaths": [
+                        "sync/ReplicatedStorage/node_modules/@toil/react/index.js.luau"
+                      ]
+                    },
+                    {
+                      "name": "jsx-dev-runtime.js",
+                      "className": "ModuleScript",
+                      "guid": "513485",
+                      "filePaths": [
+                        "sync/ReplicatedStorage/node_modules/@toil/react/jsx-dev-runtime.js.luau"
+                      ]
+                    },
+                    {
+                      "name": "jsx-runtime.js",
+                      "className": "ModuleScript",
+                      "guid": "513478",
+                      "filePaths": [
+                        "sync/ReplicatedStorage/node_modules/@toil/react/jsx-runtime.js.luau"
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "react-reconciler",
+                  "className": "Folder",
+                  "guid": "513475",
+                  "children": [
+                    {
+                      "name": "cjs",
+                      "className": "Folder",
+                      "guid": "513489",
+                      "children": [
+                        {
+                          "name": "react-reconciler.development.js",
+                          "className": "ModuleScript",
+                          "guid": "513495",
+                          "filePaths": [
+                            "sync/ReplicatedStorage/node_modules/@toil/react-reconciler/cjs/react-reconciler.development.js.luau"
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "name": "index.js",
+                      "className": "ModuleScript",
+                      "guid": "513487",
+                      "filePaths": [
+                        "sync/ReplicatedStorage/node_modules/@toil/react-reconciler/index.js.luau"
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "scheduler",
+                  "className": "Folder",
+                  "guid": "513474",
+                  "children": [
+                    {
+                      "name": "cjs",
+                      "className": "Folder",
+                      "guid": "513480",
+                      "children": [
+                        {
+                          "name": "scheduler.development.js",
+                          "className": "ModuleScript",
+                          "guid": "513499",
+                          "filePaths": [
+                            "sync/ReplicatedStorage/node_modules/@toil/scheduler/cjs/scheduler.development.js.luau"
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "name": "index.js",
+                      "className": "ModuleScript",
+                      "guid": "513481",
+                      "filePaths": [
+                        "sync/ReplicatedStorage/node_modules/@toil/scheduler/index.js.luau"
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "rbxts_include",
+          "className": "Folder",
+          "guid": "513446",
+          "children": [
+            {
+              "name": "Promise",
+              "className": "ModuleScript",
+              "guid": "513460",
+              "filePaths": [
+                "sync/ReplicatedStorage/rbxts_include/Promise.luau"
+              ]
+            },
+            {
+              "name": "RuntimeLib",
+              "className": "ModuleScript",
+              "guid": "513463",
+              "filePaths": [
+                "sync/ReplicatedStorage/rbxts_include/RuntimeLib.luau"
+              ]
+            }
+          ]
+        },
+        {
+          "name": "ToilRuntime",
+          "className": "ModuleScript",
+          "guid": "513439",
+          "filePaths": [
+            "sync/ReplicatedStorage/ToilRuntime.luau"
+          ]
+        },
+        {
+          "name": "TS",
+          "className": "ModuleScript",
+          "guid": "513443",
+          "filePaths": [
+            "sync/ReplicatedStorage/TS.luau"
+          ],
+          "children": [
+            {
+              "name": "css",
+              "className": "Folder",
+              "guid": "513459",
+              "children": [
+                {
+                  "name": "engine",
+                  "className": "ModuleScript",
+                  "guid": "513476",
+                  "filePaths": [
+                    "sync/ReplicatedStorage/TS/css/engine.luau"
+                  ]
+                },
+                {
+                  "name": "loader",
+                  "className": "ModuleScript",
+                  "guid": "513471",
+                  "filePaths": [
+                    "sync/ReplicatedStorage/TS/css/loader.luau"
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "host",
+              "className": "ModuleScript",
+              "guid": "513454",
+              "filePaths": [
+                "sync/ReplicatedStorage/TS/host.luau"
+              ],
+              "children": [
+                {
+                  "name": "animations",
+                  "className": "ModuleScript",
+                  "guid": "513469",
+                  "filePaths": [
+                    "sync/ReplicatedStorage/TS/host/animations.luau"
+                  ]
+                },
+                {
+                  "name": "engine-types",
+                  "className": "ModuleScript",
+                  "guid": "513465",
+                  "filePaths": [
+                    "sync/ReplicatedStorage/TS/host/engine-types.luau"
+                  ]
+                },
+                {
+                  "name": "roblox-host",
+                  "className": "ModuleScript",
+                  "guid": "513467",
+                  "filePaths": [
+                    "sync/ReplicatedStorage/TS/host/roblox-host.luau"
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "polyfills",
+              "className": "ModuleScript",
+              "guid": "513452",
+              "filePaths": [
+                "sync/ReplicatedStorage/TS/polyfills.luau"
+              ]
+            }
+          ]
+        }
+      ]
     },
     {
       "name": "ServerScriptService",
@@ -82,7 +326,17 @@
         {
           "name": "StarterPlayerScripts",
           "className": "StarterPlayerScripts",
-          "guid": "164267"
+          "guid": "164267",
+          "children": [
+            {
+              "name": "ToilDemo",
+              "className": "LocalScript",
+              "guid": "513456",
+              "filePaths": [
+                "sync/StarterPlayer/StarterPlayerScripts/ToilDemo.client.luau"
+              ]
+            }
+          ]
         }
       ]
     },

@@ -205,83 +205,9 @@ describe('roblox host', function ()
 			React.createElement("span", nil, "Label")
 		)
 
-		local clockState = { t = 0 }
-		local fakeClock = {
-			now = function() return clockState.t end,
-		}
-
-		-- Minimal fake engine for the host test
-		local fakeEngine = {
-			computedStyle = function(identity, ancestors, sibIdx, sibCount, inline)
-				local result = {}
-				for prop, val in pairs(inline or {}) do
-					result[prop] = val
-				end
-				return result
-			end,
-			keyframes = function(name)
-				if name == "spin" then
-					return {
-						name = "spin",
-						frames = {
-							["0%"] = { ["transform"] = "rotate(0deg)" },
-							["100%"] = { ["transform"] = "rotate(360deg)" },
-						},
-					}
-				end
-				return nil
-			end,
-			parseAnimation = function(value)
-				-- Minimal: extract name, duration, iteration
-				local name = value:match("^(%S+)")
-				local dur = value:match("(%d+%.?%d*)s")
-				local iters = 1
-				if value:match("infinite") then iters = "infinite" end
-				return {
-					{
-						name = name or "spin",
-						duration = tonumber(dur) or 2,
-						delay = 0,
-						iterationCount = iters,
-						timingFunction = "linear",
-						fillMode = "none",
-						direction = "normal",
-						playState = "running",
-					},
-				}
-			end,
-			evaluateAnimation = function(anim, kf, t)
-				local styles = {}
-				local progress = t / anim.duration
-				if progress > 1 then progress = 1 end
-				local from = kf.frames["0%"] or {}
-				local to = kf.frames["100%"] or {}
-				for prop, val in pairs(to) do
-					-- Simple linear interpolation for numbers
-					local fromVal = from[prop] or val
-					local numFrom = fromVal:match("(.-)%((%d+)%.")
-					local numTo = val:match("(%d+)")
-					if numTo then
-						local numFrom2 = fromVal:match("(%d+)")
-						local f = tonumber(numFrom2) or 0
-						local toN = tonumber(numTo)
-						local interp = f + (toN - f) * progress
-						styles[prop] = val:match("^(.-)%(.*%)"):gsub(".*", tostring(math.floor(interp + 0.5))) .. "deg)"
-					else
-						styles[prop] = val
-					end
-				end
-				return { styles = styles, time = t }
-			end,
-			parseTransition = function(value)
-				return {}
-			end,
-			sampleTiming = function(fn, p)
-				return p
-			end,
-		}
-
-		local handle = host.mountReactRoot(container, rules, element, fakeEngine, hostEnv.env)
+		-- Mount with the rules-aware engine stub above; handle.tick(now) drives
+		-- the animation clock in seconds since mount.
+		local handle = host.mountReactRoot(container, rules, element, engine, hostEnv.env)
 
 		-- Shape: ScreenGui > Frame(card) > {TextButton, TextLabel}
 		expect(handle.gui.ClassName).toBe("ScreenGui")
@@ -319,15 +245,17 @@ describe('roblox host', function ()
 		expect(padding).toNotBe(nil)
 		expect(padding.ClassName).toBe("UIPadding")
 
-		-- Animation: advance clock by 1s (half of 2s period), tick, check rotation
-		clockState.t = 1
+		-- Animation: 1s in (half of the 2s period) -> half a turn
 		handle.tick(1)
 		expect(btn.Rotation).toBe(180)
 
 		-- Full period: back to 0
-		clockState.t = 2
 		handle.tick(2)
 		expect(btn.Rotation).toBe(0)
+
+		-- Text children reach the instances
+		expect(btn.Text).toBe("Click")
+		expect(label.Text).toBe("Label")
 
 		handle.unmount()
 	end)

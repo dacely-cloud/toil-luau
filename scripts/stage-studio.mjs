@@ -239,6 +239,7 @@ const CONTAINER_INIT =
 	"-- toil-luau: container module (see scripts/stage-studio.mjs). Intentionally empty.
 return {}
 ";
+";
 for (const dir of ["include", "node_modules"]) {
 	fs.writeFileSync(path.join(STAGE, dir, "init.luau"), CONTAINER_INIT);
 }

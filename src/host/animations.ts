@@ -64,6 +64,8 @@ export interface RunningAnimation {
 	spec: AnimationSpec;
 	/** The keyframe set to interpolate against. */
 	keyframes: KeyframeSet;
+	/** The node's computed style before the animation began (restored for fill-mode none). */
+	base: Record<string, string>;
 	/** The time (seconds) when the animation started. */
 	startTime: number;
 	/** The engine, for evaluateAnimation. */
@@ -141,10 +143,16 @@ export function startAnimation(
 	if (existing >= 0) {
 		driver.animations.remove(existing);
 	}
+	const base: Record<string, string> = {};
+	const baseKeys = (Object.keys(node.computed) as Array<string>);
+	for (let ki = 0; ki < baseKeys.size(); ki++) {
+		base[baseKeys[ki]] = node.computed[baseKeys[ki]];
+	}
 	driver.animations.push({
 		node,
 		spec,
 		keyframes,
+		base,
 		startTime: driver.clock.now(),
 		engine: driver.engine,
 		env: driver.env,
@@ -197,15 +205,18 @@ export function tick(driver: AnimationDriver): void {
 		// Check if finished (non-infinite)
 		const totalDuration =
 			spec.iterationCount === "infinite"
-				? Infinity
-				: spec.duration * (spec.iterationCount as number);
+				? math.huge
+				: spec.delay + spec.duration * (spec.iterationCount as number);
 
 		if (elapsed >= totalDuration && spec.iterationCount !== "infinite") {
 			// Animation finished
 			if (spec.fillMode === "forwards" || spec.fillMode === "both") {
-				// Hold last frame: apply the 100% keyframe
-				const sample = driver.engine.evaluateAnimation(spec, keyframes, spec.duration);
+				// Hold the final frame.
+				const sample = driver.engine.evaluateAnimation(spec, keyframes, totalDuration);
 				applyAnimatedValues(anim.node, sample.styles, driver.env);
+			} else {
+				// fill-mode none: the element returns to its base style.
+				applyBaseStyle(anim.node, anim.base, driver.env);
 			}
 			// Remove from running list
 			driver.animations.remove(i);
@@ -269,6 +280,16 @@ function applyAnimatedValues(
 	}
 	// Re-apply the full style
 	applyStyle(node, node.computed, env);
+}
+
+/** Restore a node to the style it had before an animation started. */
+function applyBaseStyle(node: HostNode, base: Record<string, string>, env: HostEnv): void {
+	const restored: Record<string, string> = {};
+	const keys = (Object.keys(base) as Array<string>);
+	for (let ki = 0; ki < keys.size(); ki++) {
+		restored[keys[ki]] = base[keys[ki]];
+	}
+	applyStyle(node, restored, env);
 }
 
 /**

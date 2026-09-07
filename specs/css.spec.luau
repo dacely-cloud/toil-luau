@@ -352,7 +352,7 @@ describe("css loader", function()
 		local kf = e2.keyframes("grow")
 		expect(kf ~= nil).toBe(true)
 		expect(kf.frames[1].offset).toBe(0)
-		expect(kf.frames[2].offset).toBe(100)
+		expect(kf.frames[2].offset).toBe(1)
 	end)
 
 	it("parses a full stylesheet with mixed at-rules and normal rules", function()

@@ -38,6 +38,14 @@ import type {
 	TransitionSpec,
 } from "./engine-types";
 
+/** Roblox signal/connection shapes, typed as methods so calls emit `:`. */
+interface SignalLike {
+	Connect(this: SignalLike, callback: (dt: number) => void): ConnectionLike;
+}
+interface ConnectionLike {
+	Disconnect(this: ConnectionLike): void;
+}
+
 // ------------------------------------------------------------------ Engine env
 
 /**
@@ -68,12 +76,16 @@ export function makeEngineEnv(): HostEnv {
 	}
 
 	function enumValue(name: string): unknown {
-		// name is "EnumType.Member" e.g. "Font.GothamBold"
+		// name is "EnumType.Member" e.g. "Font.GothamBold". Roblox raises on
+		// an unknown enum or member, so the lookup is protected.
 		const parts = name.split(".");
 		if (parts.size() !== 2) return undefined;
-		const enumTable = (Enum as unknown as Record<string, Record<string, unknown>>)[parts[0]];
-		if (enumTable === undefined) return undefined;
-		return enumTable[parts[1]];
+		const [ok, value] = pcall((): unknown => {
+			const enumTable = (Enum as unknown as Record<string, Record<string, unknown>>)[parts[0]];
+			if (enumTable === undefined) return undefined;
+			return enumTable[parts[1]];
+		});
+		return ok ? value : undefined;
 	}
 
 	function destroy(inst: RobloxInstance): void {
@@ -251,20 +263,20 @@ export function mountReactRoot(
 	// implementation; for the spike we scan the tree once after mount.)
 	scanAndStartAnimations(guiNode, eng, driver);
 
-	// In real Roblox, connect RunService.Heartbeat to drive tick().
-	// Guard: only if game is present (the Lest native backend has a fake game).
-	let heartbeatConnection: { Disconnect: () => void } | undefined;
-	const gameService = (game as unknown as Record<string, unknown>)["GetService"];
-	if (typeOfJS(gameService) === "function") {
-		const runService = (gameService as (name: string) => Record<string, unknown>)("RunService");
-		const heartbeat = (runService as Record<string, unknown>)["Heartbeat"];
-		if (heartbeat !== undefined && typeOfJS((heartbeat as Record<string, unknown>)["Connect"]) === "function") {
-			const hbTable = heartbeat as unknown as Record<string, unknown>;
-			const connectFn = hbTable["Connect"] as (fn: (dt: number) => void) => { Disconnect: () => void };
-			heartbeatConnection = connectFn((_dt: number): void => {
-				tick(driver);
-			});
-		}
+	// In real Roblox, RunService.Heartbeat flushes React's task queue (so a
+	// setState from an event handler renders on the next frame) and advances
+	// the animations. Roblox members are method calls, so the signal goes
+	// through the SignalLike shape (emits `:Connect`); the Lest native
+	// backend fakes `game` with an empty Heartbeat table, which the probe
+	// skips.
+	let heartbeatConnection: ConnectionLike | undefined;
+	const runService = game.GetService("RunService") as unknown as Record<string, unknown> | undefined;
+	const heartbeat = runService !== undefined ? runService["Heartbeat"] : undefined;
+	if (heartbeat !== undefined && typeOfJS((heartbeat as Record<string, unknown>)["Connect"]) === "function") {
+		heartbeatConnection = (heartbeat as unknown as SignalLike).Connect((_dt: number): void => {
+			drainTasks();
+			tick(driver);
+		});
 	}
 
 	// Build the handle
@@ -323,6 +335,7 @@ function scanAndStartAnimations(
 
 // Re-export for consumers
 export { applyStyle, buildHostConfig } from "./roblox-host";
+export { parseCss, cssToRules } from "../css/loader";
 export { tick, createDriver, startAnimation, startTransition, makeRealClock } from "./animations";
 export { makeFakeClock } from "./animations";
 export type { HostEnv, HostNode, RobloxInstance } from "./roblox-host";

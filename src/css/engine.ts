@@ -167,6 +167,65 @@ function keysOf(rec: Record<string, string> | undefined): Array<string> {
 	return out;
 }
 
+// ------------------------------------------------------------------ declarations
+
+/** camelCase (React style objects) -> kebab-case CSS property names. */
+function toKebab(key: string): string {
+	return string.lower(strGsub(key, "(%u)", "-%1"));
+}
+
+/** Expand a 1..4 value box shorthand (padding / margin) into its sides. */
+function expandSides(prefix: string, value: string, out: Record<string, string>): void {
+	const t = strSplitWs(value);
+	const n = t.size();
+	if (n === 0) return;
+	const top = t[0];
+	const right = n >= 2 ? t[1] : t[0];
+	const bottom = n >= 3 ? t[2] : t[0];
+	const left = n >= 4 ? t[3] : right;
+	out[prefix + "-top"] = top;
+	out[prefix + "-right"] = right;
+	out[prefix + "-bottom"] = bottom;
+	out[prefix + "-left"] = left;
+}
+
+/**
+ * Canonicalize one declaration block: kebab-case keys, trimmed values, and
+ * the shorthands the host reads by their longhand names (`padding`,
+ * `margin`, `background`, `border`) expanded.
+ */
+function normalizeDeclarations(decls: Record<string, string> | undefined): Record<string, string> {
+	const out: Record<string, string> = {};
+	if (decls === undefined) return out;
+	const keys = keysOf(decls);
+	for (let ki = 0; ki < keys.size(); ki++) {
+		const rawKey = keys[ki];
+		const value = strTrim(tostring(decls[rawKey]));
+		const key = toKebab(strTrim(rawKey));
+		if (key === "padding" || key === "margin") {
+			expandSides(key, value, out);
+		} else if (key === "background") {
+			// Only the color layer maps onto a GUI instance.
+			out["background-color"] = value;
+		} else if (key === "border") {
+			const parts = strSplitWs(value);
+			for (let pi = 0; pi < parts.size(); pi++) {
+				const p = parts[pi];
+				if (strEndsWith(p, "px") || strMatch(p, "^%d") !== undefined) {
+					out["border-width"] = p;
+				} else if (p === "solid" || p === "dashed" || p === "dotted" || p === "none") {
+					out["border-style"] = p;
+				} else {
+					out["border-color"] = p;
+				}
+			}
+		} else {
+			out[key] = value;
+		}
+	}
+	return out;
+}
+
 // ------------------------------------------------------------------ types
 
 interface SimpleSelector {
@@ -665,9 +724,10 @@ function computedStyle(
 
 	// Inline style wins last
 	if (inline !== undefined) {
-		const ikeys = keysOf(inline);
+		const norm = normalizeDeclarations(inline);
+		const ikeys = keysOf(norm);
 		for (let ki = 0; ki < ikeys.size(); ki++) {
-			result[ikeys[ki]] = inline[ikeys[ki]];
+			result[ikeys[ki]] = norm[ikeys[ki]];
 		}
 	}
 
@@ -700,8 +760,22 @@ frames.sort((a: KeyframeFrame, b: KeyframeFrame): boolean => a.offset < b.offset
 }
 function keyframesFromFrames(frames: Array<KeyframeFrame>, out: Array<KeyframeFrame>): void {
 	for (let i = 0; i < frames.size(); i++) {
-		out.push(frames[i]);
+		out.push({ offset: frames[i].offset, styles: normalizeDeclarations(frames[i].styles) });
 	}
+}
+
+/**
+ * A keyframe selector as a 0..1 offset: `from` / `to`, a percentage, or a
+ * bare fraction (a bare number above 1 is read as a percentage).
+ */
+function parseOffset(label: string): number {
+	const s = string.lower(strTrim(label));
+	if (s === "from") return 0;
+	if (s === "to") return 1;
+	const n = jsParseFloat(s);
+	if (jsIsNaN(n)) return 0;
+	if (strEndsWith(s, "%") || n > 1) return clampN(n / 100, 0, 1);
+	return clampN(n, 0, 1);
 }
 
 function keyframesFromDeclarations(decls: Record<string, string> | undefined, out: Array<KeyframeFrame>): void {
@@ -709,7 +783,6 @@ function keyframesFromDeclarations(decls: Record<string, string> | undefined, ou
 	const keys = keysOf(decls);
 	for (let ki = 0; ki < keys.size(); ki++) {
 		const offsetStr = keys[ki];
-		const offset = jsParseFloat(offsetStr);
 		const valueStr = decls[offsetStr];
 		const styles: Record<string, string> = {};
 		const parts = strSplit(valueStr, ";");
@@ -725,7 +798,7 @@ function keyframesFromDeclarations(decls: Record<string, string> | undefined, ou
 				}
 			}
 		}
-		out.push({ offset: jsIsNaN(offset) ? 0 : offset, styles });
+		out.push({ offset: parseOffset(offsetStr), styles: normalizeDeclarations(styles) });
 	}
 }
 
@@ -923,6 +996,21 @@ function interpolateValue(from: string, to: string, t: number): string {
 		const b = jsRound(fc[2] + (tc[2] - fc[2]) * t);
 		return "#" + toHex(r) + toHex(g) + toHex(b);
 	}
+	// Function forms (rotate(90deg), scale(1.2), rgb(...)): interpolate the
+	// argument lists pairwise when both sides use the same function.
+	const ff = strMatchAll(strTrim(from), "^([%a][%w%-]*)%((.*)%)$");
+	const tf = strMatchAll(strTrim(to), "^([%a][%w%-]*)%((.*)%)$");
+	if (ff !== undefined && tf !== undefined && ff[0] === tf[0]) {
+		const fargs = strSplit(ff[1] ?? "", ",");
+		const targs = strSplit(tf[1] ?? "", ",");
+		if (fargs.size() === targs.size()) {
+			const parts: Array<string> = [];
+			for (let ai = 0; ai < fargs.size(); ai++) {
+				parts.push(interpolateValue(strTrim(fargs[ai]), strTrim(targs[ai]), t));
+			}
+			return ff[0] + "(" + parts.join(", ") + ")";
+		}
+	}
 	return t < 0.5 ? from : to;
 }
 
@@ -955,8 +1043,26 @@ function evaluateAnimation(
 	const frames = kf.frames;
 	if (frames.size() === 0) return { styles: {} };
 
+	// Map absolute time onto one iteration: delay, iteration count, direction
+	// (alternate flips odd iterations) and the timing function.
 	const duration = anim.duration > 0 ? anim.duration : 1;
-	const progress = clampN(t / duration, 0, 1);
+	const localTime = t - anim.delay < 0 ? 0 : t - anim.delay;
+	const count = anim.iterationCount === "infinite" ? math.huge : toNum(anim.iterationCount as number | string);
+	let iter = localTime / duration;
+	if (iter > count) iter = count;
+	let idx = jsFloor(iter);
+	let frac = iter - idx;
+	if (frac === 0 && idx > 0 && idx >= count) {
+		// Exactly at the end: hold the final frame of the last iteration.
+		idx -= 1;
+		frac = 1;
+	}
+	const dir = anim.direction;
+	let reversed = dir === "reverse";
+	if (dir === "alternate") reversed = idx % 2 === 1;
+	else if (dir === "alternate-reverse") reversed = idx % 2 === 0;
+	const raw = reversed ? 1 - frac : frac;
+	const progress = clampN(sampleTiming(anim.timingFunction, raw), 0, 1);
 
 	let i = 0;
 	for (let fi = 0; fi < frames.size(); fi++) {
@@ -1017,10 +1123,11 @@ export function createEngine(rules: Array<StyleRule>): Engine {
 		const rule = rules[i];
 		if (rule.keyframes !== undefined) continue;
 		const selectors = parseSelectors(rule.selector);
+		const declarations = normalizeDeclarations(rule.declarations);
 		for (let si = 0; si < selectors.size(); si++) {
 			compiledRules.push({
 				selector: selectors[si],
-				declarations: rule.declarations,
+				declarations,
 				specificity: selectors[si].specificity,
 			});
 		}

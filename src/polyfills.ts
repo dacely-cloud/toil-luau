@@ -137,7 +137,9 @@ export function drainTasks(): void {
 		}
 		break;
 	}
-	log("drainTasks: drained " + drained + " tasks");
+	if (drained > 0) {
+		log("drainTasks: drained " + drained + " tasks");
+	}
 }
 
 export const taskLog: Array<string> = [];

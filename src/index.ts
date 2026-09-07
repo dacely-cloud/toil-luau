@@ -45,6 +45,9 @@ export type {
 
 export { drainTasks, log, taskLog } from "./polyfills";
 
+// CSS text -> StyleRule[] (selectors, @keyframes, @media, @import).
+export { parseCss, cssToRules } from "./css/loader";
+
 // The vendored React 19 runtime (single-copy graph). The vendor entry is a
 // CommonJS module (`export = React`), so import it as a namespace and
 // re-export it. Consumers write `React.useState`, `React.createContext`, etc.

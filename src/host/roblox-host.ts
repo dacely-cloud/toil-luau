@@ -25,7 +25,8 @@ export function identityFromProps(
 	props: Record<string, unknown>
 ): ElementIdentity {
 	const classList: Array<string> = [];
-	const rawClass = props["class"];
+	// React spells it `className`; plain `class` is accepted too.
+	const rawClass = props["class"] ?? props["className"];
 	if (typeOfJS(rawClass) === "string") {
 		const tokens = string.split(rawClass as string, "%s+");
 		for (let i = 0; i < tokens.size(); i++) {
@@ -38,7 +39,7 @@ export function identityFromProps(
 	const keys = Object.keys(props) as Array<string>;
 	for (let i = 0; i < keys.size(); i++) {
 		const k = keys[i];
-		if (k === "class" || k === "id" || k === "children" || k === "ref") {
+		if (k === "class" || k === "className" || k === "children" || k === "ref") {
 			continue;
 		}
 		const v = props[k];
@@ -216,6 +217,12 @@ function strFind(s: string, pattern: string, init: number, plain: boolean): numb
 /** True if s starts with prefix. */
 function startsWith(s: string, prefix: string): boolean {
 	return s.size() >= prefix.size() && slice(s, 1, prefix.size()) === prefix;
+}
+
+/** True for the GUI classes that carry Text* properties. */
+function isTextInstance(inst: RobloxInstance): boolean {
+	const c = inst.ClassName;
+	return c === "TextLabel" || c === "TextButton" || c === "TextBox";
 }
 
 // ------------------------------------------------------------------ tag map
@@ -574,12 +581,23 @@ export function applyStyle(node: HostNode, style: Record<string, string>, env: H
 	node.computed = style;
 
 	// --- Size (width / height) ---
+	// An axis that is "auto" (or undeclared while the other is declared)
+	// sizes to content through AutomaticSize, as CSS does.
 	const w = parseLength(style["width"]);
 	const h = parseLength(style["height"]);
-	if (w !== undefined && h !== undefined) {
+	if (w !== undefined || h !== undefined) {
+		const autoX = w === undefined || w.auto;
+		const autoY = h === undefined || h.auto;
 		// UDim2.new(xScale, xOffset, yScale, yOffset)
-		const size = env.newUDim2(w.scale, w.offset, h.scale, h.offset);
+		const size = env.newUDim2(
+			autoX ? 0 : w.scale,
+			autoX ? 0 : w.offset,
+			autoY ? 0 : h.scale,
+			autoY ? 0 : h.offset
+		);
 		(inst as Record<string, unknown>)["Size"] = size;
+		const autoName = autoX && autoY ? "XY" : autoX ? "X" : autoY ? "Y" : "None";
+		(inst as Record<string, unknown>)["AutomaticSize"] = env.enumValue("AutomaticSize." + autoName);
 	}
 
 	// --- Position (top / left / right / bottom + position) ---
@@ -594,13 +612,24 @@ export function applyStyle(node: HostNode, style: Record<string, string>, env: H
 	(inst as Record<string, unknown>)["AnchorPoint"] = anchor;
 	(inst as Record<string, unknown>)["Position"] = pos;
 
-	// --- Background color ---
+	// --- Background color + opacity ---
+	// A CSS background defaults to transparent, and opacity multiplies into
+	// the background alpha; text fades with opacity alone.
 	const bg = parseColor(style["background-color"]);
+	let bgAlpha = 0;
 	if (bg !== undefined) {
 		(inst as Record<string, unknown>)["BackgroundColor3"] = env.newColor3(bg.r, bg.g, bg.b);
-		if (bg.a < 1) {
-			(inst as Record<string, unknown>)["BackgroundTransparency"] = 1 - bg.a;
-		}
+		bgAlpha = bg.a;
+	}
+	let opacity = 1;
+	const opacityRaw = style["opacity"];
+	if (opacityRaw !== undefined) {
+		const o = _parseFloat(opacityRaw);
+		if (!_isNaN(o)) opacity = clamp01(o);
+	}
+	(inst as Record<string, unknown>)["BackgroundTransparency"] = 1 - bgAlpha * opacity;
+	if (isTextInstance(inst)) {
+		(inst as Record<string, unknown>)["TextTransparency"] = 1 - opacity;
 	}
 
 	// --- Border ---
@@ -685,7 +714,7 @@ export function applyStyle(node: HostNode, style: Record<string, string>, env: H
 
 	// --- Text color ---
 	const textColor = parseColor(style["color"]);
-	if (textColor !== undefined) {
+	if (textColor !== undefined && isTextInstance(inst)) {
 		(inst as Record<string, unknown>)["TextColor3"] = env.newColor3(
 			textColor.r,
 			textColor.g,
@@ -695,13 +724,13 @@ export function applyStyle(node: HostNode, style: Record<string, string>, env: H
 
 	// --- Font size ---
 	const fontSize = parseLength(style["font-size"]);
-	if (fontSize !== undefined && fontSize.offset > 0) {
+	if (fontSize !== undefined && fontSize.offset > 0 && isTextInstance(inst)) {
 		(inst as Record<string, unknown>)["TextSize"] = _round(fontSize.offset);
 	}
 
 	// --- Font family (map to Enum.Font) ---
 	const fontFamily = style["font-family"] ?? "";
-	if (fontFamily.size() > 0) {
+	if (fontFamily.size() > 0 && isTextInstance(inst)) {
 		const fontEnum = mapFontFamily(fontFamily, env);
 		if (fontEnum !== undefined) {
 			(inst as Record<string, unknown>)["Font"] = fontEnum;
@@ -710,12 +739,12 @@ export function applyStyle(node: HostNode, style: Record<string, string>, env: H
 
 	// --- Font weight ---
 	const fontWeight = style["font-weight"] ?? "";
-	if (fontWeight === "bold" || (fontWeight.size() >= 2 && _parseInt(fontWeight) >= 600)) {
+	if (isTextInstance(inst) && (fontWeight === "bold" || (fontWeight.size() >= 2 && _parseInt(fontWeight) >= 600))) {
 		(inst as Record<string, unknown>)["Font"] = env.enumValue("Font.GothamBold");
 	}
 
 	// --- Text alignment ---
-	const textAlign = style["text-align"] ?? "";
+	const textAlign = isTextInstance(inst) ? (style["text-align"] ?? "") : "";
 	if (textAlign === "center") {
 		(inst as Record<string, unknown>)["TextXAlignment"] = env.enumValue(
 			"TextXAlignment.Center"
@@ -730,13 +759,7 @@ export function applyStyle(node: HostNode, style: Record<string, string>, env: H
 		);
 	}
 
-	// --- Opacity ---
-	const opacity = _parseFloat(style["opacity"] ?? "1");
-	if (!_isNaN(opacity) && opacity < 1) {
-		const trans = 1 - opacity;
-		(inst as Record<string, unknown>)["BackgroundTransparency"] = trans;
-		(inst as Record<string, unknown>)["TextTransparency"] = trans;
-	}
+	// (opacity is folded into the background/text transparency above.)
 
 	// --- Visibility / display ---
 	const vis = style["visibility"] ?? "";
@@ -762,11 +785,10 @@ export function applyStyle(node: HostNode, style: Record<string, string>, env: H
 		}
 	}
 
-	// --- Rotation (from transform or direct) ---
+	// --- Rotation (from transform or direct); written unconditionally so a
+	// finished animation that restores the base style also un-rotates. ---
 	const rotation = parseRotation(style);
-	if (rotation !== undefined) {
-		(inst as Record<string, unknown>)["Rotation"] = rotation;
-	}
+	(inst as Record<string, unknown>)["Rotation"] = rotation ?? 0;
 
 	// --- Box shadow (approximated via UIStroke child) ---
 	const boxShadow = style["box-shadow"] ?? "";
@@ -784,7 +806,7 @@ export function applyStyle(node: HostNode, style: Record<string, string>, env: H
 			if (blur !== undefined && blur.offset > 0) {
 				s["Thickness"] = _round(blur.offset);
 			}
-			s["ApplyStrokeMode"] = env.enumValue("StrokeMode.Inset");
+			s["ApplyStrokeMode"] = env.enumValue("ApplyStrokeMode.Border");
 		}
 	}
 
@@ -844,7 +866,11 @@ export function applyStyle(node: HostNode, style: Record<string, string>, env: H
 	// --- Letter-spacing (approximated, stored as a custom attribute) ---
 	const letterSpacing = style["letter-spacing"] ?? "";
 	if (letterSpacing.size() > 0) {
-		(inst as Record<string, unknown>)["LetterSpacing"] = letterSpacing;
+		// Not a Roblox property: the write only lands on the fake test
+		// instances, so it is protected from the real engine's error.
+		pcall((): void => {
+			(inst as Record<string, unknown>)["LetterSpacing"] = letterSpacing;
+		});
 	}
 }
 
@@ -872,9 +898,11 @@ function parseRotation(style: Record<string, string>): number | undefined {
 	// Check for a "transform" with rotate()
 	const transform = style["transform"] ?? "";
 	if (transform.size() > 0) {
-		const m = (string.match(transform, "rotate%((%-(%d+%.*)deg)%)") as unknown) as string | undefined;
-		if (m !== undefined) {
-			return _parseFloat(m);
+		const m = string.match(transform, "rotate%(%s*(%-?%d+%.?%d*)");
+		const deg = (m[0] as unknown) as string | undefined;
+		if (deg !== undefined) {
+			const n = _parseFloat(deg);
+			if (!_isNaN(n)) return n;
 		}
 	}
 	// Direct rotation property
@@ -916,6 +944,54 @@ function findHelper(node: HostNode, name: string): RobloxInstance | undefined {
 // Declared before buildHostConfig so hoisting is not load-bearing: the
 // mutation callbacks below capture them in closures at factory time.
 
+/**
+ * Re-derive a text-bearing instance's Text from its text children, in
+ * order. React renders string children as separate text instances that own
+ * no Roblox instance of their own, so the parent displays their join.
+ */
+function syncTextContent(node: HostNode): void {
+	const inst = node.inst;
+	if (inst === undefined || !isTextInstance(inst)) return;
+	let out = "";
+	const kids = node.children;
+	for (let i = 0; i < kids.size(); i++) {
+		if (kids[i].kind === "text") {
+			out += kids[i].text;
+		}
+	}
+	(inst as Record<string, unknown>)["Text"] = out;
+}
+
+/** Roblox signal/connection shapes, typed as methods so calls emit `:`. */
+interface SignalLike {
+	Connect(this: SignalLike, callback: () => void): ConnectionLike;
+}
+interface ConnectionLike {
+	Disconnect(this: ConnectionLike): void;
+}
+
+/**
+ * Connect the React event props the host supports: `onClick` on button
+ * instances. The handler is read off the node at click time, so a re-render
+ * that passes a new function needs no re-wiring.
+ */
+function wireEvents(node: HostNode): void {
+	const inst = node.inst;
+	if (inst === undefined) return;
+	if (node.styleState["clickWired"] !== undefined) return;
+	const c = inst.ClassName;
+	if (c !== "TextButton" && c !== "ImageButton") return;
+	const signal = (inst as Record<string, unknown>)["MouseButton1Click"];
+	if (signal === undefined || typeOfJS((signal as Record<string, unknown>)["Connect"]) !== "function") return;
+	(signal as SignalLike).Connect((): void => {
+		const handler = node.pendingProps["onClick"];
+		if (typeOfJS(handler) === "function") {
+			(handler as (event: Record<string, unknown>) => void)({ type: "click", target: node });
+		}
+	});
+	node.styleState["clickWired"] = true;
+}
+
 function detachChild(child: HostNode): void {
 	const parent = child.parent;
 	if (parent === undefined) return;
@@ -926,6 +1002,9 @@ function detachChild(child: HostNode): void {
 	child.parent = undefined;
 	if (child.inst !== undefined) {
 		(child.inst as Record<string, unknown>)["Parent"] = undefined;
+	}
+	if (child.kind === "text") {
+		syncTextContent(parent);
 	}
 }
 
@@ -944,6 +1023,9 @@ function insertChild(parent: HostNode, child: HostNode, before: HostNode | undef
 		(child.inst as Record<string, unknown>)["Parent"] = parent.inst;
 		child.layoutOrder = idx;
 		(child.inst as Record<string, unknown>)["LayoutOrder"] = idx;
+	}
+	if (child.kind === "text") {
+		syncTextContent(parent);
 	}
 }
 
@@ -991,6 +1073,11 @@ export function buildHostConfig(
 		const className = TAG_TO_CLASS[nodeType] ?? "Frame";
 		const inst = env.newInstance(className);
 		(inst as Record<string, unknown>)["Name"] = tagNameToInstanceName(nodeType);
+		if (isTextInstance(inst)) {
+			// Roblox seeds Text with the class name ("Label", "Button");
+			// React owns the text through its text children.
+			(inst as Record<string, unknown>)["Text"] = "";
+		}
 		return {
 			kind: "host",
 			nodeType,
@@ -1016,6 +1103,12 @@ export function buildHostConfig(
 	function updateIdentity(instance: HostNode, props: Record<string, unknown>): void {
 		instance.pendingProps = props;
 		instance.identity = identityFromProps(instance, props);
+		// An `id` names the instance too, so the tree reads well in the
+		// Explorer and FindFirstChild(id, true) locates it.
+		const id = props["id"];
+		if (typeOfJS(id) === "string" && instance.inst !== undefined) {
+			(instance.inst as Record<string, unknown>)["Name"] = tagNameToInstanceName(id as string);
+		}
 	}
 
 	function createTextInstance(text: string): HostNode {
@@ -1074,6 +1167,7 @@ export function buildHostConfig(
 		// Compute and apply style now
 		const computed = resolver.resolve(instance);
 		applyStyle(instance, computed, env);
+		wireEvents(instance);
 		return true; // so commitMount is called
 	}
 
@@ -1089,13 +1183,16 @@ export function buildHostConfig(
 
 	function commitTextUpdate(textInstance: HostNode, _oldText: string, newText: string): void {
 		textInstance.text = newText;
-		if (textInstance.inst !== undefined) {
-			(textInstance.inst as Record<string, unknown>)["Text"] = newText;
+		if (textInstance.parent !== undefined) {
+			syncTextContent(textInstance.parent);
 		}
 	}
 
 	function resetTextContent(instance: HostNode): void {
 		instance.text = "";
+		if (instance.inst !== undefined && isTextInstance(instance.inst)) {
+			(instance.inst as Record<string, unknown>)["Text"] = "";
+		}
 	}
 
 	function shouldSetTextContent(nodeType: string, _props: Record<string, unknown>): boolean {

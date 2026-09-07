@@ -1,20 +1,15 @@
 --!nocheck
 --[[
-	toil-luau Studio demo -- React 19 rendered onto a real Roblox PlayerGui.
+	toil-luau Studio demo -- React 19 + CSS animations on a real PlayerGui.
 
 	Staged into StarterPlayer.StarterPlayerScripts by scripts/stage-studio.mjs
-	(Rojo turns a `.client.luau` file into a LocalScript).
+	(Rojo and Azul both turn a `.client.luau` file into a LocalScript).
 
-	Two notes on how this talks to the host, both of which reflect what the
-	host currently implements rather than preference:
-
-	  * The host maps element tags to Instances and applies computed CSS, but
-	    it does not wire DOM event props -- `onClick` on a <button> is dropped
-	    (only string props survive as attributes). So the click is connected
-	    directly to the emitted TextButton below.
-	  * `mountReactRoot` drains the React task queue once, at mount. The
-	    Heartbeat connection it installs only ticks animations. A setState
-	    after mount therefore has to be flushed explicitly with drainTasks().
+	The stylesheet is plain CSS text: parseCss() turns it into the rule list
+	the engine consumes, @keyframes included. The host starts every
+	`animation` it finds at mount and advances it on RunService.Heartbeat,
+	which also flushes React's task queue -- so the button's onClick
+	re-renders on the next frame with no manual pump.
 ]]
 
 local Players = game:GetService("Players")
@@ -24,97 +19,138 @@ local TS = require(ReplicatedStorage:WaitForChild("rbxts_include"):WaitForChild(
 local toil = TS.import(script, ReplicatedStorage, "TS")
 
 local React = toil.React
-local mountReactRoot = toil.mountReactRoot
-local drainTasks = toil.drainTasks
+local e = React.createElement
 
-local playerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
+local css = [[
+	@keyframes fade-in {
+		from { opacity: 0; }
+		to   { opacity: 1; }
+	}
+	@keyframes spin {
+		from { transform: rotate(0deg); }
+		to   { transform: rotate(360deg); }
+	}
+	@keyframes pulse {
+		0%   { width: 140px; background-color: #2563ff; }
+		50%  { width: 200px; background-color: #7c3aed; }
+		100% { width: 140px; background-color: #2563ff; }
+	}
+	@keyframes rainbow {
+		0%   { background-color: #ff4d6d; }
+		33%  { background-color: #4dff88; }
+		66%  { background-color: #4d9bff; }
+		100% { background-color: #ff4d6d; }
+	}
 
--- Plain CSS property -> value, resolved by the engine (selectors + cascade).
-local cssRules = {
-	{
-		selector = "section",
-		declarations = {
-			["background-color"] = "#141821",
-			["border-radius"] = "12px",
-			["padding-top"] = "16px",
-			["padding-left"] = "16px",
-			["padding-right"] = "16px",
-			["padding-bottom"] = "16px",
-			["width"] = "320px",
-			["height"] = "180px",
-		},
-	},
-	{ selector = "h1", declarations = { ["color"] = "#8ab4ff", ["font-size"] = "22px" } },
-	{ selector = "span", declarations = { ["color"] = "#e6eefc", ["font-size"] = "16px" } },
-	{
-		selector = "button",
-		declarations = {
-			["background-color"] = "#2563ff",
-			["color"] = "#ffffff",
-			["font-size"] = "15px",
-			["height"] = "40px",
-		},
-	},
-}
+	.card {
+		position: absolute;
+		top: 48px;
+		left: 48px;
+		width: 380px;
+		height: 300px;
+		padding: 20px;
+		display: flex;
+		flex-direction: column;
+		gap: 12px;
+		background-color: #141821;
+		border-radius: 16px;
+		animation: fade-in 1.2s ease-out;
+	}
+	.title  { width: 340px; height: 32px; color: #8ab4ff; font-size: 24px; font-weight: bold; }
+	.status { width: 340px; height: 22px; color: #e6eefc; font-size: 16px; }
+	.row    { width: 340px; height: 64px; display: flex; flex-direction: row; gap: 16px; align-items: center; }
+	.spinner {
+		width: 48px;
+		height: 48px;
+		background-color: #2563ff;
+		border-radius: 10px;
+		animation: spin 2s linear infinite;
+	}
+	.pulse {
+		width: 140px;
+		height: 44px;
+		color: #ffffff;
+		font-size: 15px;
+		text-align: center;
+		border-radius: 8px;
+		animation: pulse 1.6s ease-in-out infinite;
+	}
+	.bar {
+		width: 340px;
+		height: 10px;
+		border-radius: 5px;
+		animation: rainbow 3s linear infinite;
+	}
+]]
 
--- Captured during render so the click handler can drive state (see header).
-local setCount = nil
+-- Captured from the render so the probe loop below can drive state.
+local setTicks = nil
 
 local function App()
-	local state = React.useState(0)
-	local count = state[1]
-	setCount = state[2]
+	local ticksState = React.useState(0)
+	local ticks = ticksState[1]
+	setTicks = ticksState[2]
 
-	return React.createElement(
-		"section",
-		nil,
-		React.createElement("h1", nil, "toil-luau"),
-		React.createElement("span", nil, "React 19 on Roblox Luau. Clicks: " .. tostring(count)),
-		React.createElement("button", nil, "Click me")
+	local clicksState = React.useState(0)
+	local clicks = clicksState[1]
+	local setClicks = clicksState[2]
+
+	return e("section", { id = "card", className = "card" },
+		e("h1", { id = "title", className = "title" }, "toil-luau"),
+		e("span", { id = "status", className = "status" },
+			"React 19 on Roblox.  Ticks: " .. tostring(ticks) .. "   Clicks: " .. tostring(clicks)),
+		e("div", { id = "row", className = "row" },
+			e("div", { id = "spinner", className = "spinner" }),
+			e("button", {
+				id = "pulse",
+				className = "pulse",
+				onClick = function()
+					setClicks(clicks + 1)
+				end,
+			}, "Click me")
+		),
+		e("div", { id = "bar", className = "bar" })
 	)
 end
 
--- nil engine -> the real CSS engine built from cssRules.
+local playerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
+
+-- nil engine -> the real CSS engine built from the parsed rules.
 -- nil env    -> the real Roblox engine adapter.
-local handle = mountReactRoot(playerGui, cssRules, React.createElement(App), nil, nil)
+local handle = toil.mountReactRoot(playerGui, toil.parseCss(css), e(App), nil, nil)
 
-print("[toil] mounted:", handle.gui:GetFullName(), "class:", handle.gui.ClassName)
+print("[toil] mounted:", handle.gui:GetFullName())
 
-local function findFirst(root, className)
-	for _, d in ipairs(root:GetDescendants()) do
-		if d:IsA(className) then
-			return d
-		end
-	end
-	return nil
+-- Console-verifiable probe: the reconciler re-renders the tick counter while
+-- the four animations keep moving.
+local function probe(label)
+	local gui = handle.gui
+	local status = gui:FindFirstChild("status", true)
+	local card = gui:FindFirstChild("card", true)
+	local spinner = gui:FindFirstChild("spinner", true)
+	local pulse = gui:FindFirstChild("pulse", true)
+	local bar = gui:FindFirstChild("bar", true)
+	print(string.format(
+		"[toil] %s status=%q card.transparency=%.2f spinner.rotation=%.1f pulse.width=%d pulse.text=%q bar.color=%s",
+		label,
+		status and status.Text or "<none>",
+		card and card.BackgroundTransparency or -1,
+		spinner and spinner.Rotation or -1,
+		pulse and pulse.Size.X.Offset or -1,
+		pulse and pulse.Text or "<none>",
+		bar and tostring(bar.BackgroundColor3) or "<none>"
+	))
 end
 
-local button = findFirst(handle.gui, "TextButton")
-local label = findFirst(handle.gui, "TextLabel")
-
-print("[toil] button:", button and button:GetFullName() or "<none>")
-print("[toil] label :", label and label.Text or "<none>")
-
-if button ~= nil and setCount ~= nil then
-	local clicks = 0
-	button.MouseButton1Click:Connect(function()
-		clicks += 1
-		setCount(clicks)
-		drainTasks() -- flush the re-render through the reconciler
-		print("[toil] click -> count =", clicks)
-	end)
-end
-
--- Prove the reconciler re-renders without any input, so the demo is
--- verifiable from the console alone.
 task.spawn(function()
-	for i = 1, 3 do
+	probe("t=0")
+	for i = 1, 6 do
 		task.wait(1)
-		if setCount ~= nil then
-			setCount(100 + i)
-			drainTasks()
-			local now = findFirst(handle.gui, "TextLabel")
-			print("[toil] auto-tick", i, "label =", now and now.Text or "<none>")
+		if setTicks ~= nil then
+			setTicks(i)
+			toil.drainTasks() -- the Heartbeat does this too; explicit here so the probe reads the new text
 		end
+		probe("t=" .. i)
 	end
+	print("[toil] probes done; animations keep running")
 end)

@@ -188,7 +188,7 @@ function copyLuau(src, dst, renameJs) {
 		s = s.replace(SPIKE_HEADER, ROBLOX_HEADER);
 		rewritten++;
 	}
-	const isReconciler = renameJs && /react-reconciler/.test(src.replace(/\/g, "/"));
+	const isReconciler = renameJs && /react-reconciler/.test(src.split(path.sep).join("/"));
 	s = bindGlobals(s, isReconciler ? RECONCILER_PREAMBLE : "");
 	const final = renameJs ? dst.replace(/\.luau$/, ".js.luau") : dst;
 	fs.mkdirSync(path.dirname(final), { recursive: true });

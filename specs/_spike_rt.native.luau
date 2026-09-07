@@ -2151,11 +2151,13 @@ end
 function __spikeSetST(ST, name, value)
 	if type(value) == "function" then
 		ST[name] = function(...)
-			local args = { ... }
-			if args[1] == ST then
-				table.remove(args, 1)
+			-- Vararg-safe: a nil argument must survive, so the receiver is
+			-- peeled with select rather than a table + unpack (which would
+			-- resolve to Roblox's builtin unpack on the staged runtime).
+			if select("#", ...) > 0 and (select(1, ...)) == ST then
+				return value(select(2, ...))
 			end
-			return value(unpack(args))
+			return value(...)
 		end
 	else
 		ST[name] = value

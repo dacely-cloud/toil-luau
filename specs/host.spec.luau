@@ -44,6 +44,24 @@ else
 	hostModuleErr = tostring(err4)
 end
 
+-- React lives in the runner's shared environment (published by _spike_env),
+-- not on _G, which the native backend keeps separate from getfenv(0).
+local function findReact()
+	local fromG = rawget(_G, "React")
+	if fromG ~= nil then
+		return fromG
+	end
+	local fromEnv = getfenv(0).React
+	if fromEnv ~= nil then
+		return fromEnv
+	end
+	local ok, mod = pcall(require, "../out/vendor/toil-react/index")
+	if ok and type(mod) == "table" then
+		return mod.default or mod
+	end
+	return nil
+end
+
 describe('roblox host', function ()
 	it('mounts a React tree with CSS styling onto a ScreenGui', function ()
 		expect(spikeErr).toBe(nil)
@@ -57,7 +75,7 @@ describe('roblox host', function ()
 		end
 		-- If spike env failed but _G.React is still set (it's set before main),
 		-- we can still proceed. If not, try to load React directly.
-		if (rawget(_G, "React") or rawget(require("./_spike_env"), "env").React) == nil then
+		if findReact() == nil then
 			print("React not available")
 			return
 		end
@@ -181,7 +199,7 @@ describe('roblox host', function ()
 		local container = hostEnv.env.newInstance("Frame")
 		container.Name = "PlayerGui"
 
-		local React = rawget(_G, "React") or rawget(require("./_spike_env"), "env").React
+		local React = findReact()
 		local element = React.createElement("div", { className = "card" },
 			React.createElement("button", { className = "btn" }, "Click"),
 			React.createElement("span", nil, "Label")

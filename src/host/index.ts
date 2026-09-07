@@ -238,13 +238,15 @@ export function mountReactRoot(
 		undefined, // concurrentUpdatesByDefaultOverride
 		"", // identifierPrefix
 		(errorValue: unknown, _info: unknown): void => {
-			// console.error("uncaught:", errorValue);
+			// A render error must not vanish: React swallows it and commits an
+			// empty tree, which is far harder to diagnose than a printed error.
+			print("[toil] uncaught render error:", tostring(errorValue));
 		},
 		(errorValue: unknown, _info: unknown): void => {
-			// console.error("caught:", errorValue);
+			print("[toil] caught render error:", tostring(errorValue));
 		},
 		(errorValue: unknown, _info: unknown): void => {
-			// console.error("recoverable:", errorValue);
+			print("[toil] recoverable render error:", tostring(errorValue));
 		},
 		(): void => {
 			// console.log("default-indicator");

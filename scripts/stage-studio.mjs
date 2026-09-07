@@ -141,6 +141,15 @@ local _gBaseline = {}
 for _k in pairs(_G) do
 	_gBaseline[_k] = true
 end
+-- The install rewrite below sends every \`getfenv(0).X = ...\` to \`_G.X = ...\`
+-- so cross-module reads of _G.Symbol / _G.__spikeMicrotasks resolve. But some
+-- of this module's OWN functions read those names as bare identifiers (e.g.
+-- ObjectProto.hasOwnProperty calls Obj.hasOwnProperty(Object, ...)). On Roblox
+-- a bare identifier reads the script environment, which does NOT chain to _G,
+-- so \`Object\` would be nil and hasOwnProperty would wrongly answer false --
+-- which silently drops every prop React.createElement copies. Chain this
+-- module's environment to _G so a bare read falls through to the install.
+setmetatable(getfenv(0), { __index = _G })
 `;
 
 	const footer = `

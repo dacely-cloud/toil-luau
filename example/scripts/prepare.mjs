@@ -127,6 +127,8 @@ writeFileSync(
 		"export function startTransition(): void;",
 		"export function makeRealClock(): unknown;",
 		"export function makeFakeClock(): unknown;",
+		"export function parseCss(source: string): Array<StyleRule>;",
+		"export function cssToRules(source: string): Array<StyleRule>;",
 		"",
 	].join("\n"),
 );

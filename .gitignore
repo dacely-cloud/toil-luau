@@ -21,3 +21,7 @@ example/out/
 *.local
 specs/.spike
 specs/out
+
+# azul live-sync mirror (Studio -> disk) and the sourcemap it maintains
+sync/
+sourcemap.json

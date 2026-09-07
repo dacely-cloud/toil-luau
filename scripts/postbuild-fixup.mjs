@@ -168,6 +168,25 @@ for (const f of walk(path.join(root, "out"))) {
 				"return __arrNew(hook.memoizedState, queue.dispatch)",
 				"return { hook.memoizedState, queue.dispatch }"
 			);
+		// commitCallbacks / commitHiddenCallbacks: React reuses one `var` for
+		// the update-queue object and then a numeric loop index. The block-
+		// scoping transform can hand the tamed function that numeric value as
+		// its `updateQueue` argument, so `updateQueue.callbacks` indexes a
+		// number and throws in the commit's layout phase. React escalates the
+		// throw to the root (no error boundary) and unmounts the whole tree,
+		// leaving an empty ScreenGui. The queue these run is empty for the
+		// supported surface (function components + hooks carry no root/class
+		// commit callbacks), so guard the reads: a non-table queue means "no
+		// callbacks", which is also what JS yields for a boxed primitive.
+		s = s
+			.replace(
+				"\t\t\t\tcallbacks = updateQueue.callbacks\n",
+				'\t\t\t\tcallbacks = if type(updateQueue) == "table" then updateQueue.callbacks else nil\n'
+			)
+			.replace(
+				"\t\t\t\thiddenCallbacks = updateQueue.shared.hiddenCallbacks\n",
+				'\t\t\t\thiddenCallbacks = if type(updateQueue) == "table" and type(updateQueue.shared) == "table" then updateQueue.shared.hiddenCallbacks else nil\n'
+			);
 		if (s !== before) changed = true;
 	}
 

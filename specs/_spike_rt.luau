@@ -1515,6 +1515,12 @@ end }
 ObjectProto = protoReg[Obj]
 
 function Obj.hasOwnProperty(self, obj, key)
+	-- JS boxes a primitive receiver and finds no own property, so
+	-- Object.prototype.hasOwnProperty.call(5, "x") is false, not a throw.
+	-- rawget would raise on a non-table, so match JS and answer false.
+	if type(obj) ~= "table" then
+		return false
+	end
 	if type(key) == "number" and key == math.floor(key) then
 		return rawget(obj, key) ~= nil or rawget(obj, tostring(key)) ~= nil
 	end

@@ -274,7 +274,7 @@ export function mountReactRoot(
 	let heartbeatConnection: ConnectionLike | undefined;
 	const runService = game.GetService("RunService") as unknown as Record<string, unknown> | undefined;
 	const heartbeat = runService !== undefined ? runService["Heartbeat"] : undefined;
-	if (heartbeat !== undefined && typeOfJS((heartbeat as Record<string, unknown>)["Connect"]) === "function") {
+	if (heartbeat !== undefined && typeIs((heartbeat as Record<string, unknown>)["Connect"], "function")) {
 		heartbeatConnection = (heartbeat as unknown as SignalLike).Connect((_dt: number): void => {
 			drainTasks();
 			tick(driver);

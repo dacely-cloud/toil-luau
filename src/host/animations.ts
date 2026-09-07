@@ -17,6 +17,19 @@ import type {
 import type { HostEnv, HostNode } from "./roblox-host";
 import { applyStyle, parseColor, parseLength, computePlacement } from "./roblox-host";
 
+/**
+ * Keys of a record via the Luau builtin pairs(): the host must not depend on
+ * the JS `Object` global, which the native test runner does not expose to
+ * every module.
+ */
+function keysOf(rec: Record<string, unknown>): Array<string> {
+	const out: Array<string> = [];
+	for (const [k] of pairs(rec)) {
+		out.push(k as string);
+	}
+	return out;
+}
+
 // Module-local helper: Lest's VM never gets the spike helper globals,
 // so string ops route through plain Luau builtins.
 function charAt(s: string, i: number): string {
@@ -144,7 +157,7 @@ export function startAnimation(
 		driver.animations.remove(existing);
 	}
 	const base: Record<string, string> = {};
-	const baseKeys = (Object.keys(node.computed) as Array<string>);
+	const baseKeys = keysOf(node.computed);
 	for (let ki = 0; ki < baseKeys.size(); ki++) {
 		base[baseKeys[ki]] = node.computed[baseKeys[ki]];
 	}
@@ -273,7 +286,7 @@ function applyAnimatedValues(
 	env: HostEnv
 ): void {
 	// Merge into computed style
-	const entries = (Object.keys(values) as Array<string>);
+	const entries = keysOf(values);
 	for (let ki = 0; ki < entries.size(); ki++) {
 		const key = entries[ki];
 		node.computed[key] = values[key];
@@ -285,7 +298,7 @@ function applyAnimatedValues(
 /** Restore a node to the style it had before an animation started. */
 function applyBaseStyle(node: HostNode, base: Record<string, string>, env: HostEnv): void {
 	const restored: Record<string, string> = {};
-	const keys = (Object.keys(base) as Array<string>);
+	const keys = keysOf(base);
 	for (let ki = 0; ki < keys.size(); ki++) {
 		restored[keys[ki]] = base[keys[ki]];
 	}

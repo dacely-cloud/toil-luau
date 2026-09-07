@@ -230,6 +230,19 @@ for (const [from, to] of Object.entries(VENDOR)) {
 // 4. The JS-semantics runtime every staged module installs into its env.
 stageRuntime();
 
+// 4b. Container init scripts. Azul's Rojo-compat builder emits a `$path`
+//     directory that has no init script twice (once for the project node, once
+//     while walking it), which lands duplicate Folders in Studio. A directory
+//     with an init script is emitted once, as a ModuleScript container, and
+//     WaitForChild resolves through it exactly like a Folder.
+const CONTAINER_INIT =
+	"-- toil-luau: container module (see scripts/stage-studio.mjs). Intentionally empty.
+return {}
+";
+for (const dir of ["include", "node_modules"]) {
+	fs.writeFileSync(path.join(STAGE, dir, "init.luau"), CONTAINER_INIT);
+}
+
 // 5. The demo LocalScript. `.client.luau` is how Rojo spells a LocalScript.
 const demo = path.join(ROOT, "scripts", "studio-demo.client.luau");
 fs.mkdirSync(path.join(STAGE, "StarterPlayerScripts"), { recursive: true });

@@ -17,6 +17,19 @@ import type ReactReconciler from "@toil/react-reconciler";
 import type { ElementIdentity, Engine, TransitionSpec } from "./engine-types";
 
 /**
+ * Keys of a record via the Luau builtin pairs(): the host must not depend on
+ * the JS `Object` global, which the native test runner does not expose to
+ * every module.
+ */
+function keysOf(rec: Record<string, unknown>): Array<string> {
+	const out: Array<string> = [];
+	for (const [k] of pairs(rec)) {
+		out.push(k as string);
+	}
+	return out;
+}
+
+/**
  * Build a host node's element identity from its props and node state.
  * Pure and exported so specs can unit-test the mapping.
  */
@@ -27,7 +40,7 @@ export function identityFromProps(
 	const classList: Array<string> = [];
 	// React spells it `className`; plain `class` is accepted too.
 	const rawClass = props["class"] ?? props["className"];
-	if (typeOfJS(rawClass) === "string") {
+	if (typeIs(rawClass, "string")) {
 		const tokens = string.split(rawClass as string, "%s+");
 		for (let i = 0; i < tokens.size(); i++) {
 			if (tokens[i].size() > 0) {
@@ -36,14 +49,14 @@ export function identityFromProps(
 		}
 	}
 	const attributes: Record<string, string> = {};
-	const keys = Object.keys(props) as Array<string>;
+	const keys = keysOf(props);
 	for (let i = 0; i < keys.size(); i++) {
 		const k = keys[i];
 		if (k === "class" || k === "className" || k === "children" || k === "ref") {
 			continue;
 		}
 		const v = props[k];
-		if (typeOfJS(v) === "string") {
+		if (typeIs(v, "string")) {
 			attributes[k] = v as string;
 		}
 	}
@@ -982,10 +995,10 @@ function wireEvents(node: HostNode): void {
 	const c = inst.ClassName;
 	if (c !== "TextButton" && c !== "ImageButton") return;
 	const signal = (inst as Record<string, unknown>)["MouseButton1Click"];
-	if (signal === undefined || typeOfJS((signal as Record<string, unknown>)["Connect"]) !== "function") return;
+	if (signal === undefined || !typeIs((signal as Record<string, unknown>)["Connect"], "function")) return;
 	(signal as SignalLike).Connect((): void => {
 		const handler = node.pendingProps["onClick"];
-		if (typeOfJS(handler) === "function") {
+		if (typeIs(handler, "function")) {
 			(handler as (event: Record<string, unknown>) => void)({ type: "click", target: node });
 		}
 	});
@@ -1106,7 +1119,7 @@ export function buildHostConfig(
 		// An `id` names the instance too, so the tree reads well in the
 		// Explorer and FindFirstChild(id, true) locates it.
 		const id = props["id"];
-		if (typeOfJS(id) === "string" && instance.inst !== undefined) {
+		if (typeIs(id, "string") && instance.inst !== undefined) {
 			(instance.inst as Record<string, unknown>)["Name"] = tagNameToInstanceName(id as string);
 		}
 	}

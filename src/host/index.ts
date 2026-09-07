@@ -78,6 +78,19 @@ export function makeEngineEnv(): HostEnv {
 		return (Color3 as unknown as { fromRGB: (r: number, g: number, b: number) => Color3 }).fromRGB(r, g, b);
 	}
 
+	function newColorSequence(colors: Array<{ r: number; g: number; b: number; a: number }>): unknown {
+		const kpCtor = ColorSequenceKeypoint as unknown as { new: (t: number, c: unknown) => unknown };
+		const c3 = Color3 as unknown as { fromRGB: (r: number, g: number, b: number) => unknown };
+		const count = colors.size();
+		const kps: Array<unknown> = [];
+		for (let i = 0; i < count; i++) {
+			const t = count <= 1 ? 0 : i / (count - 1);
+			const col = colors[i];
+			kps.push(kpCtor.new(t, c3.fromRGB(col.r, col.g, col.b)));
+		}
+		return (ColorSequence as unknown as { new: (k: Array<unknown>) => unknown }).new(kps);
+	}
+
 	function enumValue(name: string): unknown {
 		// name is "EnumType.Member" e.g. "Font.GothamBold". Roblox raises on
 		// an unknown enum or member, so the lookup is protected.
@@ -101,6 +114,7 @@ export function makeEngineEnv(): HostEnv {
 		newUDim,
 		newVector2,
 		newColor3,
+		newColorSequence,
 		enumValue,
 		destroy,
 	};

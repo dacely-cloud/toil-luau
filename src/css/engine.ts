@@ -205,8 +205,13 @@ function normalizeDeclarations(decls: Record<string, string> | undefined): Recor
 		if (key === "padding" || key === "margin") {
 			expandSides(key, value, out);
 		} else if (key === "background") {
-			// Only the color layer maps onto a GUI instance.
-			out["background-color"] = value;
+			// A gradient maps to background-image (-> UIGradient); a plain
+			// colour maps to background-color.
+			if (strFind(value, "gradient", 1, true) !== undefined) {
+				out["background-image"] = value;
+			} else {
+				out["background-color"] = value;
+			}
 		} else if (key === "border") {
 			const parts = strSplitWs(value);
 			for (let pi = 0; pi < parts.size(); pi++) {

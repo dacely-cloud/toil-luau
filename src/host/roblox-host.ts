@@ -93,7 +93,8 @@ export type RobloxClassName =
 	| "UIPadding"
 	| "UIListLayout"
 	| "UIStroke"
-	| "UIScale";
+	| "UIScale"
+	| "UIGradient";
 
 /** A wrapped Roblox Instance. Never `any`: typed accessors below. */
 export type RobloxInstance = {
@@ -149,6 +150,8 @@ export interface HostEnv {
 	newUDim: (scale: number, offset: number) => unknown;
 	newVector2: (x: number, y: number) => unknown;
 	newColor3: (r: number, g: number, b: number) => unknown;
+	/** Build a ColorSequence from evenly-spaced colour stops (real Roblox only). */
+	newColorSequence?: (colors: Array<ParsedColor>) => unknown;
 	/** Enum member access by fully-qualified name, e.g. "Font.GothamBold". */
 	enumValue: (name: string) => unknown;
 	/** Destroy an instance (helper cleanup on remount). */
@@ -457,6 +460,71 @@ export function firstLength(value: string): string {
 	return "";
 }
 
+/** Split on a separator at paren depth 0 (so rgb(...) commas stay intact). */
+function splitTopLevel(s: string, sep: string): Array<string> {
+	const out: Array<string> = [];
+	let depth = 0;
+	let cur = "";
+	for (let i = 0; i < s.size(); i++) {
+		const c = slice(s, i + 1, i + 1);
+		if (c === "(") depth++;
+		else if (c === ")") depth--;
+		if (c === sep && depth === 0) {
+			out.push(cur);
+			cur = "";
+		} else {
+			cur += c;
+		}
+	}
+	if (cur.size() > 0) out.push(cur);
+	return out;
+}
+
+/** A parsed linear-gradient: a rotation (deg) and its ordered colour stops. */
+export interface ParsedGradient {
+	rotation: number;
+	stops: Array<ParsedColor>;
+}
+
+/**
+ * Parse a `linear-gradient(<angle>?, c1, c2, ...)` value. The angle is
+ * optional (default 0) and may be given in degrees or as `to <edge>`. Colour
+ * stop positions (`#fff 40%`) are ignored; only the colours are used.
+ */
+export function parseGradient(value: string): ParsedGradient | undefined {
+	const open = strFind(value, "(", 1, true);
+	if (open === undefined) return undefined;
+	let close = value.size();
+	while (close > open && slice(value, close, close) !== ")") close--;
+	if (close <= open) return undefined;
+	const inner = slice(value, open + 1, close - 1);
+	const parts = splitTopLevel(inner, ",");
+	if (parts.size() === 0) return undefined;
+	let rotation = 0;
+	let start = 0;
+	const first = strTrim(parts[0]);
+	const am = string.match(first, "^(%-?%d+%.?%d*)deg");
+	const angle = (am[0] as unknown) as string | undefined;
+	if (angle !== undefined) {
+		const a = _parseFloat(angle);
+		if (!_isNaN(a)) rotation = a;
+		start = 1;
+	} else if (startsWith(first, "to ")) {
+		if (strFind(first, "right", 1, true) !== undefined) rotation = 90;
+		else if (strFind(first, "left", 1, true) !== undefined) rotation = 270;
+		else if (strFind(first, "top", 1, true) !== undefined) rotation = 0;
+		else rotation = 180;
+		start = 1;
+	}
+	const stops: Array<ParsedColor> = [];
+	for (let i = start; i < parts.size(); i++) {
+		const c = parseColor(strTrim(parts[i]));
+		if (c !== undefined) stops.push(c);
+	}
+	if (stops.size() < 2) return undefined;
+	return { rotation, stops };
+}
+
 function clamp255(n: number): number {
 	if (_isNaN(n)) {
 		return 0;
@@ -669,19 +737,66 @@ export function applyStyle(node: HostNode, style: Record<string, string>, env: H
 		(inst as Record<string, unknown>)["TextTransparency"] = 1 - opacity;
 	}
 
-	// --- Border ---
+	// --- Gradient background (UIGradient) ---
+	// linear-gradient(<angle>, c1, c2, ...) -> a UIGradient child whose Color is
+	// a ColorSequence of the stops. UIGradient tints BackgroundColor3, so the
+	// frame is painted white for the stops to read true. The angle is animatable
+	// through the `gradient-rotation` property, which makes the gradient flow.
+	const bgImage = style["background-image"] ?? "";
+	if (strFind(bgImage, "gradient", 1, true) !== undefined && env.newColorSequence !== undefined) {
+		const grad = parseGradient(bgImage);
+		if (grad !== undefined && grad.stops.size() >= 2) {
+			ensureHelperChild(node, "ToilGradient", "UIGradient", env);
+			const g = findHelper(node, "ToilGradient");
+			if (g !== undefined) {
+				(g as Record<string, unknown>)["Color"] = env.newColorSequence(grad.stops);
+				if (!animOf("gradient-rotation")) (g as Record<string, unknown>)["Rotation"] = grad.rotation;
+			}
+			if (!animBg) (inst as Record<string, unknown>)["BackgroundColor3"] = env.newColor3(255, 255, 255);
+			(inst as Record<string, unknown>)["BackgroundTransparency"] = 1 - opacity;
+		}
+	}
+	// gradient-rotation: animatable angle for the UIGradient above.
+	const gradRot = style["gradient-rotation"];
+	if (gradRot !== undefined && !animOf("gradient-rotation")) {
+		const g = findHelper(node, "ToilGradient");
+		if (g !== undefined) {
+			const gr = _parseFloat(gradRot);
+			if (!_isNaN(gr)) (g as Record<string, unknown>)["Rotation"] = gr;
+		}
+	}
+
+	// --- Border -> UIStroke (follows the UICorner; a gradient outline when
+	// border-image is a gradient, otherwise a solid stroke). ---
 	const borderW = parseLength(style["border-width"]);
 	const borderColor = parseColor(style["border-color"]);
 	if (borderW !== undefined && borderW.offset > 0) {
-		(inst as Record<string, unknown>)["BorderSizePixel"] = _round(borderW.offset);
-		if (borderColor !== undefined) {
-			(inst as Record<string, unknown>)["BorderColor3"] = env.newColor3(
-				borderColor.r,
-				borderColor.g,
-				borderColor.b
-			);
+		ensureHelperChild(node, "ToilStroke", "UIStroke", env);
+		const stroke = findHelper(node, "ToilStroke");
+		if (stroke !== undefined) {
+			const st = stroke as Record<string, unknown>;
+			st["Thickness"] = _round(borderW.offset);
+			if (borderColor !== undefined) {
+				st["Color"] = env.newColor3(borderColor.r, borderColor.g, borderColor.b);
+			}
+			st["ApplyStrokeMode"] = env.enumValue("ApplyStrokeMode.Border");
+			const borderImage = style["border-image"] ?? "";
+			if (strFind(borderImage, "gradient", 1, true) !== undefined && env.newColorSequence !== undefined) {
+				const grad = parseGradient(borderImage);
+				if (grad !== undefined && grad.stops.size() >= 2) {
+					if (node.styleState["ToilStrokeGradient"] === undefined) {
+						const sg = env.newInstance("UIGradient");
+						(sg as Record<string, unknown>)["Name"] = "ToilStrokeGradient";
+						(sg as Record<string, unknown>)["Parent"] = stroke;
+						node.styleState["ToilStrokeGradient"] = sg;
+					}
+					const sg = node.styleState["ToilStrokeGradient"] as Record<string, unknown>;
+					sg["Color"] = env.newColorSequence(grad.stops);
+					if (!animOf("gradient-rotation")) sg["Rotation"] = grad.rotation;
+				}
+			}
 		}
-		(inst as Record<string, unknown>)["BorderMode"] = env.enumValue("BorderMode.Inset");
+		(inst as Record<string, unknown>)["BorderSizePixel"] = 0;
 	}
 
 	// --- Border radius (UICorner child) ---

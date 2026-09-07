@@ -92,7 +92,8 @@ export type RobloxClassName =
 	| "UICorner"
 	| "UIPadding"
 	| "UIListLayout"
-	| "UIStroke";
+	| "UIStroke"
+	| "UIScale";
 
 /** A wrapped Roblox Instance. Never `any`: typed accessors below. */
 export type RobloxInstance = {
@@ -598,12 +599,26 @@ export function applyStyle(node: HostNode, style: Record<string, string>, env: H
 	if (inst === undefined) return;
 	node.computed = style;
 
+	// Properties currently driven by a running animation on this node. The
+	// animation driver is their sole writer (it re-applies every frame); a
+	// re-render's applyStyle must not reset them to their base value, or the
+	// element flickers back for a frame on every state change. The driver
+	// clears this set around its own applyStyle call so it always writes.
+	const animated = node.styleState["animatedProps"] as Record<string, boolean> | undefined;
+	const animOf = (prop: string): boolean => animated !== undefined && animated[prop] === true;
+	const animTransform = animOf("transform") || animOf("rotation");
+	const animSize = animOf("width") || animOf("height");
+	const animBg = animOf("background-color");
+	const animOpacity = animOf("opacity");
+	const animColor = animOf("color");
+	const tf = parseTransform(style);
+
 	// --- Size (width / height) ---
 	// An axis that is "auto" (or undeclared while the other is declared)
 	// sizes to content through AutomaticSize, as CSS does.
 	const w = parseLength(style["width"]);
 	const h = parseLength(style["height"]);
-	if (w !== undefined || h !== undefined) {
+	if ((w !== undefined || h !== undefined) && !animSize) {
 		const autoX = w === undefined || w.auto;
 		const autoY = h === undefined || h.auto;
 		// UDim2.new(xScale, xOffset, yScale, yOffset)
@@ -620,15 +635,17 @@ export function applyStyle(node: HostNode, style: Record<string, string>, env: H
 
 	// --- Position (top / left / right / bottom + position) ---
 	const placement = computePlacement(style, [100, 100]);
-	const anchor = env.newVector2(placement.anchorX, placement.anchorY);
-	const pos = env.newUDim2(
-		placement.posScaleX,
-		placement.posOffsetX,
-		placement.posScaleY,
-		placement.posOffsetY
-	);
-	(inst as Record<string, unknown>)["AnchorPoint"] = anchor;
-	(inst as Record<string, unknown>)["Position"] = pos;
+	(inst as Record<string, unknown>)["AnchorPoint"] = env.newVector2(placement.anchorX, placement.anchorY);
+	// transform: translate(x, y) shifts the element by a pixel offset on top of
+	// its laid-out position -- the natural map onto a Roblox Position offset.
+	if (!animTransform) {
+		(inst as Record<string, unknown>)["Position"] = env.newUDim2(
+			placement.posScaleX,
+			placement.posOffsetX + tf.translateX,
+			placement.posScaleY,
+			placement.posOffsetY + tf.translateY
+		);
+	}
 
 	// --- Background color + opacity ---
 	// A CSS background defaults to transparent, and opacity multiplies into
@@ -636,7 +653,7 @@ export function applyStyle(node: HostNode, style: Record<string, string>, env: H
 	const bg = parseColor(style["background-color"]);
 	let bgAlpha = 0;
 	if (bg !== undefined) {
-		(inst as Record<string, unknown>)["BackgroundColor3"] = env.newColor3(bg.r, bg.g, bg.b);
+		if (!animBg) (inst as Record<string, unknown>)["BackgroundColor3"] = env.newColor3(bg.r, bg.g, bg.b);
 		bgAlpha = bg.a;
 	}
 	let opacity = 1;
@@ -645,8 +662,10 @@ export function applyStyle(node: HostNode, style: Record<string, string>, env: H
 		const o = _parseFloat(opacityRaw);
 		if (!_isNaN(o)) opacity = clamp01(o);
 	}
-	(inst as Record<string, unknown>)["BackgroundTransparency"] = 1 - bgAlpha * opacity;
-	if (isTextInstance(inst)) {
+	if (!animBg && !animOpacity) {
+		(inst as Record<string, unknown>)["BackgroundTransparency"] = 1 - bgAlpha * opacity;
+	}
+	if (isTextInstance(inst) && !animOpacity) {
 		(inst as Record<string, unknown>)["TextTransparency"] = 1 - opacity;
 	}
 
@@ -736,7 +755,7 @@ export function applyStyle(node: HostNode, style: Record<string, string>, env: H
 
 	// --- Text color ---
 	const textColor = parseColor(style["color"]);
-	if (textColor !== undefined && isTextInstance(inst)) {
+	if (textColor !== undefined && isTextInstance(inst) && !animColor) {
 		(inst as Record<string, unknown>)["TextColor3"] = env.newColor3(
 			textColor.r,
 			textColor.g,
@@ -807,10 +826,18 @@ export function applyStyle(node: HostNode, style: Record<string, string>, env: H
 		}
 	}
 
-	// --- Rotation (from transform or direct); written unconditionally so a
-	// finished animation that restores the base style also un-rotates. ---
-	const rotation = parseRotation(style);
-	(inst as Record<string, unknown>)["Rotation"] = rotation ?? 0;
+	// --- Rotation + scale (from transform). Written unconditionally when not
+	// animated so a finished animation that restores the base also resets them.
+	if (!animTransform) {
+		(inst as Record<string, unknown>)["Rotation"] = tf.rotation ?? 0;
+		// transform: scale(n) -> a UIScale child (Roblox has no scale on the
+		// instance itself). Created only when a scale is present.
+		if (tf.scale !== undefined) {
+			ensureHelperChild(node, "ToilScale", "UIScale", env);
+			const sc = findHelper(node, "ToilScale");
+			if (sc !== undefined) (sc as Record<string, unknown>)["Scale"] = tf.scale;
+		}
+	}
 
 	// --- Box shadow (approximated via UIStroke child) ---
 	const boxShadow = style["box-shadow"] ?? "";
@@ -916,24 +943,75 @@ function mapFontFamily(
 	return undefined;
 }
 
-function parseRotation(style: Record<string, string>): number | undefined {
-	// Check for a "transform" with rotate()
+/** Parsed CSS transform: rotate() -> degrees, translate() -> px, scale() -> factor. */
+interface ParsedTransform {
+	rotation: number | undefined;
+	translateX: number;
+	translateY: number;
+	scale: number | undefined;
+}
+
+/**
+ * Parse a CSS `transform` value into the pieces the host can map onto a
+ * Roblox instance: rotate() -> Rotation, translate()/translateX/Y -> a Position
+ * offset (px), scale() -> a UIScale. Units on lengths are ignored (px assumed).
+ */
+function parseTransform(style: Record<string, string>): ParsedTransform {
+	let rotation: number | undefined;
+	let translateX = 0;
+	let translateY = 0;
+	let scale: number | undefined;
 	const transform = style["transform"] ?? "";
-	if (transform.size() > 0) {
-		const m = string.match(transform, "rotate%(%s*(%-?%d+%.?%d*)");
-		const deg = (m[0] as unknown) as string | undefined;
+	if (transform.size() > 0 && transform !== "none") {
+		const rm = string.match(transform, "rotate%(%s*(%-?%d+%.?%d*)");
+		const deg = (rm[0] as unknown) as string | undefined;
 		if (deg !== undefined) {
-			const n = _parseFloat(deg);
-			if (!_isNaN(n)) return n;
+			const nn = _parseFloat(deg);
+			if (!_isNaN(nn)) rotation = nn;
+		}
+		const tm = strMatchAll(transform, "translate%(%s*(%-?%d+%.?%d*)%a*%s*,?%s*(%-?%d*%.?%d*)");
+		if (tm !== undefined) {
+			const nx = _parseFloat(tm[0] ?? "0");
+			if (!_isNaN(nx)) translateX = nx;
+			const yRaw = tm[1] ?? "";
+			if (yRaw.size() > 0) {
+				const ny = _parseFloat(yRaw);
+				if (!_isNaN(ny)) translateY = ny;
+			}
+		}
+		const txm = string.match(transform, "translateX%(%s*(%-?%d+%.?%d*)");
+		const txv = (txm[0] as unknown) as string | undefined;
+		if (txv !== undefined) {
+			const nn = _parseFloat(txv);
+			if (!_isNaN(nn)) translateX = nn;
+		}
+		const tym = string.match(transform, "translateY%(%s*(%-?%d+%.?%d*)");
+		const tyv = (tym[0] as unknown) as string | undefined;
+		if (tyv !== undefined) {
+			const nn = _parseFloat(tyv);
+			if (!_isNaN(nn)) translateY = nn;
+		}
+		const sm = string.match(transform, "scale%(%s*(%-?%d+%.?%d*)");
+		const sv = (sm[0] as unknown) as string | undefined;
+		if (sv !== undefined) {
+			const nn = _parseFloat(sv);
+			if (!_isNaN(nn)) scale = nn;
 		}
 	}
-	// Direct rotation property
 	const rot = style["rotation"] ?? "";
-	if (rot.size() > 0) {
-		const n = _parseFloat(rot);
-		if (!_isNaN(n)) return n;
+	if (rotation === undefined && rot.size() > 0) {
+		const nn = _parseFloat(rot);
+		if (!_isNaN(nn)) rotation = nn;
 	}
-	return undefined;
+	return { rotation, translateX, translateY, scale };
+}
+
+/** strMatchAll: like string.match but returns all capture groups as an array. */
+function strMatchAll(s: string, pattern: string): Array<string> | undefined {
+	const wrapped = [string.match(s, pattern)] as unknown as Array<Array<string>>;
+	const inner = wrapped[0] as unknown as Array<string>;
+	if (inner.size() === 0 || inner[0] === undefined) return undefined;
+	return inner;
 }
 
 function ensureHelperChild(

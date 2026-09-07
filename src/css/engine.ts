@@ -817,6 +817,7 @@ function parseAnimation(value: string): Array<AnimationSpec> {
 		let duration = 0;
 		let timingFunction = "ease";
 		let delay = 0;
+		let timeSeen = 0;
 		let iterationCount: number | string = 1;
 		let direction = "normal";
 		let fillMode = "none";
@@ -825,17 +826,23 @@ function parseAnimation(value: string): Array<AnimationSpec> {
 		for (let ti = 0; ti < tokens.size(); ti++) {
 			const t = strTrim(tokens[ti]);
 			if (t.size() === 0) continue;
-			if (strEndsWith(t, "s") && !strEndsWith(t, "ms")) {
+			// CSS animation shorthand: the first <time> is the duration, the
+			// second is the delay (check "ms" before "s" since "ms" ends in "s").
+			if (strEndsWith(t, "ms")) {
 				const n = jsParseFloat(t);
-				if (!jsIsNaN(n) && duration === 0) {
-					duration = n;
+				if (!jsIsNaN(n)) {
+					if (timeSeen === 0) duration = n / 1000;
+					else if (timeSeen === 1) delay = n / 1000;
+					timeSeen++;
 					continue;
 				}
 			}
-			if (strEndsWith(t, "ms")) {
+			if (strEndsWith(t, "s")) {
 				const n = jsParseFloat(t);
-				if (!jsIsNaN(n) && duration === 0) {
-					duration = n / 1000;
+				if (!jsIsNaN(n)) {
+					if (timeSeen === 0) duration = n;
+					else if (timeSeen === 1) delay = n;
+					timeSeen++;
 					continue;
 				}
 			}

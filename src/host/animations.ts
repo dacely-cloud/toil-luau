@@ -170,6 +170,16 @@ export function startAnimation(
 		engine: driver.engine,
 		env: driver.env,
 	});
+	// Mark the properties this animation owns so a re-render's applyStyle
+	// leaves them to the driver (see applyStyle's animated-prop guard).
+	const ap: Record<string, boolean> = (node.styleState["animatedProps"] as Record<string, boolean>) ?? {};
+	for (let fi = 0; fi < keyframes.frames.size(); fi++) {
+		const ks = keysOf(keyframes.frames[fi].styles);
+		for (let ki = 0; ki < ks.size(); ki++) {
+			ap[ks[ki]] = true;
+		}
+	}
+	node.styleState["animatedProps"] = ap;
 }
 
 /**
@@ -222,7 +232,8 @@ export function tick(driver: AnimationDriver): void {
 				: spec.delay + spec.duration * (spec.iterationCount as number);
 
 		if (elapsed >= totalDuration && spec.iterationCount !== "infinite") {
-			// Animation finished
+			// Animation finished: release the lock so the base/final write lands.
+			anim.node.styleState["animatedProps"] = undefined;
 			if (spec.fillMode === "forwards" || spec.fillMode === "both") {
 				// Hold the final frame.
 				const sample = driver.engine.evaluateAnimation(spec, keyframes, totalDuration);
@@ -291,8 +302,12 @@ function applyAnimatedValues(
 		const key = entries[ki];
 		node.computed[key] = values[key];
 	}
-	// Re-apply the full style
+	// Re-apply the full style with the guard lifted: the driver is the writer
+	// of the animated properties, so applyStyle must not skip them here.
+	const saved = node.styleState["animatedProps"];
+	node.styleState["animatedProps"] = undefined;
 	applyStyle(node, node.computed, env);
+	node.styleState["animatedProps"] = saved;
 }
 
 /** Restore a node to the style it had before an animation started. */

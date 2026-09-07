@@ -36,7 +36,10 @@ function run(label, cmd, args, opts = {}) {
 	const res = spawnSync(cmd, args, {
 		cwd: ROOT,
 		stdio: "inherit",
-		shell: process.platform === "win32" ? true : false,
+		// Only `npx` needs a shell (to resolve the .cmd shim on Windows). Node
+		// steps must run shell-free: cmd.exe would word-split a spaced
+		// process.execPath such as C:\Program Files\nodejs\node.exe.
+		shell: false,
 		...opts,
 	});
 	if (res.error) {
@@ -71,7 +74,9 @@ run("5/7 scope-to-table", process.execPath, [
 ]);
 
 // 6. compile to Luau (game project type -> ReplicatedStorage runtime headers)
-run("6/7 roblox-ts", "npx", ["roblox-ts", "--type", "game"]);
+run("6/7 roblox-ts", "npx", ["roblox-ts", "--type", "game"], {
+	shell: process.platform === "win32",
+});
 
 // 7. re-patch the RuntimeLib that roblox-ts restored from upstream
 run("7/7a patch-runtime-lib", process.execPath, [scripts("patch-runtime-lib.mjs")]);

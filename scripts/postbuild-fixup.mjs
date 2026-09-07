@@ -1,17 +1,19 @@
 import fs from "node:fs";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 
 // roblox-ts restores include/ from upstream on every build, so re-patch it
 // before the emitted files are fixed up.
-execFileSync(process.execPath, [new URL("./patch-runtime-lib.mjs", import.meta.url).pathname], { stdio: "inherit" });
+execFileSync(process.execPath, [fileURLToPath(new URL("./patch-runtime-lib.mjs", import.meta.url))], { stdio: "inherit" });
 
 // The emitted vendor files are Luau, but roblox-ts passes some JS string
 // escapes through that this VM's parser rejects. Two classes:
 //  1. \uXXXX (JS unicode) -> \u{XXXX} (Luau)
 //  2. .js file names -> .luau (the native require resolver only tries
 //     .luau/.lua/init.luau/init.lua)
-const root = new URL("..", import.meta.url).pathname;
+// fileURLToPath, not .pathname: .pathname keeps a leading slash on Windows.
+const root = fileURLToPath(new URL("..", import.meta.url));
 
 function walk(d, out = []) {
 	for (const e of fs.readdirSync(d, { withFileTypes: true })) {
@@ -42,7 +44,7 @@ let renames = 0;
 
 let hoistedFns = [];
 try {
-	hoistedFns = JSON.parse(fs.readFileSync(new URL("./st-hoisted-fns.json", import.meta.url).pathname, "utf8"));
+	hoistedFns = JSON.parse(fs.readFileSync(fileURLToPath(new URL("./st-hoisted-fns.json", import.meta.url)), "utf8"));
 } catch {
 	// no transform metadata yet
 }

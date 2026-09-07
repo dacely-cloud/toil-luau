@@ -1,0 +1,24 @@
+{
+  "name": "toil-luau-studio",
+  "tree": {
+    "$className": "DataModel",
+    "ReplicatedStorage": {
+      "rbxts_include": {
+        "$path": ".studio-stage/include"
+      },
+      "node_modules": {
+        "$path": ".studio-stage/node_modules"
+      },
+      "TS": {
+        "$path": ".studio-stage/TS"
+      }
+    },
+    "StarterPlayer": {
+      "$className": "StarterPlayer",
+      "StarterPlayerScripts": {
+        "$className": "StarterPlayerScripts",
+        "$path": ".studio-stage/StarterPlayerScripts"
+      }
+    }
+  }
+}

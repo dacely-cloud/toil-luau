@@ -56,7 +56,9 @@
         "test": "node scripts/run-native.mjs",
         "test:spike": "node scripts/run-native.mjs spike",
         "test:host": "node scripts/run-native.mjs host",
-        "test:css": "node scripts/run-native.mjs css"
+        "test:css": "node scripts/run-native.mjs css",
+        "stage": "node scripts/stage-studio.mjs",
+        "studio": "node scripts/build.mjs && node scripts/stage-studio.mjs && rojo build studio.project.json -o toil-luau-demo.rbxlx"
     },
     "dependencies": {
         "@toil/react": "file:./src/vendor/toil-react",

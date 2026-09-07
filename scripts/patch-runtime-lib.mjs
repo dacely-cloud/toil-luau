@@ -2,8 +2,11 @@
 // roblox-ts rewrites include/ on every build (restoring the upstream file),
 // so this must run after the compile.
 import fs from "node:fs";
+import { fileURLToPath } from "node:url";
 
-const p = new URL("../include/RuntimeLib.lua", import.meta.url).pathname;
+// fileURLToPath, not .pathname: on Windows .pathname yields "/C:/..." and
+// the leading slash makes Node resolve it as "C:\C:\...".
+const p = fileURLToPath(new URL("../include/RuntimeLib.lua", import.meta.url));
 let s = fs.readFileSync(p, "utf8");
 
 if (!s.includes("spikeRequire")) {

@@ -703,7 +703,14 @@ export function applyStyle(node: HostNode, style: Record<string, string>, env: H
 
 	// --- Position (top / left / right / bottom + position) ---
 	const placement = computePlacement(style, [100, 100]);
-	(inst as Record<string, unknown>)["AnchorPoint"] = env.newVector2(placement.anchorX, placement.anchorY);
+	// A rotating element spins about its centre (CSS transform-origin defaults
+	// to center), i.e. AnchorPoint (0.5, 0.5). A UIListLayout keeps such a child
+	// in its slot, so this is safe for flow elements as well as absolute ones.
+	const rotates = tf.rotation !== undefined || animTransform;
+	(inst as Record<string, unknown>)["AnchorPoint"] = env.newVector2(
+		rotates ? 0.5 : placement.anchorX,
+		rotates ? 0.5 : placement.anchorY
+	);
 	// transform: translate(x, y) shifts the element by a pixel offset on top of
 	// its laid-out position -- the natural map onto a Roblox Position offset.
 	if (!animTransform) {
@@ -784,6 +791,10 @@ export function applyStyle(node: HostNode, style: Record<string, string>, env: H
 			if (strFind(borderImage, "gradient", 1, true) !== undefined && env.newColorSequence !== undefined) {
 				const grad = parseGradient(borderImage);
 				if (grad !== undefined && grad.stops.size() >= 2) {
+					// A UIGradient MULTIPLIES the stroke's Color; the default
+					// black would render the gradient black. Paint the stroke
+					// white so the gradient stops show their true colours.
+					st["Color"] = env.newColor3(255, 255, 255);
 					if (node.styleState["ToilStrokeGradient"] === undefined) {
 						const sg = env.newInstance("UIGradient");
 						(sg as Record<string, unknown>)["Name"] = "ToilStrokeGradient";
@@ -876,6 +887,13 @@ export function applyStyle(node: HostNode, style: Record<string, string>, env: H
 			textColor.g,
 			textColor.b
 		);
+	}
+
+	// --- Text wrapping (CSS wraps by default; `white-space: nowrap` opts out) ---
+	// Without this a TextLabel never wraps, so long text overflows its box.
+	if (isTextInstance(inst)) {
+		const whiteSpace = style["white-space"] ?? "";
+		(inst as Record<string, unknown>)["TextWrapped"] = whiteSpace !== "nowrap";
 	}
 
 	// --- Font size ---

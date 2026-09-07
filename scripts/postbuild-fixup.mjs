@@ -124,13 +124,17 @@ for (const f of walk(path.join(root, "out"))) {
 	};
 	for (const F of ["defaultProps", "propTypes", "displayName", "name", "childContextTypes",
 		"getDerivedStateFromProps", "getDerivedStateFromError", "contextType", "contextTypes",
-		"isReactComponent", "render", "$$typeof"]) {
+		"isReactComponent", "render", "$$typeof", "isReactWarning"]) {
 		const Fe = F.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 		const rw = new RegExp("(^[ \t]*)([A-Za-z_$][A-Za-z0-9_]*(?:\\.[A-Za-z_$][A-Za-z0-9_]*)*)\\." + Fe + "([ \t]*=[ \t]*)([^\\n]*)$", "gm");
 		s = s.replace(rw, (all, lead, chain, _eq, rest, _off, str) =>
 			quoteParity(str.slice(0, _off), _off + lead.length + chain.length) ?
 			all : lead + "__spikeOptFieldSet(" + chain + ', "' + F + '", ' + rest + ")");
-		const rx = new RegExp("([A-Za-z_$][A-Za-z0-9_]*(?:\\.[A-Za-z_$][A-Za-z0-9_]*)*)\\." + Fe + "(?![A-Za-z0-9_])", "g");
+		// Negative lookbehind: only start the chain at a real receiver head, not
+		// at an identifier that is itself a member (preceded by ".", "]" or a
+		// word char). Without it, `a[i].spec.name` matched only `spec.name` and
+		// emitted `a[i].__spikeOptField(spec, "name")` -- a nil method call.
+		const rx = new RegExp("(?<![.\\]A-Za-z0-9_$])([A-Za-z_$][A-Za-z0-9_]*(?:\\.[A-Za-z_$][A-Za-z0-9_]*)*)\\." + Fe + "(?![A-Za-z0-9_])", "g");
 		s = s.replace(rx, (all, chain, off, str) =>
 			quoteParity(str.slice(0, off), off + chain.length) ?
 			all : "__spikeOptField(" + chain + ', "' + F + '")');

@@ -242,8 +242,10 @@ export function tick(driver: AnimationDriver): void {
 				// fill-mode none: the element returns to its base style.
 				applyBaseStyle(anim.node, anim.base, driver.env);
 			}
-			// Remove from running list
+			// Remove from running list, then restore the lock for any animations
+			// still running on this node (so their props stay driver-owned).
 			driver.animations.remove(i);
+			rebuildAnimatedProps(driver, anim.node);
 			continue;
 		}
 
@@ -285,6 +287,30 @@ export function tick(driver: AnimationDriver): void {
 }
 
 // ------------------------------------------------------------------ Apply helpers
+
+/**
+ * Rebuild a node's animated-prop lock from the animations still running on it.
+ * Called when one animation finishes, so a node with several animations (e.g.
+ * a card running both `mesh` and a one-shot `fade-in`) keeps the lock for the
+ * survivors instead of dropping it entirely (which would let a re-render reset
+ * the still-animating properties).
+ */
+function rebuildAnimatedProps(driver: AnimationDriver, node: HostNode): void {
+	const ap: Record<string, boolean> = {};
+	let any = false;
+	for (let i = 0; i < driver.animations.size(); i++) {
+		const a = driver.animations[i];
+		if (a.node !== node) continue;
+		for (let fi = 0; fi < a.keyframes.frames.size(); fi++) {
+			const ks = keysOf(a.keyframes.frames[fi].styles);
+			for (let ki = 0; ki < ks.size(); ki++) {
+				ap[ks[ki]] = true;
+				any = true;
+			}
+		}
+	}
+	node.styleState["animatedProps"] = any ? ap : undefined;
+}
 
 /**
  * Apply a set of interpolated style values to a node.

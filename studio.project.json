@@ -11,6 +11,9 @@
       },
       "TS": {
         "$path": ".studio-stage/TS"
+      },
+      "ToilShim": {
+        "$path": ".studio-stage/ToilShim.luau"
       }
     },
     "StarterPlayer": {

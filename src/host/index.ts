@@ -278,7 +278,11 @@ export function mountReactRoot(
 	// Start animations found in the initial computed styles
 	// (This would be done in commitUpdate/finalizeInitialChildren in a full
 	// implementation; for the spike we scan the tree once after mount.)
+	// Animations declared in the initial styles start at exactly t = 0 on the
+	// mount clock, so handle.tick(now) samples them deterministically.
+	clockOverride = 0;
 	scanAndStartAnimations(guiNode, eng, driver);
+	clockOverride = undefined;
 
 	// In real Roblox, RunService.Heartbeat flushes React's task queue (so a
 	// setState from an event handler renders on the next frame) and advances

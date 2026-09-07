@@ -77,15 +77,33 @@ end
  * __arrNew, __spikeSetST, ...), so a keyword test would only risk missing one,
  * and the preamble costs a cached require plus a table copy.
  */
-function bindGlobals(s) {
+// The reconciler factory reads React and Scheduler as bare globals: roblox-ts
+// elided its `import React from "@toil/react"` / `import * as Scheduler` as
+// type-only, so nothing binds them. The native runner publishes both on the
+// shared env (specs/_spike_env.luau); on Roblox each reconciler module binds
+// them in its own env. Only the reconciler gets this: requiring the react
+// index from inside react's own modules would be a recursive require.
+const RECONCILER_PREAMBLE = `-- toil-luau: React / Scheduler globals the reconciler factory reads bare.
+do
+	local _env = getfenv(0)
+	local _toil = game:GetService("ReplicatedStorage"):WaitForChild("node_modules"):WaitForChild("@toil")
+	local _reactNs = require(_toil:WaitForChild("react"):WaitForChild("index.js"))
+	_env.React = _reactNs.default or _reactNs
+	local _schedNs = require(_toil:WaitForChild("scheduler"):WaitForChild("index.js"))
+	_env.Scheduler = _schedNs
+end
+`;
+
+function bindGlobals(s, extra = "") {
 	bound++;
+	const preamble = ENV_PREAMBLE + extra;
 	// After the RuntimeLib header when there is one, so TS stays first.
 	const idx = s.indexOf(ROBLOX_HEADER);
 	if (idx >= 0) {
 		const cut = idx + ROBLOX_HEADER.length + 1;
-		return s.slice(0, cut) + ENV_PREAMBLE + s.slice(cut);
+		return s.slice(0, cut) + preamble + s.slice(cut);
 	}
-	return ENV_PREAMBLE + s;
+	return preamble + s;
 }
 
 /**
@@ -170,7 +188,8 @@ function copyLuau(src, dst, renameJs) {
 		s = s.replace(SPIKE_HEADER, ROBLOX_HEADER);
 		rewritten++;
 	}
-	s = bindGlobals(s);
+	const isReconciler = renameJs && /react-reconciler/.test(src.replace(/\/g, "/"));
+	s = bindGlobals(s, isReconciler ? RECONCILER_PREAMBLE : "");
 	const final = renameJs ? dst.replace(/\.luau$/, ".js.luau") : dst;
 	fs.mkdirSync(path.dirname(final), { recursive: true });
 	fs.writeFileSync(final, s);
@@ -236,10 +255,7 @@ stageRuntime();
 //     with an init script is emitted once, as a ModuleScript container, and
 //     WaitForChild resolves through it exactly like a Folder.
 const CONTAINER_INIT =
-	"-- toil-luau: container module (see scripts/stage-studio.mjs). Intentionally empty.
-return {}
-";
-";
+	"-- toil-luau: container module (see scripts/stage-studio.mjs). Intentionally empty.\nreturn {}\n";
 for (const dir of ["include", "node_modules"]) {
 	fs.writeFileSync(path.join(STAGE, dir, "init.luau"), CONTAINER_INIT);
 }

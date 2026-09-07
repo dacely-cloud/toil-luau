@@ -31,9 +31,9 @@ local css = [[
 		to   { transform: rotate(360deg); }
 	}
 	@keyframes pulse {
-		0%   { width: 140px; background-color: #2563ff; }
-		50%  { width: 200px; background-color: #7c3aed; }
-		100% { width: 140px; background-color: #2563ff; }
+		0%   { width: 180px; background-color: #2563ff; }
+		50%  { width: 260px; background-color: #7c3aed; }
+		100% { width: 180px; background-color: #2563ff; }
 	}
 	@keyframes rainbow {
 		0%   { background-color: #ff4d6d; }
@@ -42,43 +42,40 @@ local css = [[
 		100% { background-color: #ff4d6d; }
 	}
 
+	/* The card fills the whole screen (width/height 100% -> UDim2 scale 1). */
 	.card {
-		position: absolute;
-		top: 48px;
-		left: 48px;
-		width: 380px;
-		height: 300px;
-		padding: 20px;
+		width: 100%;
+		height: 100%;
+		padding: 48px;
 		display: flex;
 		flex-direction: column;
-		gap: 12px;
+		gap: 24px;
 		background-color: #141821;
-		border-radius: 16px;
 		animation: fade-in 1.2s ease-out;
 	}
-	.title  { width: 340px; height: 32px; color: #8ab4ff; font-size: 24px; font-weight: bold; }
-	.status { width: 340px; height: 22px; color: #e6eefc; font-size: 16px; }
-	.row    { width: 340px; height: 64px; display: flex; flex-direction: row; gap: 16px; align-items: center; }
+	.title  { width: 100%; height: 52px; color: #8ab4ff; font-size: 44px; font-weight: bold; }
+	.status { width: 100%; height: 34px; color: #e6eefc; font-size: 24px; }
+	.row    { width: 100%; height: 96px; display: flex; flex-direction: row; gap: 24px; align-items: center; }
 	.spinner {
-		width: 48px;
-		height: 48px;
+		width: 72px;
+		height: 72px;
 		background-color: #2563ff;
-		border-radius: 10px;
+		border-radius: 14px;
 		animation: spin 2s linear infinite;
 	}
 	.pulse {
-		width: 140px;
-		height: 44px;
+		width: 180px;
+		height: 60px;
 		color: #ffffff;
-		font-size: 15px;
+		font-size: 22px;
 		text-align: center;
-		border-radius: 8px;
+		border-radius: 12px;
 		animation: pulse 1.6s ease-in-out infinite;
 	}
 	.bar {
-		width: 340px;
-		height: 10px;
-		border-radius: 5px;
+		width: 100%;
+		height: 16px;
+		border-radius: 8px;
 		animation: rainbow 3s linear infinite;
 	}
 ]]

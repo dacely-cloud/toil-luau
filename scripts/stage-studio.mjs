@@ -141,18 +141,25 @@ local _gBaseline = {}
 for _k in pairs(_G) do
 	_gBaseline[_k] = true
 end
--- The install rewrite below sends every \`getfenv(0).X = ...\` to \`_G.X = ...\`
+`;
+
+	const footer = `
+-- The install rewrite above sends every \`getfenv(0).X = ...\` to \`_G.X = ...\`
 -- so cross-module reads of _G.Symbol / _G.__spikeMicrotasks resolve. But some
 -- of this module's OWN functions read those names as bare identifiers (e.g.
 -- ObjectProto.hasOwnProperty calls Obj.hasOwnProperty(Object, ...)). On Roblox
 -- a bare identifier reads the script environment, which does NOT chain to _G,
 -- so \`Object\` would be nil and hasOwnProperty would wrongly answer false --
--- which silently drops every prop React.createElement copies. Chain this
--- module's environment to _G so a bare read falls through to the install.
-setmetatable(getfenv(0), { __index = _G })
-`;
+-- silently dropping every prop React.createElement copies. The env metatable
+-- is protected (setmetatable throws), so copy the _G installs into this
+-- module's environment instead; the reads happen later (when a consumer calls
+-- in), by which point every install is present.
+for _k, _v in pairs(_G) do
+	if _gBaseline[_k] == nil then
+		getfenv(0)[_k] = _v
+	end
+end
 
-	const footer = `
 -- Export everything this module defined so each staged module can copy it into
 -- its own environment: the _G installs above plus the bare \`function foo()\`
 -- helpers, which land in this script's environment rather than in _G.

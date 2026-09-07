@@ -72,7 +72,10 @@ export function makeEngineEnv(): HostEnv {
 	}
 
 	function newColor3(r: number, g: number, b: number): unknown {
-		return (Color3 as unknown as { new: (r: number, g: number, b: number) => Color3 }).new(r, g, b);
+		// parseColor yields 0-255 components. Color3.new expects 0-1 (and
+		// clamps at render, so Color3.new(20, 24, 33) would paint pure white);
+		// Color3.fromRGB is the 0-255 constructor.
+		return (Color3 as unknown as { fromRGB: (r: number, g: number, b: number) => Color3 }).fromRGB(r, g, b);
 	}
 
 	function enumValue(name: string): unknown {

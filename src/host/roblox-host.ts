@@ -310,15 +310,20 @@ export function parseLength(value: string | undefined): ParsedLength | undefined
 	if (s === "auto") {
 		return { scale: 0, offset: 0, auto: true };
 	}
-	if (s.size() >= 2 && slice(s, s.size() - 1) === "%") {
+	// slice(s, i) with one arg returns s[i..end]; the last character is at
+	// index s.size(), so "%" is slice(s, s.size()) -- NOT s.size()-1, which
+	// returns the last two characters and never equals "%". Getting this wrong
+	// made every percentage fall through to the bare-number branch and be
+	// treated as pixels, so width:100% became a 100px box.
+	if (s.size() >= 2 && slice(s, s.size()) === "%") {
 		const n = _parseFloat(slice(s, 1, s.size() - 1));
 		if (_isNaN(n)) {
 			return undefined;
 		}
 		return { scale: n / 100, offset: 0, auto: false };
 	}
-	if (s.size() >= 2 && slice(s, s.size() - 1) === "px") {
-		const n = _parseFloat(slice(s, 1, s.size() - 1));
+	if (s.size() >= 3 && slice(s, s.size() - 1) === "px") {
+		const n = _parseFloat(slice(s, 1, s.size() - 2));
 		if (_isNaN(n)) {
 			return undefined;
 		}
@@ -702,6 +707,10 @@ export function applyStyle(node: HostNode, style: Record<string, string>, env: H
 		const layout = findHelper(node, "ToilLayout");
 		if (layout !== undefined) {
 			const l: Record<string, unknown> = layout as Record<string, unknown>;
+			// Order children by the LayoutOrder the host assigns from DOM order.
+			// A UIListLayout otherwise defaults to sorting by Name, which
+			// scrambles the children into alphabetical order.
+			l["SortOrder"] = env.enumValue("SortOrder.LayoutOrder");
 			l["FillDirection"] = env.enumValue(
 				isColumn ? "FillDirection.Vertical" : "FillDirection.Horizontal"
 			);

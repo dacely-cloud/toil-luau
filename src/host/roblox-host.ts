@@ -152,6 +152,8 @@ export interface HostEnv {
 	newColor3: (r: number, g: number, b: number) => unknown;
 	/** Build a ColorSequence from evenly-spaced colour stops (real Roblox only). */
 	newColorSequence?: (colors: Array<ParsedColor>) => unknown;
+	/** Build a NumberSequence from evenly-spaced values, e.g. gradient alpha (real Roblox only). */
+	newNumberSequence?: (values: Array<number>) => unknown;
 	/** Enum member access by fully-qualified name, e.g. "Font.GothamBold". */
 	enumValue: (name: string) => unknown;
 	/** Destroy an instance (helper cleanup on remount). */
@@ -757,6 +759,11 @@ export function applyStyle(node: HostNode, style: Record<string, string>, env: H
 			const g = findHelper(node, "ToilGradient");
 			if (g !== undefined) {
 				(g as Record<string, unknown>)["Color"] = env.newColorSequence(grad.stops);
+				if (env.newNumberSequence !== undefined) {
+					const alphas: Array<number> = [];
+					for (let si = 0; si < grad.stops.size(); si++) alphas.push(1 - grad.stops[si].a);
+					(g as Record<string, unknown>)["Transparency"] = env.newNumberSequence(alphas);
+				}
 				if (!animOf("gradient-rotation")) (g as Record<string, unknown>)["Rotation"] = grad.rotation;
 			}
 			if (!animBg) (inst as Record<string, unknown>)["BackgroundColor3"] = env.newColor3(255, 255, 255);
@@ -803,6 +810,11 @@ export function applyStyle(node: HostNode, style: Record<string, string>, env: H
 					}
 					const sg = node.styleState["ToilStrokeGradient"] as Record<string, unknown>;
 					sg["Color"] = env.newColorSequence(grad.stops);
+					if (env.newNumberSequence !== undefined) {
+						const alphas: Array<number> = [];
+						for (let si = 0; si < grad.stops.size(); si++) alphas.push(1 - grad.stops[si].a);
+						sg["Transparency"] = env.newNumberSequence(alphas);
+					}
 					if (!animOf("gradient-rotation")) sg["Rotation"] = grad.rotation;
 				}
 			}

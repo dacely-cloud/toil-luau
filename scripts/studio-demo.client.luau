@@ -94,11 +94,20 @@ local css = [[
 		display: flex; flex-direction: row; gap: 28px; align-items: center; justify-content: center;
 	}
 	/* A comet trail of dots that orbit as the ring rotates -- a loading spinner. */
-	/* A UIListLayout child does NOT render Rotation, so the spinner cannot rotate
+	/* A UIListLayout child does NOT render Rotation, so the ring cannot rotate
 	   directly inside the flex row. The wrapper is the (non-rotating) flex child;
 	   the ring is absolutely centred inside it and is free to rotate. */
-	.spinner-wrap { width: 84px; height: 84px; }
-	.spinner { position: absolute; top: 50%; left: 50%; width: 84px; height: 84px; border-radius: 42px; background-color: rgba(255, 255, 255, 0.03); border: 4px; border-color: #33406a; animation: spin 2s linear infinite; }
+	.spinner-wrap { width: 72px; height: 72px; }
+	/* The stroke gradient fades bright -> transparent, so the ring is really an
+	   ARC. Rotating the ring sweeps the arc: a clean Material-style spinner. */
+	.spinner {
+		position: absolute; top: 50%; left: 50%;
+		width: 72px; height: 72px; border-radius: 36px;
+		background-color: rgba(255, 255, 255, 0.02);
+		border: 6px;
+		border-image: linear-gradient(90deg, #bcd6ff, #6a8fd0, #24365e, #12203a);
+		animation: spin 0.9s linear infinite;
+	}
 	.pulse   { width: 190px; height: 60px; color: #ffffff; font-size: 22px; text-align: center; border-radius: 12px; animation: pulse 1.6s ease-in-out infinite; }
 	.bar     { width: 660px; height: 16px; border-radius: 8px; animation: rainbow 3s linear infinite; }
 	.slider  { position: absolute; top: 70px; left: 50%; width: 46px; height: 46px; background-color: #ffd166; border-radius: 23px; animation: slide 1.4s ease-in-out infinite alternate; }
@@ -147,27 +156,6 @@ local function App()
 		overlayKids[i] = confettiPiece(i, COUNT)
 	end
 
-	-- Spinner: a comet trail of dots around the top of the ring. The ring
-	-- rotates (transform: rotate about its centre), so the trail orbits.
-	local spinnerDots = {}
-	for k = 0, 5 do
-		local ang = math.rad(k * 30)
-		local sz = 18 - k * 2
-		spinnerDots[k + 1] = e("div", {
-			key = "sd" .. k,
-			style = {
-				position = "absolute",
-				left = string.format("%.1fpx", 42 + 33 * math.sin(ang) - sz / 2),
-				top = string.format("%.1fpx", 42 - 33 * math.cos(ang) - sz / 2),
-				width = sz .. "px",
-				height = sz .. "px",
-				["border-radius"] = (sz / 2) .. "px",
-				["background-color"] = "#8ab4ff",
-				opacity = string.format("%.2f", 1 - k * 0.15),
-			},
-		})
-	end
-
 	return e("div", { id = "app", className = "app" },
 		e("div", { id = "overlay", className = "overlay" }, table.unpack(overlayKids)),
 		e("div", { id = "center", className = "center" },
@@ -179,7 +167,7 @@ local function App()
 					"Backdrop + card = animated linear-gradient (UIGradient).  Edge = gradient UIStroke."),
 				e("div", { id = "row", className = "row" },
 					e("div", { id = "spinnerWrap", className = "spinner-wrap" },
-					e("div", { id = "spinner", className = "spinner" }, table.unpack(spinnerDots))
+					e("div", { id = "spinner", className = "spinner" })
 				),
 					e("button", {
 						id = "pulse",

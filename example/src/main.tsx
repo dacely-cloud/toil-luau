@@ -45,42 +45,25 @@ const css = `
 		100% { background-color: #ff4d6d; }
 	}
 
-	/* The card fills the whole screen (width/height 100% -> UDim2 scale 1). */
 	.card {
 		width: 100%;
 		height: 100%;
 		padding: 48px;
 		display: flex;
 		flex-direction: column;
-		gap: 24px;
+		gap: 20px;
+		align-items: center;
+		justify-content: center;
 		background-color: #141821;
 		animation: fade-in 1.2s ease-out;
 	}
-	.title  { width: 100%; height: 52px; color: #8ab4ff; font-size: 44px; font-weight: bold; }
-	.status { width: 100%; height: 34px; color: #e6eefc; font-size: 24px; }
-	.row    { width: 100%; height: 96px; display: flex; flex-direction: row; gap: 24px; align-items: center; }
-	.spinner {
-		width: 72px;
-		height: 72px;
-		background-color: #2563ff;
-		border-radius: 14px;
-		animation: spin 2s linear infinite;
-	}
-	.pulse {
-		width: 180px;
-		height: 60px;
-		color: #ffffff;
-		font-size: 22px;
-		text-align: center;
-		border-radius: 12px;
-		animation: pulse 1.6s ease-in-out infinite;
-	}
-	.bar {
-		width: 100%;
-		height: 16px;
-		border-radius: 8px;
-		animation: rainbow 3s linear infinite;
-	}
+	.title  { width: 520px; height: 56px; color: #8ab4ff; font-size: 44px; font-weight: bold; text-align: center; }
+	.status { width: 640px; height: 32px; color: #e6eefc; font-size: 22px; text-align: center; }
+	.caption { width: 640px; height: 22px; color: #7f8ea3; font-size: 15px; text-align: center; }
+	.row { width: 640px; height: 96px; display: flex; flex-direction: row; gap: 24px; align-items: center; justify-content: center; }
+	.spinner { width: 72px; height: 72px; background-color: #2563ff; border-radius: 14px; animation: spin 2s linear infinite; }
+	.pulse { width: 180px; height: 60px; color: #ffffff; font-size: 22px; text-align: center; border-radius: 12px; animation: pulse 1.6s ease-in-out infinite; }
+	.bar { width: 640px; height: 16px; border-radius: 8px; animation: rainbow 3s linear infinite; }
 `;
 
 /** The React tree we mount. `onClick` on a <button> is wired by the host. */
@@ -94,12 +77,18 @@ function App(): React.JSX.Element {
 			<span id="status" className="status">
 				{"React 19 on Roblox.  Clicks: " + clicks}
 			</span>
+			<span id="cap1" className="caption">
+				The square spins and the button pulses -- both are CSS @keyframes animations.
+			</span>
 			<div id="row" className="row">
 				<div id="spinner" className="spinner" />
 				<button id="pulse" className="pulse" onClick={() => setClicks(clicks + 1)}>
 					Click me
 				</button>
 			</div>
+			<span id="cap2" className="caption">
+				This bar cycles colours via a @keyframes rainbow animation:
+			</span>
 			<div id="bar" className="bar" />
 		</section>
 	);

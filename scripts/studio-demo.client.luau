@@ -42,20 +42,32 @@ local css = [[
 		100% { background-color: #ff4d6d; }
 	}
 
-	/* The card fills the whole screen (width/height 100% -> UDim2 scale 1). */
+	/* Full-screen dark panel; its children are a vertically + horizontally
+	   centred column (align-items / justify-content -> UIListLayout alignment). */
 	.card {
 		width: 100%;
 		height: 100%;
 		padding: 48px;
 		display: flex;
 		flex-direction: column;
-		gap: 24px;
+		gap: 20px;
+		align-items: center;
+		justify-content: center;
 		background-color: #141821;
 		animation: fade-in 1.2s ease-out;
 	}
-	.title  { width: 100%; height: 52px; color: #8ab4ff; font-size: 44px; font-weight: bold; }
-	.status { width: 100%; height: 34px; color: #e6eefc; font-size: 24px; }
-	.row    { width: 100%; height: 96px; display: flex; flex-direction: row; gap: 24px; align-items: center; }
+	.title  { width: 520px; height: 56px; color: #8ab4ff; font-size: 44px; font-weight: bold; text-align: center; }
+	.status { width: 640px; height: 32px; color: #e6eefc; font-size: 22px; text-align: center; }
+	.caption { width: 640px; height: 22px; color: #7f8ea3; font-size: 15px; text-align: center; }
+	.row {
+		width: 640px;
+		height: 96px;
+		display: flex;
+		flex-direction: row;
+		gap: 24px;
+		align-items: center;
+		justify-content: center;
+	}
 	.spinner {
 		width: 72px;
 		height: 72px;
@@ -73,7 +85,7 @@ local css = [[
 		animation: pulse 1.6s ease-in-out infinite;
 	}
 	.bar {
-		width: 100%;
+		width: 640px;
 		height: 16px;
 		border-radius: 8px;
 		animation: rainbow 3s linear infinite;
@@ -96,6 +108,8 @@ local function App()
 		e("h1", { id = "title", className = "title" }, "toil-luau"),
 		e("span", { id = "status", className = "status" },
 			"React 19 on Roblox.  Ticks: " .. tostring(ticks) .. "   Clicks: " .. tostring(clicks)),
+		e("span", { id = "cap1", className = "caption" },
+			"The square spins and the button pulses -- both are CSS @keyframes animations."),
 		e("div", { id = "row", className = "row" },
 			e("div", { id = "spinner", className = "spinner" }),
 			e("button", {
@@ -106,6 +120,8 @@ local function App()
 				end,
 			}, "Click me")
 		),
+		e("span", { id = "cap2", className = "caption" },
+			"This bar cycles colours via a @keyframes rainbow animation:"),
 		e("div", { id = "bar", className = "bar" })
 	)
 end
@@ -119,7 +135,7 @@ local handle = toil.mountReactRoot(playerGui, toil.parseCss(css), e(App), nil, n
 print("[toil] mounted:", handle.gui:GetFullName())
 
 -- Console-verifiable probe: the reconciler re-renders the tick counter while
--- the four animations keep moving.
+-- the animations keep moving.
 local function probe(label)
 	local gui = handle.gui
 	local status = gui:FindFirstChild("status", true)
@@ -128,13 +144,12 @@ local function probe(label)
 	local pulse = gui:FindFirstChild("pulse", true)
 	local bar = gui:FindFirstChild("bar", true)
 	print(string.format(
-		"[toil] %s status=%q card.transparency=%.2f spinner.rotation=%.1f pulse.width=%d pulse.text=%q bar.color=%s",
+		"[toil] %s status=%q card.transparency=%.2f spinner.rotation=%.1f pulse.width=%d bar.color=%s",
 		label,
 		status and status.Text or "<none>",
 		card and card.BackgroundTransparency or -1,
 		spinner and spinner.Rotation or -1,
 		pulse and pulse.Size.X.Offset or -1,
-		pulse and pulse.Text or "<none>",
 		bar and tostring(bar.BackgroundColor3) or "<none>"
 	))
 end

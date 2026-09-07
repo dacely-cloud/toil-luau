@@ -57,7 +57,7 @@ describe('roblox host', function ()
 		end
 		-- If spike env failed but _G.React is still set (it's set before main),
 		-- we can still proceed. If not, try to load React directly.
-		if _G.React == nil then
+		if (rawget(_G, "React") or rawget(require("./_spike_env"), "env").React) == nil then
 			print("React not available")
 			return
 		end
@@ -181,7 +181,7 @@ describe('roblox host', function ()
 		local container = hostEnv.env.newInstance("Frame")
 		container.Name = "PlayerGui"
 
-		local React = _G.React
+		local React = rawget(_G, "React") or rawget(require("./_spike_env"), "env").React
 		local element = React.createElement("div", { className = "card" },
 			React.createElement("button", { className = "btn" }, "Click"),
 			React.createElement("span", nil, "Label")

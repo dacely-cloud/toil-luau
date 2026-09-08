@@ -76,4 +76,16 @@ test("twenty building definitions are available", function()
 	assert(Model.cps(s) == 510e12)
 	assert(Model.Buildings[20].price == 540e24)
 end)
+test("every building has multiple upgrade tiers",function()
+	for i=1,20 do local count=0;for _,u in Model.Upgrades do if u.building==i then count+=1 end end;assert(count>=5)end
+end)
+test("golden cookies expire and cannot be collected twice",function()
+	local s=Model.new();s.played=75;Model.goldenTick(s);local id=s.goldenId
+	assert(Model.collectGolden(s,id));assert(s.cookies==25);assert(Model.collectGolden(s,id)==nil)
+	s.played=s.goldenAt;Model.goldenTick(s);s.played=s.goldenUntil;assert(Model.collectGolden(s,s.goldenId)==nil)
+end)
+test("temporary double baking ends exactly at its boundary",function()
+	local s=Model.new();s.buildings[2]=1;s.frenzyUntil=10
+	Model.tick(s,15);assert(s.cookies==25);assert(Model.cps(s)==1)
+end)
 print(string.format("Cookie Clicker: %d passed", passed))

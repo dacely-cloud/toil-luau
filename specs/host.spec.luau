@@ -65,6 +65,27 @@ local function findReact()
 end
 
 describe('roblox host', function ()
+	it('uses one Activated handler for mouse touch and controller buttons', function ()
+		local callbacks={}
+		local env=table.clone(hostEnv.env)
+		env.newInstance=function(class)
+			local inst=hostEnv.env.newInstance(class)
+			if class=="TextButton" then
+				for _,name in {"Activated","MouseButton1Click"} do
+					inst[name]={Connect=function(_,callback)callbacks[name]=callback;return {Disconnect=function()end}end}
+				end
+			end
+			return inst
+		end
+		local count=0
+		local config=hostModule.buildHostConfig(env,{resolve=function()return {}end})
+		local props={onClick=function()count+=1 end}
+		local node=config.createInstance("button",props,nil,nil,nil)
+		config.finalizeInitialChildren(node,"button",props)
+		assert(callbacks.Activated and not callbacks.MouseButton1Click,"only the cross-device activation signal should be connected")
+		for _,kind in {"MouseButton1","Touch","Gamepad1"} do callbacks.Activated({UserInputType=kind},1) end
+		assert(count==3,"each activation should produce exactly one click")
+	end)
 	it('accepts Fragment children and still warns for invalid Fragment props', function ()
 		local React = findReact()
 		local reactEnv = getfenv(React.createElement)

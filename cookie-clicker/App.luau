@@ -6,6 +6,8 @@ local toil = TS.import(script, RS, "TS")
 local React = toil.React
 local e = React.createElement
 local Model = require(script.Parent.Model)
+local Layout = require(script.Parent.Layout)
+local makeAudio = require(script.Parent.Audio)
 local suffixes = { "million", "billion", "trillion", "quadrillion", "quintillion", "sextillion", "septillion", "octillion", "nonillion", "decillion" }
 local function number(n, decimals)
 	if n >= 1e6 then
@@ -121,7 +123,7 @@ local function Rain(props)
 	local kids={}
 	for i=1,12 do
 		kids[#kids+1]=box("rainCookie"..i,(i*137)%math.max(1,props.w-26),0,18+(i%3)*4,18+(i%3)*4,"#b78042",{},
-			{["border-radius"]="12px",opacity="0",animation=props.cps>0 and ("rain "..(5+i%4).."s linear -"..(i*.43).."s infinite") or ""})
+			{["border-radius"]="12px",opacity="0",animation=props.cps>0 and not props.reducedMotion and ("rain "..(5+i%4).."s linear -"..(i*.43).."s infinite") or ""})
 	end
 	return e("div",{id="cookieRain",style=style(0,0,props.w,props.h,{overflow="hidden"})},table.unpack(kids))
 end
@@ -130,32 +132,57 @@ local function Cursors(props)
 	for i=1,math.min(props.count,50) do
 		local angle=(i-1)/50*math.pi*2
 		kids[i]=label("cursor"..i,"\u{261D}",180+math.cos(angle)*172,180+math.sin(angle)*172,30,34,28,"#ffffff",
-			{rotation=tostring(math.deg(angle)+90),animation="cursorTap 3s linear -"..(i*.06).."s infinite"})
+			{rotation=tostring(math.deg(angle)+90),animation=not props.reducedMotion and ("cursorTap 3s linear -"..(i*.06).."s infinite") or ""})
 	end
-	return box("cursorOrbit",210,props.y+135,360,360,nil,kids,{rotation="0",animation="orbit 120s linear infinite"})
+	return box("cursorOrbit",210,props.y+135,360,360,nil,kids,{rotation="0",animation=not props.reducedMotion and "orbit 120s linear infinite" or ""})
 end
 return function()
 	local remote = script.Parent:WaitForChild("Action")
 	local snapshot = Model.snapshot(Model.new())
+	snapshot.ready = false
+	local audio = makeAudio()
+	local alive = true
+	local notify = function() end
+	local lastEventId = 0
 	snapshot.saveStatus = "Connecting…"
 	local refresh
 	local refreshCounters
 	local currentTab = "Buildings"
 	-- Preserve the original 1440px layout and readable text. Only the
 	-- cookie scene adapts to limited vertical space.
-	local displayWidth, displayHeight, uiScale
+	local displayWidth, displayHeight, uiScale, mobile, contentHeight
 	local function measureViewport()
 		local viewport = workspace.CurrentCamera.ViewportSize
-		uiScale = math.max(1, viewport.X) / 1440
-		displayWidth = math.max(1, viewport.X) / uiScale
-		displayHeight = math.max(1, viewport.Y) / uiScale
+		local layout = Layout.measure(viewport.X,viewport.Y)
+		uiScale, displayWidth, displayHeight, mobile, contentHeight = layout.scale, layout.width, layout.height, layout.mobile, layout.contentHeight
 	end
 	measureViewport()
 	local function columnWidths()
+		if mobile then return 420,420,420 end
 		local available = displayWidth - 24
 		return available * 420 / 1416, available * 646 / 1416, available * 350 / 1416
 	end
-	local function send(...) remote:FireServer(...) end
+	local function send(action,...)
+		if action~="sync" and not snapshot.ready then notify("Please wait while your bakery opens.","info");return end
+		if action=="click" then audio.play("click") end
+		remote:FireServer(action,...)
+	end
+	local function Feedback()
+		local message = React.useState(nil)
+		local serial = React.useRef(0)
+		notify=function(text,kind)
+			serial.current+=1
+			local id=serial.current
+			message[2]({text=text,kind=kind})
+			audio.play(kind)
+			task.delay(4,function()if alive and serial.current==id then message[2](nil)end end)
+		end
+		local value=message[1]
+		local w=math.min(540,displayWidth-20)
+		return box("feedback",(displayWidth-w)/2,mobile and 34 or 42,w,76,value and value.kind=="error" and "#603728" or "#30462c",{
+			label("feedbackText",value and value.text or "",12,8,w-24,60,19,"#ffffff",{["text-align"]="center"})
+		},{display=value and "block" or "none",["z-index"]="100",border="2px solid #dabf81"})
+	end
 	local tooltipHover = 0
 	local updateTooltip
 	local function setHover(value)
@@ -181,13 +208,14 @@ return function()
 		end
 		return box("tooltip", select(1, columnWidths()) + select(2, columnWidths()) - 410, 233, 410, 175, "#1d1914", {
 				label("tooltipTitle", name, 16, 10, 378, 42, 25, "#f8ead2"), label("tooltipCost", "● " .. number(cost), 16, 54, 378, 26, 19, state.cookies >= cost and "#9cda78" or "#d68f78"), label("tooltipDescription", description, 16, 92, 378, 68, 17, "#c3b8a8"),
-			}, { border = "3px solid #9c8159", ["z-index"] = "40", display = hover == 0 and "none" or "block" })
+			}, { border = "3px solid #9c8159", ["z-index"] = "40", display = (mobile or hover == 0) and "none" or "block" })
 	end
 	local emitClick = function() end
 	local function ClickEffects()
 		local slots=React.useState({})
 		local serial=React.useRef(0)
 		emitClick=function()
+			if snapshot.reducedMotion then return end
 			serial.current+=1
 			local n=serial.current
 			local slot=(n-1)%12
@@ -195,7 +223,7 @@ return function()
 			local scale=uiScale
 			local leftWidth = columnWidths()
 			local x,y=mouse.X/scale-(leftWidth-420)/2,mouse.Y/scale-30
-			if x<75 or x>345 then x=210; y=math.floor((displayHeight-30)*.32)+135 end
+			if mobile or x<75 or x>345 then x=210; y=138+(contentHeight-178)/2 end
 			local elements=table.clone(slots[1])
 			local variant=math.floor((n-1)/12)%2==0 and "A" or "B"
 			elements[slot*3+1]=label("clickNumber"..slot,"+"..number(snapshot.clickPower,true),x,y-15,130,32,24,"#ffffff",{
@@ -204,18 +232,21 @@ return function()
 				{rotation="0",["border-radius"]="5px",["z-index"]="14",opacity="0",animation="crumb"..(j==1 and variant or (variant=="A" and "B" or "A")).." 0.9s linear forwards"}) end
 			slots[2](elements)
 		end
-		return e("div",{id="clickEffects",style=style(0,0,420,displayHeight-30,{["z-index"]="12"})},table.unpack(slots[1]))
+		return e("div",{id="clickEffects",style=style(0,0,420,contentHeight,{["z-index"]="12"})},table.unpack(slots[1]))
 	end
 	local function Counters()
 		local state = React.useState(0)
 		refreshCounters = state[2]
 		return e(React.Fragment, nil,
 			label("cookieCount", number(snapshot.cookies) .. (math.floor(snapshot.cookies) == 1 and " cookie" or " cookies"), 5, 47, 410, 44, 31, "#ffffff", {["text-align"]="center"}),
-			label("cps", "per second: " .. number(snapshot.cps, true), 10, 88, 400, 28, 18, "#ffffff", {["text-align"]="center"}))
+			label("cps", "per second: " .. number(snapshot.cps, true), 10, 88, 400, 28, 18, "#ffffff", {["text-align"]="center"}),
+			label("bonusTimer",(snapshot.frenzyUntil or 0)>snapshot.played and ("Double baking! "..math.ceil(snapshot.frenzyUntil-snapshot.played).."s left") or "",10,117,400,24,17,"#f4d28a",{["text-align"]="center"}))
 	end
 	local function App()
 		local renderState = React.useState(0)
 		refresh = renderState[2]
+		local pageState = React.useState("Bake")
+		local page,setPage=pageState[1],pageState[2]
 		local tabState = React.useState("Buildings")
 		local tab, setTab = tabState[1], tabState[2]
 		currentTab = tab
@@ -225,9 +256,10 @@ return function()
 		local sell, setSell = sellState[1], sellState[2]
 		local state = snapshot
 		local productCache = React.useRef({}).current
-		local h = displayHeight - 30
+		local nameDraft = React.useRef("")
+		local h = contentHeight
 		local leftW, centerW, storeW = columnWidths()
-		local centerX, storeX = leftW + 12, displayWidth - storeW
+		local centerX, storeX = mobile and 0 or leftW + 12, mobile and 0 or displayWidth - storeW
 		local wave = React.useRef({}).current
 		if wave.width ~= leftW then
 			wave.width, wave.points = leftW, {}
@@ -246,11 +278,11 @@ return function()
 		local cookieScale = math.min(1, math.max(0.25, (h - 190) / 380))
 		local scene = {}
 		-- The cookie uses native vector-like geometry until the artwork pass.
-		scene[#scene + 1] = box("cookieShine",210,cookieY+135,380,380,nil,shineRays,{rotation="0",animation="shine 60s linear infinite"})
+		scene[#scene + 1] = box("cookieShine",210,cookieY+135,380,380,nil,shineRays,{rotation="0",animation=not state.reducedMotion and "shine 60s linear infinite" or ""})
 		scene[#scene + 1] = box("cookieHalo", 55, cookieY - 20, 310, 310, "rgba(180,224,255,0.08)", {}, { ["border-radius"] = "155px" })
 		scene[#scene + 1] = box("cookieHaloInner", 67, cookieY - 8, 286, 286, "rgba(165,218,255,0.09)", {}, { ["border-radius"] = "143px" })
 		scene[#scene + 1] = e(Cookie, { key = "cookie", y = cookieY, send = send, emit=function() emitClick() end })
-		scene[#scene + 1] = e(Cursors,{key="cursors",count=state.buildings[1],y=cookieY})
+		scene[#scene + 1] = e(Cursors,{key="cursors",count=state.buildings[1],y=cookieY,reducedMotion=state.reducedMotion})
 		left[#left+1] = box("cookieScene",210-210*cookieScale,138+(h-178)/2-135*cookieScale,420,math.max(380,h),nil,scene,{transform="scale("..cookieScale..")"})
 		left[#left + 1] = e(ClickEffects,{key="effects"})
 		local unlocked = 0
@@ -259,7 +291,7 @@ return function()
 		left[#left + 1] = box("milk", -(leftW-420)/2, h - milkHeight, leftW, milkHeight, "linear-gradient(90deg, #e8e7dd, #a8bfca)")
 		left[#left + 1] = box("milkWave",-(leftW-420)/2-80,h-milkHeight,leftW+160,12,nil,{
 			e("path2d",{key="milkFoam",id="milkFoam",color="#faf5e8",thickness=8,controlPoints=wave.points})
-		},{animation="milkFlow 4s linear infinite",transition="top 0.8s ease-out"})
+		},{animation=not state.reducedMotion and "milkFlow 4s linear infinite" or "",transition="top 0.8s ease-out"})
 		left[#left + 1] = label("version", "v1", 12, h - 28, 120, 20, 14, "#516572")
 		local center = { stripes("brownStripes", centerW, h, "#211d19", "#28231e") }
 		center[#center + 1] = box("newsBackdrop", 0, 0, centerW, 92, "linear-gradient(90deg, #423729, #181614)")
@@ -267,7 +299,7 @@ return function()
 		center[#center + 1] = rail("newsRail", 0, 92, centerW, 10)
 		local tabs = { "Options", "Stats", "Info", "Legacy" }
 		for i, name in tabs do
-			center[#center + 1] = button("tab" .. name, name, 8 + (i - 1) * ((centerW - 14) / 4), 110, (centerW - 14) / 4 - 4, 31, function() setTab(tab == name and "Buildings" or name) end, { background = tab == name and "#726047" or "#322a22", ["font-size"] = "18px" })
+			center[#center + 1] = button("tab" .. name, name, 8 + (i - 1) * ((centerW - 14) / 4), 110, (centerW - 14) / 4 - 4, mobile and 44 or 31, function() setTab(tab == name and "Buildings" or name) end, { background = tab == name and "#726047" or "#322a22", ["font-size"] = "18px" })
 		end
 		center[#center + 1] = rail("toolbarRail", 0, 150, centerW, 10)
 		if tab == "Buildings" then
@@ -292,7 +324,7 @@ return function()
 			end
 			center[#center + 1] = e("scroll", { key = "buildingScenes", id = "buildingScenes", style = style(0, 160, centerW, h - 190, { overflow = "scroll" }) }, table.unpack(rows))
 		else
-			local pane = { label("panelTitle", tab, 24, 12, 560, 40, 32, "#fff0d8") }
+			local pane = { label("panelTitle", tab, 24, 12, centerW-48, 40, 32, "#fff0d8") }
 			if tab == "Stats" then
 				local stats = {
 					{ "Cookies in bank", number(state.cookies) }, { "Cookies baked (all time)", number(state.earned) },
@@ -301,19 +333,28 @@ return function()
 					{ "Run duration", math.floor(state.played / 60) .. " minutes" }, { "Achievements", unlocked .. " / " .. #Model.Achievements },
 				}
 				for i, pair in stats do
-					pane[#pane + 1] = label("statName" .. i, pair[1], 24, 68 + (i - 1) * 34, 300, 30, 17)
-					pane[#pane + 1] = label("statValue" .. i, pair[2], 326, 68 + (i - 1) * 34, 274, 30, 17, "#d4b474", { ["text-align"] = "right" })
+					pane[#pane + 1] = label("statName" .. i, pair[1], 24, 68 + (i - 1) * (mobile and 52 or 34), mobile and 210 or 300, mobile and 48 or 30, 17)
+					pane[#pane + 1] = label("statValue" .. i, pair[2], mobile and 235 or 326, 68 + (i - 1) * (mobile and 52 or 34), mobile and centerW-259 or 274, mobile and 48 or 30, 17, "#d4b474", { ["text-align"] = "right" })
 				end
-				pane[#pane + 1] = label("achievementHeading", "Achievements", 24, 362, 570, 36, 27)
-				for i, a in Model.Achievements do pane[#pane + 1] = label("achievement" .. i, (state.achievements[a[1]] and "★  " or "☆  ") .. a[1] .. "  —  " .. a[2], 24, 405 + (i - 1) * 36, 570, 32, 16, state.achievements[a[1]] and "#e6c980" or "#877c6e") end
+				pane[#pane + 1] = label("achievementHeading", "Achievements", 24, mobile and 490 or 362, centerW-48, 36, 27)
+				for i, a in Model.Achievements do pane[#pane + 1] = label("achievement" .. i, (state.achievements[a[1]] and "★  " or "☆  ") .. a[1] .. "  —  " .. a[2], 24, (mobile and 535 or 405) + (i - 1) * (mobile and 60 or 36), centerW-48, mobile and 56 or 32, 16, state.achievements[a[1]] and "#e6c980" or "#877c6e") end
 			elseif tab == "Options" then
-				pane[#pane + 1] = button("saveGame", "Save", 24, 74, 150, 38, function() send("save") end)
-				pane[#pane + 1] = label("saveStatus", state.saveStatus or "", 190, 74, 410, 38, 17)
-				pane[#pane + 1] = label("saveExplanation", "Progress saves automatically every 60 seconds in published games. Studio playtests use a separate, temporary session.", 24, 137, 570, 88, 18)
+				pane[#pane + 1] = button("saveGame", "Save now", 24, 74, 150, 48, function() send("save") end)
+				pane[#pane + 1] = label("saveStatus", state.saveStatus or "", 190, 74, centerW-214, 60, 17)
+				pane[#pane + 1] = label("saveExplanation", "Your bakery saves every minute. Come back later to collect up to 8 hours of cookies! Test games reset when testing stops.", 24, 137, centerW-48, 100, 18)
+				pane[#pane+1] = button("soundToggle",state.soundEnabled~=false and "Sounds: on" or "Sounds: off",24,250,200,48,function()
+					local enabled=snapshot.soundEnabled==false
+					audio.setEnabled(enabled)
+					send("sound",enabled)
+				end)
+				pane[#pane+1] = button("motionToggle",state.reducedMotion and "Movement: less" or "Movement: full",24,310,220,48,function()send("motion",not snapshot.reducedMotion)end)
+				pane[#pane+1] = label("renameLabel","Name your bakery",24,375,centerW-48,30,21)
+				pane[#pane+1] = e("input",{key="bakeryInput",id="bakeryInput",style=style(24,415,centerW-48,48,{background="#eee5d2",color="#211d19",["font-size"]="20px"}),onChange=function(event)nameDraft.current=event.value end})
+				pane[#pane+1] = button("renameBakery","Use this name",24,478,220,48,function()send("rename",nameDraft.current)end)
 			elseif tab == "Info" then
-				pane[#pane + 1] = label("credits", "Cookie Clicker v1\n\nClick the big cookie. Buy buildings. Bake more cookies.", 24, 74, 570, 240, 23)
+				pane[#pane + 1] = label("credits", "Cookie Clicker v1\n\nClick the big cookie. Buy buildings. Bake more cookies.", 24, 74, centerW-48, 240, 23)
 			else
-				pane[#pane + 1] = label("legacyDescription", "Your legacy begins with a trillion cookies.\n\nPrestige level: " .. number(math.floor((state.earned / 1e12) ^ (1 / 3))) .. "\n\nAscension and heavenly upgrades are still being implemented.", 24, 74, 570, 200, 21)
+				pane[#pane + 1] = label("legacyDescription", "Your legacy begins with a trillion cookies.\n\nPrestige level: " .. number(math.floor((state.earned / 1e12) ^ (1 / 3))) .. "\n\nAscension and heavenly upgrades are still being implemented.", 24, 74, centerW-48, 220, 21)
 			end
 			center[#center + 1] = e("scroll", { key = "menuPanel", id = "menuPanel", style = style(0, 160, centerW, h - 190, { background = "#241f19", overflow = "scroll" }) }, table.unpack(pane))
 		end
@@ -333,7 +374,7 @@ return function()
 				label("upgradePrice", (affordable and "Tap to buy: " or "Need ") .. number(u.price) .. (affordable and " cookies" or " cookies to buy"), 10, 78, storeW-42, 23, 16, affordable and "#b3ef96" or "#d9ba8d"),
 			}
 			upgradeCards[#upgradeCards+1] = button("upgrade_"..u.id,"",0,(i-1)*112,storeW-22,108,function()
-				if snapshot.cookies >= u.price then send("upgrade",u.id) end
+				send("upgrade",u.id)
 			end,{background=affordable and "#3e5130" or "#393129"},kids,function(inside) setHover(inside and u.id or 0) end)
 		end
 		if #upgrades == 0 then
@@ -343,9 +384,9 @@ return function()
 		end
 		store[#store+1] = e("scroll",{key="upgradeList",id="upgradeList",style=style(8,80,storeW-8,112,{overflow="scroll"})},table.unpack(upgradeCards))
 		store[#store + 1] = rail("upgradeRail", 0, 200, storeW, 9)
-		store[#store + 1] = button("buyMode", "Buy", 8, 219, 66, 28, function() setSell(false) end, { background = sell and "#27221c" or "#766446", ["font-size"] = "17px" })
-		store[#store + 1] = button("sellMode", "Sell", 77, 219, 66, 28, function() setSell(true) end, { background = sell and "#766446" or "#27221c", ["font-size"] = "17px" })
-		for i, amount in { 1, 10, 100 } do store[#store + 1] = button("bulk" .. amount, tostring(amount), 151 + (i - 1) * 62, 219, 57, 28, function() setBulk(amount) end, { background = bulk == amount and "#766446" or "#27221c", ["font-size"] = "17px" }) end
+		store[#store + 1] = button("buyMode", "Buy", 8, 219, 66, mobile and 44 or 28, function() setSell(false) end, { background = sell and "#27221c" or "#766446", ["font-size"] = "17px" })
+		store[#store + 1] = button("sellMode", "Sell", 77, 219, 66, mobile and 44 or 28, function() setSell(true) end, { background = sell and "#766446" or "#27221c", ["font-size"] = "17px" })
+		for i, amount in { 1, 10, 100 } do store[#store + 1] = button("bulk" .. amount, tostring(amount), 151 + (i - 1) * 62, 219, 57, mobile and 44 or 28, function() setBulk(amount) end, { background = bulk == amount and "#766446" or "#27221c", ["font-size"] = "17px" }) end
 		local products = {}
 		for i, b in Model.Buildings do
 			local price = Model.price(state, i, bulk, sell)
@@ -366,13 +407,29 @@ return function()
 			products[#products + 1] = button("buyBuilding" .. i, "", 0, (i - 1) * 76, storeW - 9, 74, function() send("trade", i, bulk, sell) end, { background = "linear-gradient(90deg, #534c40, #2d2923)", border = "1px solid #74634c" }, kids, function(inside) setHover(inside and i or 0) end, "linear-gradient(90deg, #766a54, #463f34)")
 			productCache[i] = {signature=signature,element=products[#products]}
 		end
-		store[#store + 1] = e("scroll", { key = "storeProducts", id = "storeProducts", style = style(0, 258, storeW, math.max(40,h - 258), { overflow = "scroll" }) }, table.unpack(products))
+		store[#store + 1] = e("scroll", { key = "storeProducts", id = "storeProducts", style = style(0, mobile and 275 or 258, storeW, math.max(40,h - (mobile and 275 or 258)), { overflow = "scroll" }) }, table.unpack(products))
 		local children = {
-			box("topBar", 0, 0, displayWidth, 30, "#111111", { label("brand", "Cookie Clicker", 12, 1, 180, 27, 18, "#e2d1b6"), label("edition", "Roblox edition", displayWidth - 205, 2, 190, 25, 14, "#a89e90", { ["text-align"] = "right" }) }),
-			box("bakeryColumn", 0, 30, leftW, h, nil, {stripes("blueStripes",leftW,h,"#173346","#1a3b51"), e(Rain,{key="rain",w=leftW,h=h,cps=state.cps}), box("bakeryContent",(leftW-420)/2,0,420,h,nil,left)}, { overflow = "hidden" }),
-			rail("leftRail", leftW, 30, 12, h), box("centerColumn", centerX, 30, centerW, h, nil, center),
-			rail("rightRail", centerX + centerW, 30, 12, h), box("storeColumn", storeX, 30, storeW, h, nil, store),
+			box("topBar", 0, 0, displayWidth, 30, "#111111", { label("brand", "Cookie Clicker", 12, 1, 180, 27, 18, "#e2d1b6"), label("edition", mobile and "v1" or "Roblox edition", displayWidth - 205, 2, 190, 25, 14, "#a89e90", { ["text-align"] = "right" }) }),
+			box("bakeryColumn", 0, 30, leftW, h, nil, {stripes("blueStripes",leftW,h,"#173346","#1a3b51"), e(Rain,{key="rain",w=leftW,h=h,cps=state.cps,reducedMotion=state.reducedMotion}), box("bakeryContent",(leftW-420)/2,0,420,h,nil,left)}, { overflow = "hidden",display=(not mobile or page=="Bake") and "block" or "none" }),
+			rail("leftRail", leftW, 30, mobile and 0 or 12, h), box("centerColumn", centerX, 30, centerW, h, nil, center,{display=(not mobile or page=="More") and "block" or "none",overflow="hidden"}),
+			rail("rightRail", centerX + centerW, 30, mobile and 0 or 12, h), box("storeColumn", storeX, 30, storeW, h, nil, store,{display=(not mobile or page=="Shop") and "block" or "none"}),
 		}
+		if mobile then
+			local nav={}
+			for i,name in {"Bake","Shop","More"} do
+				nav[i]=button("nav"..name,name,(i-1)*140+4,4,132,52,function()setPage(name);setHover(0)end,{background=page==name and "#74603a" or "#30271f",["font-size"]="23px"})
+			end
+			children[#children+1]=box("mobileNav",0,displayHeight-60,420,60,"#171510",nav,{["z-index"]="50"})
+		end
+		if (state.goldenUntil or 0)>state.played then
+			children[#children+1]=button("goldenCookie","Lucky cookie!\nTap for a surprise",leftW-138,150,128,95,function()send("golden",snapshot.goldenId)end,{background="#e8b947",color="#3e280d",["font-size"]="19px",["border-radius"]="40px",["z-index"]="70"})
+		end
+		children[#children+1]=e(Feedback,{key="feedback"})
+		if not state.ready then
+			children[#children+1]=box("loadingBakery",0,30,displayWidth,displayHeight-30,"#211d19",{
+				label("loadingMessage",state.saveStatus or "Opening your bakery...",20,60,displayWidth-40,120,24,"#fff2dd",titleStyle)
+			},{["z-index"]="90"})
+		end
 		children[#children + 1] = e(Tooltip, {key="tooltip",state=state,bulk=bulk,sell=sell})
 		return e("div", { id = "cookieClicker", style = style(0, 0, displayWidth, displayHeight, { background = "#171510" }) }, table.unpack(children))
 	end
@@ -396,7 +453,7 @@ return function()
 	local lastSignature
 	local priceCache = {}
 	local function pageSignature()
-		local parts = {snapshot.bakery, snapshot.saveStatus or "", tostring(snapshot.cps), tostring(snapshot.clickPower), tostring(snapshot.earned < 50), tostring(snapshot.earned < 1000)}
+		local parts = {snapshot.bakery, snapshot.saveStatus or "", tostring(snapshot.cps), tostring(snapshot.clickPower), tostring(snapshot.soundEnabled), tostring(snapshot.reducedMotion), tostring(snapshot.goldenId), tostring((snapshot.goldenUntil or 0)>snapshot.played), tostring(snapshot.ready), tostring(snapshot.earned < 50), tostring(snapshot.earned < 1000)}
 		for i, b in Model.Buildings do
 			parts[#parts+1] = tostring(snapshot.buildings[i])
 			parts[#parts+1] = tostring(snapshot.earned >= b.price)
@@ -424,13 +481,20 @@ return function()
 			if refresh then refresh(revision) end
 		end
 	end
-	local connection = remote.OnClientEvent:Connect(function(nextState) snapshot = nextState; update(false) end)
+	local connection = remote.OnClientEvent:Connect(function(nextState)
+		snapshot = nextState
+		audio.setEnabled(snapshot.soundEnabled~=false)
+		for _,event in snapshot.events or {} do
+			if event.id>lastEventId then lastEventId=event.id;notify(event.text,event.kind) end
+		end
+		update(false)
+	end)
 	local resize = workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
 		measureViewport()
 		scale.Scale = uiScale
 		update(true)
 	end)
-	script.Destroying:Connect(function() connection:Disconnect(); resize:Disconnect(); handle.unmount() end)
+	script.Destroying:Connect(function() alive=false;connection:Disconnect(); resize:Disconnect(); audio.destroy();handle.unmount() end)
 	send("sync")
 	print("[CookieClicker] Mounted with toil-luau React")
 	return handle

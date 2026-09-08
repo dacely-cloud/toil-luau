@@ -1653,7 +1653,8 @@ function wireEvents(node: HostNode): void {
 	connect("MouseLeave", () => fire("onMouseLeave", { type: "mouseleave", target: node }));
 
 	if (cls === "TextButton" || cls === "ImageButton") {
-		connect("MouseButton1Click", () => fire("onClick", { type: "click", target: node }));
+		// Activated covers mouse, touch and gamepad without duplicate clicks.
+		connect("Activated", (a) => fire("onClick", { type: "click", target: node, input: a[0] }));
 		connect("MouseButton1Down", () => fire("onMouseDown", { type: "mousedown", target: node }));
 		connect("MouseButton1Up", () => fire("onMouseUp", { type: "mouseup", target: node }));
 		connect("MouseButton2Click", () => fire("onContextMenu", { type: "contextmenu", target: node }));

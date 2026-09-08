@@ -34,6 +34,16 @@ Model.Upgrades = {
 	{ id = "picks", name = "Sugar gas", description = "Mines are twice as efficient.", price = 120000, building = 4, required = 1 },
 	{ id = "conveyor", name = "Sturdier conveyor belts", description = "Factories are twice as efficient.", price = 1300000, building = 5, required = 1 },
 }
+-- Kid-friendly progression for every building, retaining existing save IDs.
+for i, building in Model.Buildings do
+	for tier, required in {1,5,25,50,100} do
+		local exists=false
+		for _,u in Model.Upgrades do if u.building==i and u.required==required then exists=true;break end end
+		if not exists then
+			Model.Upgrades[#Model.Upgrades+1]={id="building_"..i.."_"..required,name="Better "..building.name.." "..tier,description="Makes twice as many cookies.",price=building.price*10*5^(tier-1),building=i,required=required}
+		end
+	end
+end
 local achievements = {
 	{ "Wake and bake", "Bake 1 cookie.", "earned", 1 },
 	{ "Making some dough", "Bake 1,000 cookies.", "earned", 1000 },
@@ -41,9 +51,13 @@ local achievements = {
 	{ "Fledgling bakery", "Bake 1 million cookies.", "earned", 1e6 },
 	{ "Clicktastic", "Bake 1,000 cookies by clicking.", "handmade", 1000 },
 }
+for i,b in Model.Buildings do
+	for _,count in {1,10,50,100} do achievements[#achievements+1]={b.name.." team "..count,"Own "..count.." "..b.name.." buildings.","buildings",count,i} end
+end
+for _,count in {100,10000,100000} do achievements[#achievements+1]={"Cookie tapper "..count,"Click "..count.." times.","clicks",count} end
 Model.Achievements = achievements
 function Model.new()
-	return { version = 1, cookies = 0, earned = 0, handmade = 0, clicks = 0, buildings = table.create(#Model.Buildings, 0), upgrades = {}, achievements = {}, played = 0, bakery = "Your bakery", goldenClicks = 0 }
+	return { version = 1, cookies = 0, earned = 0, handmade = 0, clicks = 0, buildings = table.create(#Model.Buildings, 0), upgrades = {}, achievements = {}, played = 0, bakery = "Your bakery", goldenClicks = 0, goldenAt = 75, goldenId = 0, goldenUntil = 0, frenzyUntil = 0, soundEnabled = true }
 end
 function Model.multiplier(state, building)
 	local value = 1
@@ -55,18 +69,24 @@ end
 function Model.cps(state)
 	local value = 0
 	for i, b in Model.Buildings do value += b.cps * state.buildings[i] * Model.multiplier(state, i) end
-	return value
+	return value * ((state.frenzyUntil or 0)>state.played and 2 or 1)
 end
 function Model.clickPower(state)
 	local value = 1
 	for _, u in Model.Upgrades do if u.click and state.upgrades[u.id] then value *= 2 end end
 	return value
 end
+function Model.checkAchievements(state)
+	for _,a in achievements do
+		local progress=a[5] and state.buildings[a[5]] or state[a[3]]
+		if type(progress)=="number" and progress>=a[4] then state.achievements[a[1]]=true end
+	end
+end
 function Model.award(state, amount)
 	if amount <= 0 or amount ~= amount or amount == math.huge then return end
 	state.cookies += amount
 	state.earned += amount
-	for _, a in achievements do if state[a[3]] >= a[4] then state.achievements[a[1]] = true end end
+	Model.checkAchievements(state)
 end
 function Model.click(state)
 	local value = Model.clickPower(state)
@@ -78,7 +98,11 @@ end
 function Model.tick(state, dt)
 	if dt <= 0 or dt ~= dt or dt == math.huge then return end
 	state.played += dt
-	Model.award(state, Model.cps(state) * dt)
+	-- Split production at the bonus boundary so a long tick cannot extend it.
+	local bonusSeconds=math.clamp((state.frenzyUntil or 0)-(state.played-dt),0,dt)
+	local base=0
+	for i,b in Model.Buildings do base+=b.cps*state.buildings[i]*Model.multiplier(state,i) end
+	Model.award(state,base*(dt+bonusSeconds))
 end
 function Model.price(state, index, quantity, sell)
 	local b = Model.Buildings[index]
@@ -111,6 +135,7 @@ function Model.trade(state, index, quantity, sell)
 		else break end
 		traded += 1
 	end
+	Model.checkAchievements(state)
 	return traded > 0
 end
 function Model.buyUpgrade(state, id)
@@ -122,6 +147,25 @@ function Model.buyUpgrade(state, id)
 		end
 	end
 	return false
+end
+function Model.goldenTick(state)
+	if state.played >= (state.goldenAt or 75) then
+		state.goldenId=(state.goldenId or 0)+1
+		state.goldenUntil=state.played+20
+		state.goldenAt=state.played+75+(state.goldenId%4)*10
+	end
+end
+function Model.collectGolden(state,id)
+	if id~=state.goldenId or (state.goldenUntil or 0)<=state.played then return nil end
+	state.goldenUntil=0
+	state.goldenClicks+=1
+	if state.goldenClicks%2==0 then
+		state.frenzyUntil=state.played+30
+		return "Double baking for 30 seconds!"
+	end
+	local reward=math.max(25,math.floor(Model.cps(state)*60+state.cookies*.1))
+	Model.award(state,reward)
+	return "Lucky cookie! You got "..reward.." extra cookies!"
 end
 function Model.snapshot(state)
 	local result = table.clone(state)

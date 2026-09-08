@@ -151,6 +151,23 @@ local Enum = {
 		Sibling = { Name = "Sibling" },
 		Global = { Name = "Global" },
 	},
+	TextTruncate = {
+		None = { Name = "None" },
+		AtEnd = { Name = "AtEnd" },
+		SplitWord = { Name = "SplitWord" },
+	},
+	ScaleType = {
+		Stretch = { Name = "Stretch" },
+		Slice = { Name = "Slice" },
+		Tile = { Name = "Tile" },
+		Fit = { Name = "Fit" },
+		Crop = { Name = "Crop" },
+	},
+	SortOrder = {
+		Name = { Name = "Name" },
+		Custom = { Name = "Custom" },
+		LayoutOrder = { Name = "LayoutOrder" },
+	},
 }
 
 local env = {

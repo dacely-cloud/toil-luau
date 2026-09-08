@@ -94,7 +94,9 @@ export type RobloxClassName =
 	| "UIListLayout"
 	| "UIStroke"
 	| "UIScale"
-	| "UIGradient";
+	| "UIGradient"
+	| "UISizeConstraint"
+	| "UIAspectRatioConstraint";
 
 /** A wrapped Roblox Instance. Never `any`: typed accessors below. */
 export type RobloxInstance = {
@@ -158,6 +160,14 @@ export interface HostEnv {
 	enumValue: (name: string) => unknown;
 	/** Destroy an instance (helper cleanup on remount). */
 	destroy: (inst: RobloxInstance) => void;
+	/**
+	 * Schedule `fn` to run after `delaySeconds` (real Roblox: task.delay).
+	 * Returns an opaque handle for clearTimeout. Optional: when absent the host
+	 * runs scheduled callbacks inline (native test env has no scheduler).
+	 */
+	setTimeout?: (fn: () => void, delaySeconds: number) => unknown;
+	/** Cancel a pending setTimeout by its handle (real Roblox: task.cancel). */
+	clearTimeout?: (handle: unknown) => void;
 }
 
 /**
@@ -242,6 +252,11 @@ function startsWith(s: string, prefix: string): boolean {
 function isTextInstance(inst: RobloxInstance): boolean {
 	const c = inst.ClassName;
 	return c === "TextLabel" || c === "TextButton" || c === "TextBox";
+}
+
+function isImageInstance(inst: RobloxInstance): boolean {
+	const c = inst.ClassName;
+	return c === "ImageLabel" || c === "ImageButton";
 }
 
 // ------------------------------------------------------------------ tag map
@@ -352,12 +367,92 @@ export interface ParsedColor {
 
 
 const NAMED_COLORS: Record<string, [number, number, number]> = {
+	transparent: [0, 0, 0],
 	white: [255, 255, 255],
 	black: [0, 0, 0],
 	red: [255, 0, 0],
 	green: [0, 128, 0],
+	lime: [0, 255, 0],
 	blue: [0, 0, 255],
+	yellow: [255, 255, 0],
+	cyan: [0, 255, 255],
+	aqua: [0, 255, 255],
+	magenta: [255, 0, 255],
+	fuchsia: [255, 0, 255],
+	silver: [192, 192, 192],
+	gray: [128, 128, 128],
+	grey: [128, 128, 128],
+	maroon: [128, 0, 0],
+	olive: [128, 128, 0],
+	purple: [128, 0, 128],
+	teal: [0, 128, 128],
+	navy: [0, 0, 128],
+	orange: [255, 165, 0],
+	gold: [255, 215, 0],
+	pink: [255, 192, 203],
+	brown: [165, 42, 42],
+	coral: [255, 127, 80],
+	crimson: [220, 20, 60],
+	salmon: [250, 128, 114],
+	tomato: [255, 99, 71],
+	violet: [238, 130, 238],
+	indigo: [75, 0, 130],
+	turquoise: [64, 224, 208],
+	skyblue: [135, 206, 235],
+	royalblue: [65, 105, 225],
+	steelblue: [70, 130, 180],
+	slategray: [112, 128, 144],
+	forestgreen: [34, 139, 34],
+	seagreen: [46, 139, 87],
+	limegreen: [50, 205, 50],
+	khaki: [240, 230, 140],
+	beige: [245, 245, 220],
+	ivory: [255, 255, 240],
+	lavender: [230, 230, 250],
+	plum: [221, 160, 221],
+	orchid: [218, 112, 214],
+	tan: [210, 180, 140],
+	chocolate: [210, 105, 30],
+	darkred: [139, 0, 0],
+	darkgreen: [0, 100, 0],
+	darkblue: [0, 0, 139],
+	darkgray: [169, 169, 169],
+	darkgrey: [169, 169, 169],
+	lightgray: [211, 211, 211],
+	lightgrey: [211, 211, 211],
+	lightblue: [173, 216, 230],
+	lightgreen: [144, 238, 144],
+	whitesmoke: [245, 245, 245],
+	gainsboro: [220, 220, 220],
+	dimgray: [105, 105, 105],
 };
+
+/** HSL (h in degrees, s/l in 0..1) to 0..255 RGB. */
+function hslToRgb(h: number, sat: number, light: number): [number, number, number] {
+	const hh = ((h % 360) + 360) % 360;
+	const c = (1 - math.abs(2 * light - 1)) * sat;
+	const x = c * (1 - math.abs(((hh / 60) % 2) - 1));
+	const m = light - c / 2;
+	let r = 0;
+	let g = 0;
+	let b = 0;
+	if (hh < 60) { r = c; g = x; }
+	else if (hh < 120) { r = x; g = c; }
+	else if (hh < 180) { g = c; b = x; }
+	else if (hh < 240) { g = x; b = c; }
+	else if (hh < 300) { r = x; b = c; }
+	else { r = c; b = x; }
+	return [_round((r + m) * 255), _round((g + m) * 255), _round((b + m) * 255)];
+}
+
+/** Strip a trailing "%" and parse the number (for hsl / alpha percentages). */
+function parsePct(v: string): number {
+	const t = strTrim(v);
+	if (t.size() >= 1 && slice(t, t.size()) === "%") {
+		return _parseFloat(slice(t, 1, t.size() - 1)) / 100;
+	}
+	return _parseFloat(t);
+}
 
 export function parseColor(value: string | undefined): ParsedColor | undefined {
 	if (value === undefined) {
@@ -367,21 +462,23 @@ export function parseColor(value: string | undefined): ParsedColor | undefined {
 	if (s === "transparent") {
 		return { r: 0, g: 0, b: 0, a: 0 };
 	}
-	// #rgb / #rrggbb
-	if (slice(s, 1, 1) === "#" && (s.size() === 4 || s.size() === 7)) {
-		let r = 0;
-		let g = 0;
-		let b = 0;
-		if (s.size() === 4) {
-			r = _parseInt(slice(s, 2, 2), 16) * 17;
-			g = _parseInt(slice(s, 3, 3), 16) * 17;
-			b = _parseInt(slice(s, 4, 4), 16) * 17;
-			return { r, g, b, a: 1 };
+	// #rgb / #rgba / #rrggbb / #rrggbbaa
+	if (slice(s, 1, 1) === "#") {
+		const hexLen = s.size();
+		if (hexLen === 4 || hexLen === 5) {
+			const r = _parseInt(slice(s, 2, 2), 16) * 17;
+			const g = _parseInt(slice(s, 3, 3), 16) * 17;
+			const b = _parseInt(slice(s, 4, 4), 16) * 17;
+			const a = hexLen === 5 ? (_parseInt(slice(s, 5, 5), 16) * 17) / 255 : 1;
+			return { r, g, b, a };
 		}
-		r = _parseInt(slice(s, 2, 3), 16);
-		g = _parseInt(slice(s, 4, 5), 16);
-		b = _parseInt(slice(s, 6, 7), 16);
-		return { r, g, b, a: 1 };
+		if (hexLen === 7 || hexLen === 9) {
+			const r = _parseInt(slice(s, 2, 3), 16);
+			const g = _parseInt(slice(s, 4, 5), 16);
+			const b = _parseInt(slice(s, 6, 7), 16);
+			const a = hexLen === 9 ? _parseInt(slice(s, 8, 9), 16) / 255 : 1;
+			return { r, g, b, a };
+		}
 	}
 	// rgb() / rgba()
 	const rgbM = string.match(s, "^rgba?%(([^)]+)%)$");
@@ -404,9 +501,27 @@ export function parseColor(value: string | undefined): ParsedColor | undefined {
 			return { r, g, b, a };
 		}
 	}
+	// hsl() / hsla()
+	const hslM = string.match(s, "^hsla?%(([^)]+)%)$");
+	const hsl = (hslM[0] as unknown) as string | undefined;
+	if (hsl !== undefined) {
+		const rawParts = (string.split(hsl, ",") as unknown) as Array<string>;
+		if (rawParts.size() >= 3) {
+			const h = _parseFloat(strTrim(rawParts[0]));
+			const sat = parsePct(rawParts[1]);
+			const light = parsePct(rawParts[2]);
+			let a = 1;
+			if (rawParts.size() >= 4) {
+				const pa = _parseFloat(strTrim(rawParts[3]));
+				a = _isNaN(pa) ? 1 : clamp01(pa);
+			}
+			const rgbv = hslToRgb(h, sat, light);
+			return { r: rgbv[0], g: rgbv[1], b: rgbv[2], a };
+		}
+	}
 	const named = NAMED_COLORS[s];
 	if (named !== undefined) {
-		return { r: named[0], g: named[1], b: named[2], a: 1 };
+		return { r: named[0], g: named[1], b: named[2], a: s === "transparent" ? 0 : 1 };
 	}
 	return undefined;
 }
@@ -441,6 +556,28 @@ export function firstColor(value: string): string {
 		}
 	}
 	return "";
+}
+
+/**
+ * Pull the asset id/uri out of a CSS `url(...)` value, e.g.
+ * `url("rbxassetid://123")` -> `rbxassetid://123`. Returns "" when the value
+ * is a gradient or otherwise has no url() token.
+ */
+export function extractUrl(value: string): string {
+	const open = strFind(value, "url(", 1, true);
+	if (open === undefined) return "";
+	const rest = slice(value, open + 4);
+	const close = strFind(rest, ")", 1, true);
+	let inner = close !== undefined ? slice(rest, 1, close - 1) : rest;
+	inner = strTrim(inner);
+	// Strip surrounding single or double quotes.
+	if (inner.size() >= 2) {
+		const q = slice(inner, 1, 1);
+		if (q === '"' || q === "'") {
+			inner = slice(inner, 2, inner.size() - 1);
+		}
+	}
+	return strTrim(inner);
 }
 
 /**
@@ -703,6 +840,35 @@ export function applyStyle(node: HostNode, style: Record<string, string>, env: H
 		(inst as Record<string, unknown>)["AutomaticSize"] = env.enumValue("AutomaticSize." + autoName);
 	}
 
+	// --- Min / max size (UISizeConstraint) ---
+	const minW = parseLength(style["min-width"]);
+	const maxW = parseLength(style["max-width"]);
+	const minH = parseLength(style["min-height"]);
+	const maxH = parseLength(style["max-height"]);
+	if (minW !== undefined || maxW !== undefined || minH !== undefined || maxH !== undefined) {
+		ensureHelperChild(node, "ToilSizeConstraint", "UISizeConstraint", env);
+		const scc = findHelper(node, "ToilSizeConstraint");
+		if (scc !== undefined) {
+			const scr = scc as Record<string, unknown>;
+			scr["MinSize"] = env.newVector2(minW !== undefined ? minW.offset : 0, minH !== undefined ? minH.offset : 0);
+			scr["MaxSize"] = env.newVector2(
+				maxW !== undefined ? maxW.offset : math.huge,
+				maxH !== undefined ? maxH.offset : math.huge
+			);
+		}
+	}
+
+	// --- Aspect ratio (UIAspectRatioConstraint) ---
+	const aspectRaw = style["aspect-ratio"] ?? "";
+	if (aspectRaw.size() > 0 && aspectRaw !== "auto") {
+		const ratio = parseAspectRatio(aspectRaw);
+		if (ratio !== undefined && ratio > 0) {
+			ensureHelperChild(node, "ToilAspect", "UIAspectRatioConstraint", env);
+			const ar = findHelper(node, "ToilAspect");
+			if (ar !== undefined) (ar as Record<string, unknown>)["AspectRatio"] = ratio;
+		}
+	}
+
 	// --- Position (top / left / right / bottom + position) ---
 	const placement = computePlacement(style, [100, 100]);
 	// A rotating element spins about its centre (CSS transform-origin defaults
@@ -871,6 +1037,9 @@ export function applyStyle(node: HostNode, style: Record<string, string>, env: H
 			l["FillDirection"] = env.enumValue(
 				isColumn ? "FillDirection.Vertical" : "FillDirection.Horizontal"
 			);
+			// flex-wrap -> UIListLayout.Wraps (wrap / wrap-reverse both wrap).
+			const flexWrap = style["flex-wrap"] ?? "";
+			l["Wraps"] = flexWrap === "wrap" || flexWrap === "wrap-reverse";
 			// gap
 			const gap = parseLength(style["gap"]);
 			if (gap !== undefined && gap.offset > 0) {
@@ -914,6 +1083,17 @@ export function applyStyle(node: HostNode, style: Record<string, string>, env: H
 		(inst as Record<string, unknown>)["TextSize"] = _round(fontSize.offset);
 	}
 
+	// --- Line height (TextLabel.LineHeight, a multiplier) ---
+	const lineHeight = style["line-height"] ?? "";
+	if (lineHeight.size() > 0 && isTextInstance(inst)) {
+		const lh = _parseFloat(lineHeight);
+		if (!_isNaN(lh) && lh > 0) (inst as Record<string, unknown>)["LineHeight"] = lh;
+	}
+
+	// --- Text transform: recorded here, applied to the joined text in
+	// syncTextContent (the text is assembled from child text nodes). ---
+	node.styleState["textTransform"] = style["text-transform"] ?? "";
+
 	// --- Font family (map to Enum.Font) ---
 	const fontFamily = style["font-family"] ?? "";
 	if (fontFamily.size() > 0 && isTextInstance(inst)) {
@@ -927,6 +1107,52 @@ export function applyStyle(node: HostNode, style: Record<string, string>, env: H
 	const fontWeight = style["font-weight"] ?? "";
 	if (isTextInstance(inst) && (fontWeight === "bold" || (fontWeight.size() >= 2 && _parseInt(fontWeight) >= 600))) {
 		(inst as Record<string, unknown>)["Font"] = env.enumValue("Font.GothamBold");
+	}
+
+	// --- Text overflow: `ellipsis` -> truncate at end, `clip`/unset -> none. ---
+	const textOverflow = style["text-overflow"] ?? "";
+	if (textOverflow.size() > 0 && isTextInstance(inst)) {
+		(inst as Record<string, unknown>)["TextTruncate"] = env.enumValue(
+			textOverflow === "ellipsis" ? "TextTruncate.AtEnd" : "TextTruncate.None"
+		);
+	}
+
+	// --- Text shadow -> TextStroke (Roblox has no drop shadow for text, but a
+	// stroke is the closest built-in: colour + softness). `none` clears it. ---
+	const textShadow = style["text-shadow"] ?? "";
+	if (textShadow.size() > 0 && isTextInstance(inst)) {
+		if (textShadow === "none") {
+			(inst as Record<string, unknown>)["TextStrokeTransparency"] = 1;
+		} else {
+			const shadowCol = parseColor(firstColor(textShadow));
+			if (shadowCol !== undefined) {
+				(inst as Record<string, unknown>)["TextStrokeColor3"] = env.newColor3(
+					shadowCol.r,
+					shadowCol.g,
+					shadowCol.b
+				);
+				(inst as Record<string, unknown>)["TextStrokeTransparency"] = 1 - shadowCol.a * 0.5;
+			}
+		}
+	}
+
+	// --- object-fit -> ImageLabel/ImageButton.ScaleType. ---
+	const objectFit = style["object-fit"] ?? "";
+	if (objectFit.size() > 0 && isImageInstance(inst)) {
+		let scale = "ScaleType.Fit";
+		if (objectFit === "fill") scale = "ScaleType.Stretch";
+		else if (objectFit === "cover") scale = "ScaleType.Crop";
+		else if (objectFit === "contain" || objectFit === "scale-down") scale = "ScaleType.Fit";
+		(inst as Record<string, unknown>)["ScaleType"] = env.enumValue(scale);
+	}
+
+	// --- background-image: url(...) -> ImageLabel/ImageButton.Image. ---
+	const bgImageUrl = style["background-image"] ?? "";
+	if (isImageInstance(inst)) {
+		const url = extractUrl(bgImageUrl);
+		if (url.size() > 0) {
+			(inst as Record<string, unknown>)["Image"] = url;
+		}
 	}
 
 	// --- Text alignment ---
@@ -1204,7 +1430,26 @@ function syncTextContent(node: HostNode): void {
 			out += kids[i].text;
 		}
 	}
+	// text-transform (recorded by applyStyle). capitalize is left as-is (no
+	// per-word title-casing) since Roblox has no built-in for it.
+	const tt = node.styleState["textTransform"];
+	if (tt === "uppercase") out = string.upper(out);
+	else if (tt === "lowercase") out = string.lower(out);
 	(inst as Record<string, unknown>)["Text"] = out;
+}
+
+/** Parse a CSS `aspect-ratio`: "16 / 9", "16/9", or a bare number. */
+function parseAspectRatio(v: string): number | undefined {
+	const s = strTrim(v);
+	const slashIdx = strFind(s, "/", 1, true);
+	if (slashIdx !== undefined) {
+		const w = _parseFloat(slice(s, 1, slashIdx - 1));
+		const h = _parseFloat(slice(s, slashIdx + 1));
+		if (!_isNaN(w) && !_isNaN(h) && h !== 0) return w / h;
+		return undefined;
+	}
+	const n = _parseFloat(s);
+	return _isNaN(n) ? undefined : n;
 }
 
 /** Roblox signal/connection shapes, typed as methods so calls emit `:`. */
@@ -1220,21 +1465,96 @@ interface ConnectionLike {
  * instances. The handler is read off the node at click time, so a re-render
  * that passes a new function needs no re-wiring.
  */
+/** True when a Roblox InputObject is a left mouse click / primary touch. */
+/**
+ * Minimal RBXScriptSignal shape. The `this` parameter is load-bearing: it
+ * makes roblox-ts emit a method call (`sig:Connect(fn)`) rather than a field
+ * call (`sig.Connect(fn)`), which would pass the callback as `self` and crash
+ * with "RBXScriptSignal expected, got function".
+ */
+interface RbxSignal {
+	Connect(this: RbxSignal, callback: (...args: Array<unknown>) => void): unknown;
+}
+
+function isPrimaryInput(input: Record<string, unknown>): boolean {
+	const uit = input["UserInputType"];
+	const enumT = Enum as unknown as Record<string, Record<string, unknown>>;
+	return uit === enumT["UserInputType"]["MouseButton1"] || uit === enumT["UserInputType"]["Touch"];
+}
+
+/**
+ * Wire the React DOM-style event props this host supports onto the node's
+ * Roblox signals. Connected once per node; each connection reads the handler
+ * off `pendingProps` at fire time, so a re-render that changes (or adds) a
+ * handler takes effect with no re-wiring. Handlers absent on the fake test env
+ * (its instances have no such signals) are simply skipped.
+ */
 function wireEvents(node: HostNode): void {
 	const inst = node.inst;
 	if (inst === undefined) return;
-	if (node.styleState["clickWired"] !== undefined) return;
-	const c = inst.ClassName;
-	if (c !== "TextButton" && c !== "ImageButton") return;
-	const signal = (inst as Record<string, unknown>)["MouseButton1Click"];
-	if (signal === undefined || !typeIs((signal as Record<string, unknown>)["Connect"], "function")) return;
-	(signal as SignalLike).Connect((): void => {
-		const handler = node.pendingProps["onClick"];
-		if (typeIs(handler, "function")) {
-			(handler as (event: Record<string, unknown>) => void)({ type: "click", target: node });
+	if (node.styleState["eventsWired"] !== undefined) return;
+	node.styleState["eventsWired"] = true;
+	const rec = inst as Record<string, unknown>;
+	const cls = inst.ClassName;
+
+	const fire = (name: string, event: Record<string, unknown>): void => {
+		const h = node.pendingProps[name];
+		if (typeIs(h, "function")) (h as (e: Record<string, unknown>) => void)(event);
+	};
+	const connect = (signalName: string, cb: (args: Array<unknown>) => void): void => {
+		const sig = rec[signalName];
+		if (sig !== undefined && typeIs((sig as Record<string, unknown>)["Connect"], "function")) {
+			(sig as unknown as RbxSignal).Connect((...a: Array<unknown>) => cb(a));
 		}
-	});
-	node.styleState["clickWired"] = true;
+	};
+
+	// Hover, on every GuiObject.
+	connect("MouseEnter", () => fire("onMouseEnter", { type: "mouseenter", target: node }));
+	connect("MouseLeave", () => fire("onMouseLeave", { type: "mouseleave", target: node }));
+
+	if (cls === "TextButton" || cls === "ImageButton") {
+		connect("MouseButton1Click", () => fire("onClick", { type: "click", target: node }));
+		connect("MouseButton1Down", () => fire("onMouseDown", { type: "mousedown", target: node }));
+		connect("MouseButton1Up", () => fire("onMouseUp", { type: "mouseup", target: node }));
+		connect("MouseButton2Click", () => fire("onContextMenu", { type: "contextmenu", target: node }));
+	} else {
+		// A non-button needs Active + input events to be clickable, like the DOM.
+		if (
+			node.pendingProps["onClick"] !== undefined ||
+			node.pendingProps["onMouseDown"] !== undefined ||
+			node.pendingProps["onMouseUp"] !== undefined
+		) {
+			rec["Active"] = true;
+		}
+		connect("InputBegan", (a) => {
+			const input = a[0] as Record<string, unknown> | undefined;
+			if (input !== undefined && isPrimaryInput(input)) {
+				fire("onMouseDown", { type: "mousedown", target: node });
+				fire("onClick", { type: "click", target: node });
+			}
+		});
+		connect("InputEnded", (a) => {
+			const input = a[0] as Record<string, unknown> | undefined;
+			if (input !== undefined && isPrimaryInput(input)) fire("onMouseUp", { type: "mouseup", target: node });
+		});
+	}
+
+	if (cls === "TextBox") {
+		connect("Focused", () => fire("onFocus", { type: "focus", target: node }));
+		connect("FocusLost", (a) =>
+			fire("onBlur", { type: "blur", target: node, enterPressed: a[0], value: rec["Text"] })
+		);
+		// Text changes: GetPropertyChangedSignal("Text") is a method.
+		const gpcs = rec["GetPropertyChangedSignal"];
+		if (typeIs(gpcs, "function")) {
+			const sig = (gpcs as (self: unknown, p: string) => Record<string, unknown>)(inst, "Text");
+			if (sig !== undefined && typeIs(sig["Connect"], "function")) {
+				(sig as unknown as RbxSignal).Connect(() =>
+					fire("onChange", { type: "change", target: node, value: rec["Text"] })
+				);
+			}
+		}
+	}
 }
 
 function detachChild(child: HostNode): void {
@@ -1292,7 +1612,7 @@ export function buildHostConfig(
 	HostNode,
 	HostNode,
 	HostNode, /* FormInstance */
-	HostNode, /* PublicInstance */
+	unknown, /* PublicInstance */
 	unknown, /* HostContext */
 	unknown, /* ChildSet */
 	number, /* TimeoutHandle */
@@ -1452,8 +1772,12 @@ export function buildHostConfig(
 		return parentContext;
 	}
 
-	function getPublicInstance(instance: HostNode): HostNode {
-		return instance;
+	function getPublicInstance(instance: HostNode): unknown {
+		// Refs (`ref.current`) resolve to whatever this returns. Hand back the
+		// real Roblox instance so consumers can read/write it directly
+		// (`ref.current.Size = ...`); fall back to the node for text/edge cases
+		// where no instance exists.
+		return instance.inst !== undefined ? instance.inst : instance;
 	}
 
 	function prepareForCommit(_container: HostNode): unknown {
@@ -1464,12 +1788,37 @@ export function buildHostConfig(
 
 	function preparePortalMount(_portalContainerNode: unknown): void {}
 
+	// Deferred timeouts. React schedules these (Suspense retries, etc.) expecting
+	// them to fire LATER, not inline -- firing synchronously risks re-entrant
+	// updates during commit. On real Roblox we defer through task.delay (exposed
+	// as env.setTimeout); handles are stored so cancelTimeout can task.cancel
+	// them. The native test env has no scheduler, so we fall back to running the
+	// callback inline there.
+	let nextTimeoutHandle = 1;
+	const timeoutThreads = new Map<number, unknown>();
+
 	function scheduleTimeout(fn: (delay?: number) => void, delay?: number): number {
+		if (env.setTimeout !== undefined) {
+			const handle = nextTimeoutHandle++;
+			// React's delay is in milliseconds; env.setTimeout takes seconds.
+			const thread = env.setTimeout(() => {
+				timeoutThreads.delete(handle);
+				fn(delay);
+			}, (delay ?? 0) / 1000);
+			timeoutThreads.set(handle, thread);
+			return handle;
+		}
 		fn(delay);
 		return 0;
 	}
 
-	function cancelTimeout(_handle: number): void {}
+	function cancelTimeout(handle: number): void {
+		const thread = timeoutThreads.get(handle);
+		if (thread !== undefined) {
+			timeoutThreads.delete(handle);
+			if (env.clearTimeout !== undefined) env.clearTimeout(thread);
+		}
+	}
 
 	function getInstanceFromNode(_node: unknown): HostNode | undefined {
 		return undefined;
@@ -1485,7 +1834,15 @@ export function buildHostConfig(
 		return undefined;
 	}
 
-	function detachDeletedInstance(_node: HostNode): void {}
+	function detachDeletedInstance(node: HostNode): void {
+		// React has removed this node for good. Free its Roblox instance (and
+		// its helper children) instead of leaking it after removeChild detached
+		// it from the tree.
+		if (node.inst !== undefined) {
+			env.destroy(node.inst);
+			node.inst = undefined;
+		}
+	}
 
 	function hideInstance(instance: HostNode): void {
 		if (instance.inst !== undefined) {
@@ -1523,14 +1880,26 @@ export function buildHostConfig(
 		return 0;
 	}
 
+	// Update priority is intentionally pinned to the synchronous lane, NOT a
+	// no-op stub. This host has no concurrent scheduler of its own: React is
+	// driven synchronously by a manual drainTasks() pump on Heartbeat (see
+	// mountReactRoot). If these returned a concurrent event priority (Default =
+	// 32, Continuous = 8, Idle) the reconciler would time-slice and re-post
+	// scheduler work that the pump then spins on forever (script-timeout hang).
+	// requestUpdateLane() falls back to resolveUpdatePriority() whenever no
+	// transition/render lane is active, so it MUST return a sync lane. 1 is the
+	// synchronous lane the reconciler flushes eagerly; the setter is a no-op
+	// because there is no other priority state to track.
+	const SyncPriority = 1;
+
 	function setCurrentUpdatePriority(_newPriority: number): void {}
 
 	function getCurrentUpdatePriority(): number {
-		return 1;
+		return SyncPriority;
 	}
 
 	function resolveUpdatePriority(): number {
-		return 1;
+		return SyncPriority;
 	}
 
 	function maySuspendCommit(_type: string, _props: Record<string, unknown>): boolean {

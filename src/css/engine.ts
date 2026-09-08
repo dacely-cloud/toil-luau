@@ -194,6 +194,49 @@ function expandSides(prefix: string, value: string, out: Record<string, string>)
  * the shorthands the host reads by their longhand names (`padding`,
  * `margin`, `background`, `border`) expanded.
  */
+/** Expand `inset` (1..4 values) into top / right / bottom / left. */
+function expandInset(value: string, out: Record<string, string>): void {
+	const t = strSplitWs(value);
+	const n = t.size();
+	if (n === 0) return;
+	const top = t[0];
+	const right = n >= 2 ? t[1] : t[0];
+	const bottom = n >= 3 ? t[2] : t[0];
+	const left = n >= 4 ? t[3] : right;
+	out["top"] = top;
+	out["right"] = right;
+	out["bottom"] = bottom;
+	out["left"] = left;
+}
+
+/** Expand the `font` shorthand into font-size / font-family / font-weight / font-style. */
+function expandFont(value: string, out: Record<string, string>): void {
+	const t = strSplitWs(value);
+	const family: Array<string> = [];
+	let sawSize = false;
+	for (let i = 0; i < t.size(); i++) {
+		const tok = t[i];
+		if (!sawSize && (strEndsWith(tok, "px") || strMatch(tok, "^%d") !== undefined)) {
+			// A <size> or <size>/<line-height> token: everything after is the family.
+			const slashIdx = strFind(tok, "/", 1, true);
+			if (slashIdx !== undefined) {
+				out["font-size"] = slice(tok, 1, slashIdx - 1);
+				out["line-height"] = slice(tok, slashIdx + 1);
+			} else {
+				out["font-size"] = tok;
+			}
+			sawSize = true;
+		} else if (sawSize) {
+			family.push(tok);
+		} else if (tok === "bold" || tok === "bolder" || tok === "lighter" || strMatch(tok, "^%d%d%d$") !== undefined) {
+			out["font-weight"] = tok;
+		} else if (tok === "italic" || tok === "oblique") {
+			out["font-style"] = tok;
+		}
+	}
+	if (family.size() > 0) out["font-family"] = family.join(" ");
+}
+
 function normalizeDeclarations(decls: Record<string, string> | undefined): Record<string, string> {
 	const out: Record<string, string> = {};
 	if (decls === undefined) return out;
@@ -224,6 +267,26 @@ function normalizeDeclarations(decls: Record<string, string> | undefined): Recor
 					out["border-color"] = p;
 				}
 			}
+		} else if (key === "inset") {
+			expandInset(value, out);
+		} else if (key === "font") {
+			expandFont(value, out);
+		} else if (key === "place-items") {
+			const t = strSplitWs(value);
+			if (t.size() > 0) {
+				out["align-items"] = t[0];
+				out["justify-items"] = t.size() >= 2 ? t[1] : t[0];
+			}
+		} else if (key === "place-content") {
+			const t = strSplitWs(value);
+			if (t.size() > 0) {
+				out["align-content"] = t[0];
+				out["justify-content"] = t.size() >= 2 ? t[1] : t[0];
+			}
+		} else if (key === "overflow") {
+			out["overflow"] = value;
+			out["overflow-x"] = value;
+			out["overflow-y"] = value;
 		} else {
 			out[key] = value;
 		}

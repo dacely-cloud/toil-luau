@@ -119,6 +119,18 @@ export function makeEngineEnv(): HostEnv {
 		(inst as unknown as Instance).Destroy();
 	}
 
+	function setTimeout(fn: () => void, delaySeconds: number): unknown {
+		// task.delay schedules on the Roblox task scheduler; the returned thread
+		// is what task.cancel needs to abort it.
+		return task.delay(delaySeconds < 0 ? 0 : delaySeconds, fn);
+	}
+
+	function clearTimeout(handle: unknown): void {
+		pcall(() => {
+			task.cancel(handle as thread);
+		});
+	}
+
 	return {
 		newInstance,
 		newUDim2,
@@ -129,6 +141,8 @@ export function makeEngineEnv(): HostEnv {
 		newNumberSequence,
 		enumValue,
 		destroy,
+		setTimeout,
+		clearTimeout,
 	};
 }
 

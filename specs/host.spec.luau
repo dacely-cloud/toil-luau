@@ -260,6 +260,33 @@ describe('roblox host', function ()
 		handle.unmount()
 	end)
 
+	it('host config: getPublicInstance returns the Roblox instance, priority is stateful', function ()
+		if hostModule == nil then
+			print("HOST MODULE: " .. tostring(hostModuleErr))
+			return
+		end
+		local host = hostModule
+		local resolver = { resolve = function(_node) return {} end }
+		local config = host.buildHostConfig(hostEnv.env, resolver)
+
+		-- getPublicInstance hands back the underlying Roblox instance (what a
+		-- React ref resolves to), not the internal HostNode wrapper.
+		local node = config.createInstance("div", {}, nil, nil, nil)
+		local pub = config.getPublicInstance(node)
+		expect(pub).toBe(node.inst)
+		expect(pub).toNotBe(node)
+
+		-- Update priority is intentionally pinned to the synchronous lane (1):
+		-- this host pumps React synchronously, so a concurrent lane would hang
+		-- the pump. The getter/resolver always report sync; the setter is a
+		-- no-op and must never flip the resolver off the sync lane.
+		expect(config.getCurrentUpdatePriority()).toBe(1)
+		expect(config.resolveUpdatePriority()).toBe(1)
+		config.setCurrentUpdatePriority(32)
+		expect(config.getCurrentUpdatePriority()).toBe(1)
+		expect(config.resolveUpdatePriority()).toBe(1)
+	end)
+
 	it('exposes the public API', function ()
 		if hostModule == nil then
 			print("HOST MODULE: " .. tostring(hostModuleErr))

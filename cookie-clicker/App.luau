@@ -77,9 +77,14 @@ local upgradeNames = {
 	rolling="Better grandma baking", steel="Stronger rolling pins", lubricated="Super grandma baking",
 	hoes="Better farm tools", fertilizer="Help your crops grow", picks="Better mining", conveyor="Faster factories",
 }
-local function upgradeBenefit(u)
-	if u.click then return "Each click and cursor makes twice as many cookies." end
-	return "Each " .. Model.Buildings[u.building].name:lower() .. " makes twice as many cookies."
+local function upgradeBenefit(u, state)
+	if u.click then
+		local before = state.clickPower or Model.clickPower(state)
+		return "Each click gives " .. number(before*2,true) .. " cookies instead of " .. number(before,true) .. ".\nYour cursors make double the cookies too!"
+	end
+	local building = Model.Buildings[u.building]
+	local before = building.cps * Model.multiplier(state,u.building)
+	return "Each " .. building.name:lower() .. " makes " .. number(before*2,true) .. " cookies a second instead of " .. number(before,true) .. "."
 end
 local animationRules = toil.cssToRules([[
 @keyframes shine { from { rotation: 0; } to { rotation: 360; } }
@@ -171,7 +176,7 @@ return function()
 			else
 				local u
 				for _, candidate in Model.Upgrades do if candidate.id == hover then u = candidate; break end end
-				if u then name, description, cost = upgradeNames[u.id] or u.name, upgradeBenefit(u) .. " This boost stays after you buy it.", u.price end
+				if u then name, description, cost = upgradeNames[u.id] or u.name, upgradeBenefit(u, state) .. " This boost stays after you buy it.", u.price end
 			end
 		end
 		return box("tooltip", select(1, columnWidths()) + select(2, columnWidths()) - 410, 233, 410, 175, "#1d1914", {
@@ -226,8 +231,10 @@ return function()
 		local wave = React.useRef({}).current
 		if wave.width ~= leftW then
 			wave.width, wave.points = leftW, {}
+			-- Keep the 80px repeating wave and its 80px motion in the same
+			-- scaled coordinate space, so wrapping is visually seamless.
 			for i=0,math.min(99,math.ceil((leftW+160)/40)) do
-				wave.points[#wave.points+1] = Path2DControlPoint.new(UDim2.fromOffset(i*40,i%2==0 and 2 or 6),UDim2.fromOffset(-13,0),UDim2.fromOffset(13,0))
+				wave.points[#wave.points+1] = Path2DControlPoint.new(UDim2.fromScale(i*40/(leftW+160),(i%2==0 and 2 or 6)/12),UDim2.fromScale(-13/(leftW+160),0),UDim2.fromScale(13/(leftW+160),0))
 			end
 		end
 		local titleStyle = { ["text-align"] = "center" }
@@ -253,7 +260,7 @@ return function()
 		left[#left + 1] = box("milkWave",-(leftW-420)/2-80,h-milkHeight,leftW+160,12,nil,{
 			e("path2d",{key="milkFoam",id="milkFoam",color="#faf5e8",thickness=8,controlPoints=wave.points})
 		},{animation="milkFlow 4s linear infinite",transition="top 0.8s ease-out"})
-		left[#left + 1] = label("version", "v. 2.058", 12, h - 28, 120, 20, 14, "#516572")
+		left[#left + 1] = label("version", "v1", 12, h - 28, 120, 20, 14, "#516572")
 		local center = { stripes("brownStripes", centerW, h, "#211d19", "#28231e") }
 		center[#center + 1] = box("newsBackdrop", 0, 0, centerW, 92, "linear-gradient(90deg, #423729, #181614)")
 		center[#center + 1] = label("news", state.earned < 50 and "You feel like making cookies. But nobody wants to eat your cookies." or (state.earned < 1000 and "Your first batch goes to the neighbors. They have high hopes." or "News : local cookie production continues to rise!"), 100, 8, centerW - 200, 72, 21, "#f1e6d5", titleStyle)
@@ -304,7 +311,7 @@ return function()
 				pane[#pane + 1] = label("saveStatus", state.saveStatus or "", 190, 74, 410, 38, 17)
 				pane[#pane + 1] = label("saveExplanation", "Progress saves automatically every 60 seconds in published games. Studio playtests use a separate, temporary session.", 24, 137, 570, 88, 18)
 			elseif tab == "Info" then
-				pane[#pane + 1] = label("credits", "Cookie Clicker\nOriginal game by Orteil & Opti, DashNet.\n\nA Roblox recreation, rendered with toil-luau.\n\nClick the big cookie. Buy buildings. Bake more cookies.", 24, 74, 570, 240, 23)
+				pane[#pane + 1] = label("credits", "Cookie Clicker v1\n\nClick the big cookie. Buy buildings. Bake more cookies.", 24, 74, 570, 240, 23)
 			else
 				pane[#pane + 1] = label("legacyDescription", "Your legacy begins with a trillion cookies.\n\nPrestige level: " .. number(math.floor((state.earned / 1e12) ^ (1 / 3))) .. "\n\nAscension and heavenly upgrades are still being implemented.", 24, 74, 570, 200, 21)
 			end
@@ -316,21 +323,23 @@ return function()
 		for _, u in Model.Upgrades do
 			if not state.upgrades[u.id] and state.buildings[u.building] >= u.required then upgrades[#upgrades + 1] = u end
 		end
-		store[#store+1] = label("upgradeHeading", "Make more cookies", 10, 51, storeW-20, 25, 20, "#f4d28a")
+		store[#store+1] = label("upgradeHeading", "Buy a boost for your bakery!", 10, 51, storeW-20, 25, 20, "#f4d28a")
 		local upgradeCards = {}
 		for i, u in upgrades do
 			local affordable = state.cookies >= u.price
 			local kids = {
 				label("upgradeName", upgradeNames[u.id] or u.name, 10, 5, storeW-42, 25, 19, "#fff2dd"),
-				label("upgradeBenefit", upgradeBenefit(u), 10, 32, storeW-42, 35, 15, "#dfd3bf"),
-				label("upgradePrice", (affordable and "Buy for " or "Save up ") .. number(u.price) .. " cookies", 10, 70, storeW-42, 23, 16, affordable and "#b3ef96" or "#d9ba8d"),
+				label("upgradeBenefit", upgradeBenefit(u, state), 10, 32, storeW-42, 42, 15, "#dfd3bf"),
+				label("upgradePrice", (affordable and "Tap to buy: " or "Need ") .. number(u.price) .. (affordable and " cookies" or " cookies to buy"), 10, 78, storeW-42, 23, 16, affordable and "#b3ef96" or "#d9ba8d"),
 			}
-			upgradeCards[#upgradeCards+1] = button("upgrade_"..u.id,"",0,(i-1)*104,storeW-22,100,function()
+			upgradeCards[#upgradeCards+1] = button("upgrade_"..u.id,"",0,(i-1)*112,storeW-22,108,function()
 				if snapshot.cookies >= u.price then send("upgrade",u.id) end
 			end,{background=affordable and "#3e5130" or "#393129"},kids,function(inside) setHover(inside and u.id or 0) end)
 		end
 		if #upgrades == 0 then
-			upgradeCards[1] = label("upgradeEmpty","Buy a building to unlock upgrades here.",10,8,storeW-42,65,17,"#c3b8a8")
+			local hasBuildings = false
+			for _, count in state.buildings do if count > 0 then hasBuildings = true; break end end
+			upgradeCards[1] = label("upgradeEmpty",hasBuildings and "Buy more buildings to find new boosts!" or "First, buy a Cursor below.\nThen come here to make it stronger!",10,8,storeW-42,75,17,"#c3b8a8")
 		end
 		store[#store+1] = e("scroll",{key="upgradeList",id="upgradeList",style=style(8,80,storeW-8,112,{overflow="scroll"})},table.unpack(upgradeCards))
 		store[#store + 1] = rail("upgradeRail", 0, 200, storeW, 9)
@@ -359,7 +368,7 @@ return function()
 		end
 		store[#store + 1] = e("scroll", { key = "storeProducts", id = "storeProducts", style = style(0, 258, storeW, math.max(40,h - 258), { overflow = "scroll" }) }, table.unpack(products))
 		local children = {
-			box("topBar", 0, 0, displayWidth, 30, "#111111", { label("brand", "Cookie Clicker", 12, 1, 180, 27, 18, "#e2d1b6"), label("attribution", "Original by Orteil & Opti • DashNet", 192, 2, 420, 25, 14, "#a89e90"), label("edition", "Roblox edition", displayWidth - 205, 2, 190, 25, 14, "#a89e90", { ["text-align"] = "right" }) }),
+			box("topBar", 0, 0, displayWidth, 30, "#111111", { label("brand", "Cookie Clicker", 12, 1, 180, 27, 18, "#e2d1b6"), label("edition", "Roblox edition", displayWidth - 205, 2, 190, 25, 14, "#a89e90", { ["text-align"] = "right" }) }),
 			box("bakeryColumn", 0, 30, leftW, h, nil, {stripes("blueStripes",leftW,h,"#173346","#1a3b51"), e(Rain,{key="rain",w=leftW,h=h,cps=state.cps}), box("bakeryContent",(leftW-420)/2,0,420,h,nil,left)}, { overflow = "hidden" }),
 			rail("leftRail", leftW, 30, 12, h), box("centerColumn", centerX, 30, centerW, h, nil, center),
 			rail("rightRail", centerX + centerW, 30, 12, h), box("storeColumn", storeX, 30, storeW, h, nil, store),

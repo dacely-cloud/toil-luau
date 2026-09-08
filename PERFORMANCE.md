@@ -47,3 +47,8 @@ Fixed the translated Fragment validator's shifted Object.keys array index in pos
 Shine control points now use parent-relative scale coordinates, so their center remains aligned with the cookie under nested UIScale. Removed the extra clipping container that cut off rotating rays. In Studio the ray bounds center matched the cookie center exactly after converting GetBoundingRect screen coordinates by GuiService's inset; rotation advanced across samples.
 
 Rain is a separate clipped child of the bakery panel, outside the shrinking cookie scene. Its bounds matched the full panel (728.29 by 794.18 pixels in the inspected viewport). Keyframes travel from -10% to 110% of that layer's height. This exposed missing percentage-unit interpolation in the CSS engine; fixed the unit parser and added regression coverage. Live production samples advanced continuously through Y scale 0.0984, 0.1293, 0.1594, 0.1896, 0.2192 at 150 ms intervals. No printed or native script errors in the final session. 40 CSS and 11 host tests pass.
+
+
+## Continuous milk loop
+
+Converted milk control points and tangents to parent-relative coordinates so the wave's 80px period scales identically to the animation's 80px translation. At the tested UI scale, both are 138.72222 screen pixels. Live sampling crossed three loop boundaries with zero stalled samples and no console errors. The UI displays v1 and no original-game credits; character spawning remains disabled after restarting the test place.

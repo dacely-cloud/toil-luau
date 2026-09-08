@@ -1,4 +1,10 @@
 local Players = game:GetService("Players")
+-- Cookie Clicker is entirely UI-driven; no world avatar is needed.
+-- Set this before any yielding initialization so joins never start a spawn.
+Players.CharacterAutoLoads = false
+for _, player in Players:GetPlayers() do
+	if player.Character then player.Character:Destroy() end
+end
 local RS = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local DataStoreService = game:GetService("DataStoreService")

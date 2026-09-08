@@ -84,6 +84,7 @@ export function identityFromProps(
 
 export type RobloxClassName =
 	| "Frame"
+	| "ScrollingFrame"
 	| "TextLabel"
 	| "TextButton"
 	| "TextBox"
@@ -262,6 +263,7 @@ function isImageInstance(inst: RobloxInstance): boolean {
 // ------------------------------------------------------------------ tag map
 
 export const TAG_TO_CLASS: Record<string, RobloxClassName> = {
+	scroll: "ScrollingFrame",
 	div: "Frame",
 	section: "Frame",
 	article: "Frame",
@@ -1184,6 +1186,12 @@ export function applyStyle(node: HostNode, style: Record<string, string>, env: H
 
 	// --- Overflow ---
 	const overflow = style["overflow"] ?? "";
+	if (inst.ClassName === "ScrollingFrame") {
+		inst["AutomaticCanvasSize"] = env.enumValue("AutomaticSize.Y");
+		inst["CanvasSize"] = env.newUDim2(0, 0, 0, 0);
+		inst["ScrollingDirection"] = env.enumValue("ScrollingDirection.Y");
+		inst["ScrollBarThickness"] = 6;
+	}
 	if (overflow === "hidden" || overflow === "scroll") {
 		(inst as Record<string, unknown>)["ClipsDescendants"] = true;
 	}
@@ -1985,4 +1993,3 @@ export function buildHostConfig(
 		waitForCommitToBeReady,
 	};
 }
-

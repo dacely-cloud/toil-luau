@@ -285,13 +285,46 @@
               ]
             }
           ]
+        },
+        {
+          "name": "CookieClicker",
+          "className": "Folder",
+          "guid": "10575130",
+          "children": [
+            {
+              "name": "Model",
+              "className": "ModuleScript",
+              "guid": "10575136",
+              "filePaths": [
+                "sync/ReplicatedStorage/CookieClicker/Model.luau"
+              ]
+            },
+            {
+              "name": "App",
+              "className": "ModuleScript",
+              "guid": "10575131",
+              "filePaths": [
+                "sync/ReplicatedStorage/CookieClicker/App.luau"
+              ]
+            }
+          ]
         }
       ]
     },
     {
       "name": "ServerScriptService",
       "className": "ServerScriptService",
-      "guid": "164001"
+      "guid": "164001",
+      "children": [
+        {
+          "name": "CookieClickerServer",
+          "className": "Script",
+          "guid": "10575133",
+          "filePaths": [
+            "sync/ServerScriptService/CookieClickerServer.server.luau"
+          ]
+        }
+      ]
     },
     {
       "name": "ServerStorage",

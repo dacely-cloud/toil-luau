@@ -45,8 +45,9 @@ local function newInstance(className)
 	-- Emulate Roblox: setting inst.Parent = P appends inst to P.Children;
 	-- setting inst.Parent = nil removes it. The host (insertChild) relies on
 	-- this to keep the Instance tree in sync with the HostNode tree.
+	local currentParent = nil
 	local function setParent(p)
-		local old = inst.Parent
+		local old = currentParent
 		if old ~= nil then
 			for i = #old.Children, 1, -1 do
 				if old.Children[i] == inst then
@@ -55,13 +56,13 @@ local function newInstance(className)
 				end
 			end
 		end
-		rawset(inst, "Parent", p)
+		-- Keep Parent out of the raw table so every assignment invokes __newindex.
+		currentParent = p
 		if p ~= nil then
 			table.insert(p.Children, inst)
 		end
 	end
-	local mt = {
-		__index = {
+	local methods = {
 			FindFirstChild = function(self, name)
 				for _, child in ipairs(self.Children) do
 					if child.Name == name then
@@ -73,11 +74,15 @@ local function newInstance(className)
 			Destroy = function(self)
 				setParent(nil)
 				for i = #self.Children, 1, -1 do
-					setParent(self.Children[i])
-					table.remove(self.Children, i)
+					self.Children[i]:Destroy()
 				end
 			end,
-		},
+	}
+	local mt = {
+		__index = function(_, key)
+			if key == "Parent" then return currentParent end
+			return methods[key]
+		end,
 		__newindex = function(self, key, value)
 			if key == "Parent" then
 				setParent(value)
@@ -201,10 +206,7 @@ local env = {
 		return enumTable[parts[2]]
 	end,
 	destroy = function(inst)
-		local mt = getmetatable(inst)
-		if mt and mt.__index and mt.__index.Destroy then
-			mt.__index.Destroy(inst)
-		end
+		inst:Destroy()
 	end,
 }
 

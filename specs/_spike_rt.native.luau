@@ -1206,6 +1206,12 @@ function __join(x, sep)
 end
 
 function __forEach(x, fn)
+	-- Tamed JS routes both Array.forEach and Map.forEach here. Maps are not
+	-- numeric arrays; treating them as one silently skips React's deletions.
+	if type(x) == "table" and type(rawget(x, "forEach")) == "function" then
+		x.forEach(fn)
+		return
+	end
 	if type(x) == "string" then
 		for i = 1, #x do
 			fn(x:sub(i, i), i - 1, x)
@@ -2033,18 +2039,18 @@ local function newMapInstance()
 	m.size = 0
 	m.set = function(k, v)
 		for i = 1, #d do
-			if sameKey(d[i][1], k) then
+			if d[i][3] and sameKey(d[i][1], k) then
 				d[i][2] = v
 				return m
 			end
 		end
-		d[#d + 1] = { k, v }
-		m.size = #d
+		d[#d + 1] = { k, v, true }
+		m.size += 1
 		return m
 	end
 	m.get = function(k)
 		for i = 1, #d do
-			if sameKey(d[i][1], k) then
+			if d[i][3] and sameKey(d[i][1], k) then
 				return d[i][2]
 			end
 		end
@@ -2052,7 +2058,7 @@ local function newMapInstance()
 	end
 	m.has = function(k)
 		for i = 1, #d do
-			if sameKey(d[i][1], k) then
+			if d[i][3] and sameKey(d[i][1], k) then
 				return true
 			end
 		end
@@ -2060,9 +2066,9 @@ local function newMapInstance()
 	end
 	m["delete"] = function(k)
 		for i = 1, #d do
-			if sameKey(d[i][1], k) then
-				table.remove(d, i)
-				m.size = #d
+			if d[i][3] and sameKey(d[i][1], k) then
+				d[i] = { nil, nil, false }
+				m.size -= 1
 				return true
 			end
 		end
@@ -2070,10 +2076,20 @@ local function newMapInstance()
 	end
 	m.clear = function()
 		for i = 1, #d do
-			d[i] = nil
+			d[i] = { nil, nil, false }
 		end
 		m.size = 0
 		return m
+	end
+	m.forEach = function(fn)
+		-- Stable slots preserve JS iteration when callbacks delete/clear keys.
+		-- Newly appended entries are visited during the same iteration.
+		local i = 1
+		while i <= #d do
+			local entry = d[i]
+			if entry[3] then fn(entry[2], entry[1], m) end
+			i += 1
+		end
 	end
 	return m
 end

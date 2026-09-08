@@ -1,5 +1,6 @@
 local Lest = require('../.lest/core')
 local describe, it, expect = Lest.describe, Lest.it, Lest.expect
+local polyfills = require("../out/polyfills")
 
 -- Load the spike runtime helpers (fake game, task, Instance.new, etc.)
 local spikeErr = nil
@@ -63,6 +64,29 @@ local function findReact()
 end
 
 describe('roblox host', function ()
+	it('removes replaced keyed siblings rather than leaving duplicate instances', function ()
+		assert(hostModule ~= nil, tostring(hostModuleErr))
+		assert(hostEnv ~= nil, tostring(envErr))
+		local React = findReact()
+		local setState
+		local function App()
+			local state = React.useState(false)
+			setState = state[2]
+			return React.createElement("div", { id = "replacementRoot" },
+				React.createElement("span", { key = "constant", id = "constant" }, "constant"),
+				state[1] and React.createElement("span", { key = "new", id = "new" }, "new")
+					or React.createElement("span", { key = "old", id = "old" }, "old"))
+		end
+		local handle = hostModule.mountReactRoot(nil, {}, React.createElement(App), nil, hostEnv.env)
+		local root = handle.gui.Children[1]
+		assert(root:FindFirstChild("old") ~= nil)
+		setState(true)
+		polyfills.drainTasks()
+		handle.tick(1)
+		assert(root:FindFirstChild("old") == nil, "removed sibling remained in Roblox tree")
+		assert(root:FindFirstChild("new") ~= nil)
+		handle.unmount()
+	end)
 	it('mounts a React tree with CSS styling onto a ScreenGui', function ()
 		expect(spikeErr).toBe(nil)
 		expect(envErr).toBe(nil)

@@ -55,7 +55,9 @@ function mapToSync(rel) {
 	const parts = rel.split(/[\\/]/);
 	const top = parts[0];
 	let dest;
-	if (top === "StarterPlayerScripts") {
+	if (top === "ServerScriptService") {
+		dest = parts;
+	} else if (top === "StarterPlayerScripts") {
 		dest = ["StarterPlayer", "StarterPlayerScripts", ...parts.slice(1)];
 	} else if (top === "include") {
 		if (parts.length === 2 && parts[1] === "init.luau") return null; // Folder in Studio

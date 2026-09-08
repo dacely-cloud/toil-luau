@@ -480,6 +480,7 @@ local function installGlobals()
 		return env.__indexOf(x, v, from) >= 0
 	end
 	env.__forEach = function(x, fn)
+		if type(rawget(x, "forEach")) == "function" then x.forEach(fn); return end
 		local l = rawget(x, "__len") or #x
 		for i = 0, l-1 do fn(x[i], i, x) end
 	end
@@ -1177,25 +1178,41 @@ local function _makeCollection(isSet)
 	local self = {}
 	local store = {}
 	local keys = {}
+	local entries = {}
 	local n = 0
 	function self.set(k, v)
-		if keys[k] ~= true then n = n + 1 end
-		store[k] = v; keys[k] = true
+		if keys[k] == nil then
+			n = n + 1
+			local entry = { key = k, live = true }
+			entries[#entries + 1] = entry
+			keys[k] = entry
+		end
+		store[k] = v
 		return self
 	end
 	function self.get(k) return store[k] end
-	function self.has(k) return keys[k] == true end
+	function self.has(k) return keys[k] ~= nil end
 	function self.delete(k)
-		local had = keys[k] == true
+		local had = keys[k] ~= nil
+		if had then keys[k].live = false; keys[k].key = nil end
 		store[k] = nil; keys[k] = nil
 		if had then n = n - 1 end
 		return had
 	end
-	function self.clear() store = {}; keys = {}; n = 0 end
+	function self.clear()
+		for _, entry in entries do entry.live = false; entry.key = nil end
+		store = {}; keys = {}; n = 0
+	end
 	function self.add(k)
-		if keys[k] ~= true then n = n + 1 end
-		store[k] = k; keys[k] = true
-		return self
+		return self.set(k, k)
+	end
+	function self.forEach(fn)
+		local i = 1
+		while i <= #entries do
+			local entry = entries[i]
+			if entry.live then fn(store[entry.key], entry.key, self) end
+			i = i + 1
+		end
 	end
 	setmetatable(self, { __index = function(_, key)
 		if key == "size" then return n end
@@ -1356,6 +1373,7 @@ _globals.__concat = function(x, ...)
 	return out
 end
 _globals.__forEach = function(x, fn)
+	if type(rawget(x, "forEach")) == "function" then x.forEach(fn); return end
 	local l = rawget(x, "length") or #x
 	for i = 0, l-1 do fn(x[i], i, x) end
 end

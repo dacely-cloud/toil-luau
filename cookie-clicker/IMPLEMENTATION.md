@@ -47,3 +47,15 @@ Work jobs/properties now use picture cards and energy/stamina bars. Shop/Bag/Col
 Golden cookies use a small cookie drawing and a 44px tap area; fall is confined to the bakery above the milk, with server-owned varied duration and one-time claims.
 Reconciler resumed bailout now restarts cloned children from committed fibers instead of throwing. Targeted helper regression retains queues/lanes/sibling links; host integration suite passes 13 tests, including simultaneous parent/cached-child updates. Studio monitoring after patch has shown no render errors so far.
 Fundraiser rules/UI added with native tests for timing, help rewards, stamina, stealing conservation/cap, saved visitor IDs and repeated claim denial. Durable two-player persistence and real multiplayer verification remain open.
+
+## Follow-up runtime and navigation fix
+
+Fixed labeled-break unwinding through switch statements in the vendor translator. Missing checks allowed a suspended-render branch to continue into commitRootWhenReady with a numeric lane value as finishedWork. Four control-flow regressions cover labeled break/continue through nested switches and loops. Full rebuild and all 13 host tests pass. Updated six affected reconciler functions in Studio; initial live checks report no errors.
+Work resource bars moved into the existing center header. Category navigation is a single scrolling row outside the content panel; job cards start immediately inside the panel.
+EmpireStore now has tested shared-record operations for membership, name/badge, sequence-protected stamina donations, leader upgrades and perks. It is not yet connected to player outbox persistence or the UI.
+
+## Empire integration
+
+EmpireStore and EmpireService are connected to the server. Filtered names, six selectable picture badges, joining, leaving, leader upgrades and stamina donations are implemented. Perks affect clicking, baking, jobs, properties, theft and insurance. Donation outbox saves the debit before shared credit; retries preserve the sequence and do not charge again. Native tests cover response loss, save failure and replay after restoring a pending donation.
+Live Studio remote test: created Cookie Friends with a cookie badge, donated 25 stamina, observed 25 team points, no pending save, and clickPower 1.01. Full interactive empire-screen and multi-client verification remain open.
+Restored the news per user instruction; resources now occupy the existing bottom status strip. Horizontal overflow support was added to the host and verified live (X axis with a nonzero horizontal CanvasPosition). Host suite now passes 14 tests.

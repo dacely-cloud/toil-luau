@@ -210,6 +210,29 @@ return function()
 		tooltipHover = value
 		if updateTooltip then updateTooltip(value) end
 	end
+    local refreshResources=function()end
+    local function ResourceStatus(props)
+        local value=React.useState(snapshot)
+        local previous=React.useRef("")
+        refreshResources=function(nextState)
+            local economy=nextState.economy
+            local signature=tostring(economy.xp)..":"..math.floor(economy.energy)..":"..math.floor(economy.stamina)
+            if signature~=previous.current then previous.current=signature;value[2](nextState) end
+        end
+        local state=value[1]
+        local centerW,h=props.width,props.height
+        local statusWidth=centerW-24
+        local meterWidth=(statusWidth-68)/2
+        local resourceStatus={label("workStatus","Lv "..Model.jobLevel(state),0,0,62,20,15,"#f5d58f")}
+        for i,resource in {"energy","stamina"} do
+            local x=68+(i-1)*meterWidth
+            resourceStatus[#resourceStatus+1]=label(resource.."Amount",(resource=="energy" and "Energy " or "Stamina ")..math.floor(state.economy[resource]),x,0,meterWidth-8,19,15,resource=="energy" and "#a6ddeb" or "#dabbed")
+            resourceStatus[#resourceStatus+1]=box(resource.."Meter",x,20,meterWidth-8,3,"#393331",{
+                box("fill",0,0,(meterWidth-8)*state.economy[resource]/100,3,resource=="energy" and "#6abed5" or "#b18bcc"),
+            })
+        end
+        return box("resourceStatus",12,h-25,statusWidth,23,nil,resourceStatus)
+    end
 	local function Tooltip(props)
 		local selection = React.useState(tooltipHover)
 		updateTooltip = selection[2]
@@ -281,6 +304,9 @@ return function()
 		local nameDraft = React.useRef("")
 		local confirmFresh=React.useState(false)
 		local workPage=React.useState("Jobs")
+        local empireNameDraft=React.useRef("")
+        local empireBadge=React.useState("cookie")
+        local empireEdit=React.useState(false)
 		local h = contentHeight
 		local leftW, centerW, storeW = columnWidths()
 		local centerX, storeX = mobile and 0 or leftW + 12, mobile and 0 or displayWidth - storeW
@@ -353,7 +379,7 @@ return function()
 			end
 			center[#center + 1] = e("scroll", { key = "buildingScenes", id = "buildingScenes", style = style(0, 160, centerW, h - 190, { overflow = "scroll" }) }, table.unpack(rows))
 		else
-			local pane = { label("panelTitle", tab, 24, 12, centerW-48, 40, 32, "#fff0d8") }
+			local pane = tab=="Work" and {} or { label("panelTitle", tab, 24, 12, centerW-48, 40, 32, "#fff0d8") }
 			if tab == "Stats" then
 				local stats = {
 					{ "Cookies in bank", number(state.cookies) }, { "Cookies baked (all time)", number(state.earned) },
@@ -382,34 +408,24 @@ return function()
 				pane[#pane+1] = button("renameBakery","Use this name",24,478,220,48,function()send("rename",nameDraft.current)end)
             elseif tab == "Work" then
                 local economy=state.economy
-                local y,w=68,centerW-48
+                local y,w=8,centerW-48
                 local function text(id,value,height)
                     pane[#pane+1]=label(id,value,24,y,w,height or 64,18,"#eee5dc");y+=(height or 64)+8
                 end
                 local function action(id,title,kind,arg)
                     pane[#pane+1]=button(id,title,24,y,w,48,function()send("economy",kind,arg)end,{["font-size"]="18px"});y+=56
                 end
-                text("workStatus","Level "..Model.jobLevel(state).."  |  "..number(economy.xp).." XP",32)
-                for i,resource in {"energy","stamina"} do
-                    local x=24+(i-1)*(w/2+4)
-                    local barW=w/2-8
-                    pane[#pane+1]=box(resource.."Meter",x,y,barW,44,"#26252c",{
-                        box("fill",0,0,barW*economy[resource]/100,44,resource=="energy" and "#275b76" or "#684177",{}, {["border-radius"]="8px"}),
-                        label("amount",(resource=="energy" and "Energy " or "Stamina ")..math.floor(economy[resource]),8,6,barW-16,30,18,"#ffffff"),
-                    },{["border-radius"]="8px"})
-                end
-                y+=54
-                local sections={"Jobs","Properties","Shop","Bag","Collection","Jar","Charity"}
+                local sections={"Jobs","Properties","Shop","Bag","Collection","Jar","Charity","Empire"}
+                local shortcuts={}
                 for i,name in sections do
-                    local col=(i-1)%3;local row=math.floor((i-1)/3)
-                    pane[#pane+1]=button("work"..name,name,24+col*w/3,y+row*52,w/3-4,48,function()workPage[2](name)end,{background=workPage[1]==name and "#74603a" or "#493b2e",["font-size"]="16px"})
+                    shortcuts[#shortcuts+1]=button("work"..name,name,(i-1)*98,0,94,44,function()workPage[2](name)end,{background=workPage[1]==name and "#74603a" or "#30271f",["font-size"]="16px"})
                 end
-                y+=math.ceil(#sections/3)*52+8
+                center[#center+1]=e("scroll",{key="workShortcuts",id="workShortcuts",style=style(8,158,centerW-16,50,{overflow="scroll",["overflow-x"]="scroll",["overflow-y"]="hidden"})},table.unpack(shortcuts))
                 if workPage[1]=="Jobs" then
                     for _,job in Model.Jobs do
                         local locked=Model.jobLevel(state)<job.level
                         local ready=not locked and economy.energy>=job.energy
-                        local reward=math.floor(job.cookies*Model.collectionBonus(state))
+                        local reward=math.floor(job.cookies*Model.collectionBonus(state)*(1+Model.empireBonus(state))^2)
                         local card={
                             box("jobPicture",12,14,52,52,"#d4a35f",{
                                 box("tray",5,18,42,28,"#706d75",{cookieCurrency("trayCookie",9,1)},{["border-radius"]="5px"}),
@@ -431,7 +447,7 @@ return function()
                                 box("window",6,23,12,12,"#b4dfed"),
                             },{["border-radius"]="5px"}),
                             label("propertyName",property.name,80,10,w-92,28,22,"#fff4df"),
-                            label("propertyCount","Own "..(economy.properties[property.id] or 0).."  |  +"..number(property.income*Model.collectionBonus(state),true).." / sec each",80,44,w-92,40,18,"#b6e6bf"),
+                            label("propertyCount","Own "..(economy.properties[property.id] or 0).."  |  +"..number(property.income*Model.collectionBonus(state)*(1+Model.empireBonus(state))^2,true).." / sec each",80,44,w-92,40,18,"#b6e6bf"),
                             button("buyProperty"..property.id,"Buy: "..number(Model.propertyPrice(state,property.id)),12,94,w-24,48,function()send("economy","property",property.id)end,{background="#276849",["font-size"]="21px"}),
                         }
                         pane[#pane+1]=box("propertyCard"..property.id,24,y,w,154,"#342d25",card,{border="1px solid #827052",["border-radius"]="12px"});y+=166
@@ -464,11 +480,68 @@ return function()
                         else card[#card+1]=label("activeBoost","Boost is active",14,117,w-28,35,21,"#b6e6bf") end
                         pane[#pane+1]=box("itemCard"..item.id,24,y,w,172,"#342d25",card,{border="1px solid "..rarityColors[item.rarity],["border-radius"]="12px"});y+=184
                     end
+                elseif workPage[1]=="Empire" then
+                    local empire=state.empire
+                    local function empireButton(id,title,kind,arg,extra)
+                        pane[#pane+1]=button(id,title,24,y,w,48,function()send("empire",kind,arg,extra)end,{["font-size"]="20px",background="#544479"});y+=56
+                    end
+                    local function badgeArt(id,badge,x,py)
+                        local art={}
+                        if badge=="cookie" then art={box("cookie",8,8,48,48,cookieFill,cookieArtwork(48),{["border-radius"]="24px",border="2px solid #8f5c2b"})}
+                        elseif badge=="heart" then art={box("bottom",18,24,30,30,"#ee7896",{}, {rotation="45"}),box("left",9,12,30,30,"#ee7896",{}, {["border-radius"]="15px"}),box("right",29,12,30,30,"#ee7896",{}, {["border-radius"]="15px"})}
+                        elseif badge=="crown" then art={box("band",10,32,44,23,"#e9bd54"),box("left",10,14,10,25,"#e9bd54"),box("middle",27,7,10,32,"#e9bd54"),box("right",44,14,10,25,"#e9bd54")}
+                        elseif badge=="star" then art={box("star",15,15,34,34,"#e9bd54",{}, {rotation="45"}),box("spark",25,4,14,56,"#e9bd54"),box("spark2",4,25,56,14,"#e9bd54")}
+                        elseif badge=="shield" then art={box("shield",13,8,38,48,"#79b8df",{box("stripe",16,5,6,35,"#d9edf7")},{["border-radius"]="18px"})}
+                        else art={box("house",10,22,44,36,"#dfa961",{box("door",18,14,12,22,"#674831")}),box("roof",7,10,50,15,"#dd7266")} end
+                        return box(id,x,py,64,64,"#30283e",art,{["border-radius"]="12px"})
+                    end
+                    if empire then
+                        pane[#pane+1]=badgeArt("myEmpireBadge",empire.badge,24,y)
+                        pane[#pane+1]=label("empireName",empire.name,100,y,w-76,32,24,"#fff0d8")
+                        pane[#pane+1]=label("empireLevel","Level "..empire.level.."  |  "..empire.members.." friends",100,y+36,w-76,28,18,"#dbc5ef");y+=80
+                        text("empirePerks","+"..empire.level.."% cookies  |  +"..empire.level.."% job & property rewards\n+"..empire.level.."% stealing  |  "..math.min(75,empire.level).."% insurance",74)
+                        local needed=empire.level*100
+                        text("empirePoints",empire.points.." / "..needed.." team points",30)
+                        pane[#pane+1]=box("empireProgress",24,y,w,12,"#30283e",{box("fill",0,0,w*math.min(1,empire.points/needed),12,"#b18bdd")},{["border-radius"]="6px"});y+=26
+                        text("donationHelp",state.empirePending and "Saving your donation..." or "Give stamina to help your team grow",36)
+                        for i,amount in {10,25,50} do
+                            pane[#pane+1]=button("donateEmpire"..amount,"Give "..amount,24+(i-1)*w/3,y,w/3-4,48,function()send("empire","donate",amount)end,{background="#544479",["font-size"]="19px"})
+                        end;y+=62
+                        if empire.id==state.playerId then
+                            empireButton("upgradeEmpire","Level up - "..needed.." points","upgrade",empire.level)
+                            pane[#pane+1]=button("editEmpire","Name & picture",24,y,w,48,function()empireEdit[2](not empireEdit[1])end);y+=56
+                        else empireButton("leaveEmpire","Leave empire","leave") end
+                    end
+                    if not empire or empireEdit[1] then
+                        text("empireCreateLabel",empire and "Give your team a new look" or "Make your cookie team",36)
+                        pane[#pane+1]=e("input",{key="empireNameInput",id="empireNameInput",style=style(24,y,w,44,{background="#eee5d2",color="#211d19",["font-size"]="20px"}),onChange=function(event)empireNameDraft.current=event.value end});y+=56
+                        local badges={"cookie","crown","star","heart","shield","bakery"}
+                        local cols=math.max(3,math.min(6,math.floor(w/72)))
+                        for i,badge in badges do
+                            local bx=24+((i-1)%cols)*(w/cols)
+                            local by=y+math.floor((i-1)/cols)*72
+                            pane[#pane+1]=button("badge"..badge,"",bx,by,68,68,function()empireBadge[2](badge)end,{border=empireBadge[1]==badge and "3px solid #ffe19a" or "1px solid #514862",background="#30283e"},{badgeArt("badgePicture",badge,2,2)})
+                        end
+                        y+=math.ceil(#badges/cols)*72+8
+                        pane[#pane+1]=button("saveEmpire",empire and "Save look" or "Create empire",24,y,w,48,function()send("empire",empire and "rename" or "create",empireNameDraft.current,empireBadge[1])end,{background="#276849"});y+=64
+                    end
+                    if not empire then
+                        text("joinEmpireHeading","Join a friend's team",36)
+                        local seen={};local found=false
+                        for _,other in state.socialPlayers or {} do
+                            if other.empireId and other.empireName and not seen[other.empireId] then
+                                seen[other.empireId]=true;found=true
+                                text("joinName"..other.empireId,other.empireName,36)
+                                empireButton("joinEmpire"..other.empireId,"Join team","join",other.empireId)
+                            end
+                        end
+                        if not found then text("noEmpires","No teams here yet. Create one together!",50) end
+                    end
                 elseif workPage[1]=="Charity" then
                     local function socialButton(id,title,kind,arg,target)
                         pane[#pane+1]=button(id,title,24,y,w,48,function()send(kind,arg,target)end,{["font-size"]="18px"});y+=56
                     end
-                    text("charityHelp","Start a cookie party! Invite friends to help.",48)
+                    text("charityHelp",state.charityPending and "Saving your fundraiser action..." or "Start a cookie party! Invite friends to help.",48)
                     local charity=economy.charity
                     if charity then
                         local remaining=math.max(0,charity.endsAt-(state.serverNow or 0))
@@ -487,7 +560,7 @@ return function()
                         if other.id~=state.playerId and other.endsAt>(state.serverNow or 0) then
                             found=true
                             text("charityPlayer"..other.id,other.name.."\n"..number(other.pot).." cookies | "..math.ceil((other.endsAt-state.serverNow)/60).." minutes left",65)
-                            socialButton("helpCharity"..other.id,"Help - 5 stamina","charity","help",other.id)
+                            socialButton("helpCharity"..other.id,"Help: +50 cookies, +20 XP | 5 stamina","charity","help",other.id)
                             socialButton("stealCharity"..other.id,"Steal - 10 stamina","charity","steal",other.id)
                         end
                     end
@@ -551,9 +624,9 @@ return function()
 				action("springSeason","Start spring cookie hunt","season","spring")
 				action("normalSeason","End seasonal hunt","season","none")
 			end
-			center[#center + 1] = e("scroll", { key = "menuPanel", id = "menuPanel", style = style(0, 160, centerW, h - 190, { background = "#241f19", overflow = "scroll" }) }, table.unpack(pane))
+			center[#center + 1] = e("scroll", { key = "menuPanel", id = "menuPanel", style = style(0, tab=="Work" and 214 or 160, centerW, math.max(30,h-(tab=="Work" and 244 or 190)), { background = "#241f19", overflow = "scroll" }) }, table.unpack(pane))
 		end
-		center[#center + 1] = label("footer", state.saveStatus or "", 12, h - 25, centerW - 24, 20, 13, "#9c8d7c")
+        center[#center+1]=e(ResourceStatus,{key="resourceStatus",width=centerW,height=h})
 		local store = { stripes("storeStripes", storeW, h, "#24221f", "#2a2723"), label("storeTitle", "Store", 10, 7, boostW - 20, 42, 36, "#fff2dd", titleStyle) }
 		local upgrades = {}
 		for _, u in Model.Upgrades do
@@ -693,6 +766,7 @@ return function()
 	end
 	local connection = remote.OnClientEvent:Connect(function(nextState)
 		snapshot = nextState
+        refreshResources(nextState)
 		audio.setEnabled(snapshot.soundEnabled~=false)
 		for _,event in snapshot.events or {} do
 			if event.id>lastEventId then lastEventId=event.id;notify(event.text,event.kind) end

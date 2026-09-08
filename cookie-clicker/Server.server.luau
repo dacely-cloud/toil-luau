@@ -17,6 +17,12 @@ local store = studio and {UpdateAsync=function(_,key,callback)
 	local value=callback(memory[key]); if value~=nil then memory[key]=value end; return value
 end} or DataStoreService:GetDataStore("ToilCookieClicker_v1")
 local persistence = Persistence.new(Model,store,{now=os.time,wait=task.wait})
+local EmpireStore=require(folder:WaitForChild("EmpireStore"))
+local EmpireService=require(folder:WaitForChild("EmpireService"))
+local empireStore=EmpireStore.new(studio and store or DataStoreService:GetDataStore("ToilCookieEmpires_v1"))
+local empireService=EmpireService.new(empireStore,persistence)
+local charityStore=require(folder:WaitForChild("CharityStore")).new(Model,studio and store or DataStoreService:GetDataStore("ToilCookieCharities_v1"))
+local charityService=require(folder:WaitForChild("CharityService")).new(Model,charityStore,persistence,os.time)
 local sessions = {}
 local economyRandom=Random.new()
 local shuttingDown = false
@@ -46,12 +52,19 @@ local function send(player, session)
 	snapshot.events = session.events
     snapshot.serverNow=os.time()
     snapshot.playerId=player.UserId
+    if session.empire then
+        local r=session.empire;local count=0
+        for _,member in r.members do if member.active then count+=1 end end
+        snapshot.empire={id=r.owner,name=r.name,badge=r.badge,level=r.level,points=r.points,members=count}
+    end
+    snapshot.empirePending=session.state.economy.empireDonation~=nil or session.empireFinalizing==true
+    snapshot.charityPending=session.state.economy.charityPending~=nil or session.charityFinalizing==true
     if os.clock()-publicUpdated>=1 then
         publicUpdated=os.clock();publicPlayers={}
         for other,entry in sessions do
             if entry.ready and not entry.closing then
                 local charity=entry.state.economy.charity
-                table.insert(publicPlayers,{id=other.UserId,name=other.DisplayName,endsAt=charity and charity.endsAt or 0,pot=charity and charity.pot or 0})
+                table.insert(publicPlayers,{id=other.UserId,name=other.DisplayName,endsAt=charity and charity.endsAt or 0,pot=charity and charity.pot or 0,empireId=entry.state.economy.empireId,empireName=entry.empire and entry.empire.name,empireBadge=entry.empire and entry.empire.badge})
             end
         end
         table.sort(publicPlayers,function(a,b)return a.id<b.id end)
@@ -82,6 +95,7 @@ local function load(player)
 			session.saveStatus=studio and "Test game: progress resets when testing stops" or "Your bakery is saved"
 			session.seenAchievements=table.clone(session.state.achievements)
 			sessions[player]=session
+            task.spawn(function() session.empireBusy=true;empireService.refresh(session,player.UserId);empireService.resume(session,player.UserId);session.empireBusy=false;session.charityBusy=true;charityService.refresh(session,player.UserId);charityService.resume(session,player.UserId);session.charityBusy=false end)
 			if session.offlineCookies>=1 then notice(session,"success","Welcome back! Your bakery made "..math.floor(session.offlineCookies).." cookies while you were away.") end
 			send(player,session)
 			return
@@ -121,7 +135,19 @@ remote.OnServerEvent:Connect(function(player, action, index, quantity, sell)
 	if session.tokens<1 then return end
 	session.tokens-=1
 	local state=session.state
-	if action=="click" then Model.click(state); achievements(session); return
+	if action=="empire" then
+        if session.empireBusy or (session.lastEmpireAction and os.clock()-session.lastEmpireAction<1) then return end
+        session.lastEmpireAction=os.clock();session.empireBusy=true
+        local arg=quantity
+        if index=="create" or index=="rename" then arg=filteredName(player,quantity) end
+        if session.closing or not session.ready then session.empireBusy=false;return end
+        local ok,message
+        if (index=="create" or index=="rename") and not arg then ok,message=false,"Try a short empire name."
+        else ok,message=empireService.action(session,player.UserId,index,arg,sell) end
+        session.empireBusy=false;publicUpdated=-math.huge
+        notice(session,ok and "success" or "error",message)
+        send(player,session);return
+    elseif action=="click" then Model.click(state); achievements(session); return
 	elseif action=="trade" and type(index)=="number" and index%1==0 and Model.Buildings[index] and (quantity==1 or quantity==10 or quantity==100) and type(sell)=="boolean" then
 		local before=state.buildings[index]
 		if Model.trade(state,index,quantity,sell) then
@@ -131,25 +157,26 @@ remote.OnServerEvent:Connect(function(player, action, index, quantity, sell)
 	elseif action=="upgrade" and type(index)=="string" then
 		if Model.buyUpgrade(state,index) then notice(session,"success","Boost bought! Your bakery is stronger now.")
 		else notice(session,"error","You need more cookies, or already have this boost.") end
-	elseif action=="fundraiser" then
-        local ok,message
-        if index=="start" then ok,message=Model.startFundraiser(state,quantity,os.time())
-        elseif index=="claim" then ok,message=Model.claimFundraiser(state,os.time())
-        else return end
-        notice(session,ok and "success" or "error",message)
-        publicUpdated=-math.huge
-    elseif action=="charity" and (index=="help" or index=="steal") then
-        if type(quantity)~="number" or quantity~=quantity or quantity%1~=0 or math.abs(quantity)>9007199254740991 then return end
-        local other=Players:GetPlayerByUserId(quantity)
-        local target=other and sessions[other]
-        if not target or not target.ready or target.closing then notice(session,"error","That player is no longer available.")
-        else
-            local ok,message=Model.charityAction(state,target.state,player.UserId,other.UserId,index,os.time())
-            notice(session,ok and "success" or "error",message)
-            if ok then
-                notice(target,"info",player.DisplayName..(index=="help" and " helped your fundraiser!" or " took some fundraiser cookies."))
-                publicUpdated=-math.huge;send(other,target)
+    elseif action=="fundraiser" or action=="charity" then
+        if session.charityBusy or (session.lastCharityAction and os.clock()-session.lastCharityAction<1) then return end
+        if action=="fundraiser" and index~="start" and index~="claim" then return end
+        if action=="charity" and index~="help" and index~="steal" then return end
+        local other,target
+        if action=="charity" then
+            if type(quantity)~="number" or quantity~=quantity or quantity%1~=0 or math.abs(quantity)>9007199254740991 then return end
+            other=Players:GetPlayerByUserId(quantity);target=other and sessions[other]
+            if not target or not target.ready or target.closing or not target.state.economy.charityRef then
+                notice(session,"error","That fundraiser is not available.");send(player,session);return
             end
+        end
+        session.lastCharityAction=os.clock();session.charityBusy=true
+        local ok,message=charityService.action(session,player.UserId,index,quantity,target and target.state.economy.charityRef)
+        session.charityBusy=false;publicUpdated=-math.huge
+        notice(session,ok and "success" or "error",message)
+        if ok and target and not target.closing then
+            charityService.refresh(target,other.UserId)
+            notice(target,"info",player.DisplayName..(index=="help" and " helped your fundraiser!" or " took some fundraiser cookies."))
+            send(other,target)
         end
     elseif action=="economy" and type(index)=="string" then
 		local ok,message=Model.economyAction(state,index,quantity,economyRandom:NextNumber())
@@ -195,6 +222,29 @@ RunService.Heartbeat:Connect(function(dt)
 		end
 	end
 	if elapsed>=.25 then elapsed=0;for player,session in sessions do send(player,session) end end
+end)
+task.spawn(function()
+    while task.wait(15) do
+        for player,session in sessions do
+            if session.ready and not session.closing and not session.charityBusy then
+                task.spawn(function()
+                    session.charityBusy=true
+                    charityService.refresh(session,player.UserId)
+                    charityService.resume(session,player.UserId)
+                    session.charityBusy=false
+                end)
+            end
+            if session.ready and not session.closing and not session.empireBusy then
+                task.spawn(function()
+                    session.empireBusy=true
+                    empireService.refresh(session,player.UserId)
+                    if session.empireFinalizing then empireService.finish(session)
+                    elseif session.state.economy.empireDonation then empireService.resume(session,player.UserId) end
+                    session.empireBusy=false
+                end)
+            end
+        end
+    end
 end)
 task.spawn(function()
 	while task.wait(60) do for player,session in sessions do if not session.closing then task.spawn(save,player,session,false) end end end

@@ -1670,6 +1670,9 @@ __exports = function (___config) {
                   case 2:
                     hasForceUpdate = !0;
                 }
+                if (__lb_15 || __lc_15) {
+                  break;
+                }
               }
               break;
             }
@@ -4454,6 +4457,9 @@ __exports = function (___config) {
                       break;
                     }
                 }
+                if (__lb_9 || __lc_9) {
+                  break;
+                }
                 parent = parent.return;
               }
               ;
@@ -5350,6 +5356,9 @@ __exports = function (___config) {
                 default:
                   throw Error(formatProdErrorMessage(329));
               }
+              if (__lb_4 || __lc_4) {
+                break;
+              }
               if ((lanes & 62914560) === lanes && (exitStatus = __cat(globalMostRecentFallbackTime, 300) - now(), 10 < exitStatus)) {
                 markRootSuspended(shouldTimeSlice, lanes, workInProgressDeferredLane, !workInProgressRootDidSkipSuspendedSiblings);
                 if (0 !== getNextLanes(shouldTimeSlice, 0, !0)) {
@@ -5554,6 +5563,12 @@ __exports = function (___config) {
                 default:
                   reason = workInProgressSuspendedReason, workInProgressSuspendedReason = 0, workInProgressThrownValue = undefined, throwAndUnwindWorkLoop(root, unitOfWork, thrownValue, reason);
               }
+              if (__lb_3 || __lc_3) {
+                break;
+              }
+            }
+            if (__lb_3 || __lc_3) {
+              break;
             }
             workLoopSync();
             exitStatus = workInProgressRootExitStatus;
@@ -5666,6 +5681,9 @@ __exports = function (___config) {
                             }
                           }
                       }
+                      if (__lb_1 || __lc_1) {
+                        break;
+                      }
                       workInProgressSuspendedReason = 0;
                       workInProgressThrownValue = undefined;
                       throwAndUnwindWorkLoop(root, lanes, thrownValue, 5);
@@ -5684,6 +5702,9 @@ __exports = function (___config) {
                       }
                     default:
                       throw Error(formatProdErrorMessage(462));
+                  }
+                  if (__lb_2 || __lc_2) {
+                    break;
                   }
                   break;
                 }
@@ -6181,6 +6202,9 @@ __exports = function (___config) {
                   __lb_0 = true;
                   break;
                 }
+            }
+            if (__lb_0 || __lc_0) {
+              break;
             }
             fiberTag = 29;
             pendingProps = Error(formatProdErrorMessage(130, undefined === __type ? "null" : typeOfJS(__type), ""));

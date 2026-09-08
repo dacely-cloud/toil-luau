@@ -20,7 +20,7 @@ return function(Model)
 		for _,u in Model.Upgrades do if u.id==data.permanentUpgrade and s.heavenly.slot then s.permanentUpgrade=u.id end end
 	end
 	function Model.productionFactor(s)
-		return (1+(s.prestige or 0)*.01)*(s.heavenly and s.heavenly.baking and 1.1 or 1)*(s.spirit=="baking" and 1.1 or 1)
+		return (1+(s.prestige or 0)*.01)*(s.heavenly and s.heavenly.baking and 1.1 or 1)*(s.spirit=="baking" and 1.1 or 1)*(1+Model.empireBonus(s))
 	end
 	function Model.ascensionGain(s)
 		return math.max(0,math.floor(((s.pastEarned+s.earned)/1e12)^(1/3))-s.prestige)

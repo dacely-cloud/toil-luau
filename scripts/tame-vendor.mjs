@@ -327,7 +327,7 @@ function desugarOneLabel(labelPath, stats, idx) {
 
 	// 2. Compute where `if (F || C) break;` unwinding checks are needed:
 	// after every statement in a statement list that has a jump inside a
-	// strictly nested loop (the jump's `break` escapes that nested loop and
+	// strictly nested loop or switch (an unlabeled break exits either one and
 	// must then also escape the rest of the list). The list array itself is
 	// captured here, because `node.parent` is not reliably set by babel
 	// between phases.
@@ -336,7 +336,7 @@ function desugarOneLabel(labelPath, stats, idx) {
 		let cur = j.parentPath;
 		let loopsPassed = 0;
 		while (cur && cur.node !== labelNode) {
-			if (LOOP_TYPES.has(cur.node.type)) loopsPassed += 1;
+			if (LOOP_TYPES.has(cur.node.type) || cur.node.type === "SwitchStatement") loopsPassed += 1;
 			const par = cur.parentPath;
 			if (par) {
 				const pn = par.node;

@@ -31,6 +31,33 @@ return function(Model)
         local saved=data.economy
         if type(saved)~="table" then return end
         local e=s.economy
+        if type(saved.empireId)=="number" and saved.empireId==saved.empireId and saved.empireId%1==0 and math.abs(saved.empireId)<=9007199254740991 then e.empireId=saved.empireId end
+        e.empireSequence=math.floor(number(saved.empireSequence,1e12))
+        e.empireLevel=e.empireId and math.floor(number(saved.empireLevel,100)) or 0
+        e.charitySequence=math.floor(number(saved.charitySequence,1e12))
+        local ref=saved.charityRef
+        if type(ref)=="table" and type(ref.sequence)=="number" and ref.sequence>0 and ref.sequence%1==0 and ref.sequence<=1e12 then e.charityRef={sequence=ref.sequence} end
+        local charityPending=saved.charityPending
+        if type(charityPending)=="table" and charityPending.operation==e.charitySequence and e.charitySequence>0 then
+            local kind=charityPending.kind
+            local fund=charityPending.fundSequence
+            local owner=charityPending.owner
+            local validFund=type(fund)=="number" and fund>0 and fund%1==0 and fund<=1e12
+            local validOwner=type(owner)=="number" and owner==owner and owner%1==0 and math.abs(owner)<=9007199254740991
+            local clean={kind=kind,operation=e.charitySequence,fundSequence=fund,owner=owner}
+            if kind=="start" and validFund and type(charityPending.tier)=="number" and charityPending.tier%1==0 and Model.Fundraisers[charityPending.tier] then
+                clean.tier=charityPending.tier;clean.cost=Model.Fundraisers[clean.tier].cost
+                clean.startedAt=number(charityPending.startedAt,1e12);clean.insurance=number(charityPending.insurance,.75)
+                e.charityPending=clean
+            elseif kind=="claim" and validFund and e.charityRef and e.charityRef.sequence==fund then e.charityPending=clean
+            elseif (kind=="help" or kind=="steal") and validFund and validOwner then
+                clean.cost=kind=="help" and 5 or 10;clean.bonus=number(charityPending.bonus,1);e.charityPending=clean
+            end
+        end
+        local pending=saved.empireDonation
+        if type(pending)=="table" and pending.empireId==e.empireId and e.empireId and pending.sequence==e.empireSequence and e.empireSequence>0 and (pending.amount==10 or pending.amount==25 or pending.amount==50) then
+            e.empireDonation={empireId=e.empireId,sequence=e.empireSequence,amount=pending.amount}
+        end
         for _,key in {"xp","jar"} do e[key]=number(saved[key],1e15) end
         for _,key in {"energy","stamina"} do e[key]=number(saved[key],100) end
         for _,item in Model.Items do
@@ -41,6 +68,7 @@ return function(Model)
             e.properties[property.id]=math.floor(number(type(saved.properties)=="table" and saved.properties[property.id],100))
         end
     end
+    function Model.empireBonus(s) return ((s.economy and s.economy.empireLevel) or 0)*.01 end
     function Model.jobLevel(s) return 1+math.floor(math.sqrt(s.economy.xp/100)) end
     function Model.collectionBonus(s)
         local bonus=1
@@ -54,7 +82,7 @@ return function(Model)
     function Model.propertyIncome(s)
         local income=0
         for _,p in Model.Properties do income+=p.income*(s.economy.properties[p.id] or 0) end
-        return income*Model.collectionBonus(s)
+        return income*Model.collectionBonus(s)*(1+Model.empireBonus(s))^2
     end
     function Model.economyTick(s,dt)
         local e=s.economy
@@ -71,7 +99,7 @@ return function(Model)
             -- Validate the injected roll before spending anything.
             if type(roll)~="number" or roll~=roll or roll<0 or roll>=1 then return false,"Try this job again." end
             e.energy-=job.energy;e.xp+=job.xp
-            local reward=math.floor(job.cookies*Model.collectionBonus(s))
+            local reward=math.floor(job.cookies*Model.collectionBonus(s)*(1+Model.empireBonus(s))^2)
             Model.award(s,reward)
             local dropped=roll<job.chance
             if dropped then e.inventory[job.item]=math.min(1000000,(e.inventory[job.item] or 0)+1) end

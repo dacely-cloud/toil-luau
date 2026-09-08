@@ -1306,9 +1306,11 @@ export function applyStyle(node: HostNode, style: Record<string, string>, env: H
 	// --- Overflow ---
 	const overflow = style["overflow"] ?? "";
 	if (inst.ClassName === "ScrollingFrame") {
-		inst["AutomaticCanvasSize"] = env.enumValue("AutomaticSize.Y");
+		const horizontal = style["overflow-x"] === "scroll" || style["overflow-x"] === "auto";
+		const axis = horizontal ? (style["overflow-y"] === "hidden" ? "X" : "XY") : "Y";
+		inst["AutomaticCanvasSize"] = env.enumValue("AutomaticSize." + axis);
 		inst["CanvasSize"] = env.newUDim2(0, 0, 0, 0);
-		inst["ScrollingDirection"] = env.enumValue("ScrollingDirection.Y");
+		inst["ScrollingDirection"] = env.enumValue("ScrollingDirection." + axis);
 		inst["ScrollBarThickness"] = 6;
 	}
 	if (overflow === "hidden" || overflow === "scroll") {

@@ -141,6 +141,22 @@ describe('roblox host', function ()
 		object.keys = originalKeys
 		assert(ok, err)
 	end)
+    it("supports horizontal category scrolling without changing vertical lists", function()
+        local env=table.clone(hostEnv.env);env.enumValue=function(name)return name end
+        local config=hostModule.buildHostConfig(env,{resolve=function(n)return n.pendingProps.style or {} end})
+        local n=config.createInstance("scroll",{},nil,nil,nil)
+        local vertical={style={overflow="scroll"}}
+        config.finalizeInitialChildren(n,"scroll",vertical)
+        assert(n.inst.ScrollingDirection=="ScrollingDirection.Y")
+        local horizontal={style={overflow="scroll",["overflow-x"]="scroll",["overflow-y"]="hidden"}}
+        config.commitUpdate(n,"scroll",vertical,horizontal)
+        assert(n.inst.ScrollingDirection=="ScrollingDirection.X" and n.inst.AutomaticCanvasSize=="AutomaticSize.X")
+        local both={style={overflow="scroll",["overflow-x"]="auto"}}
+        config.commitUpdate(n,"scroll",horizontal,both)
+        assert(n.inst.ScrollingDirection=="ScrollingDirection.XY")
+        config.commitUpdate(n,"scroll",both,vertical)
+        assert(n.inst.ScrollingDirection=="ScrollingDirection.Y")
+    end)
 	it('supports native Path2D props, updates, refs and change events without GuiObject writes', function ()
 		assert(hostModule and hostEnv)
 		local config = hostModule.buildHostConfig(hostEnv.env, { resolve = function(n) return n.pendingProps.style or {} end })

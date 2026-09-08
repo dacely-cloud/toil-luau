@@ -77,7 +77,7 @@ end
 function Model.clickPower(state)
 	local value = 1
 	for _, u in Model.Upgrades do if u.click and state.upgrades[u.id] then value *= 2 end end
-	return value * (state.heavenly and state.heavenly.tapping and 1.1 or 1) * (state.spirit=="clicking" and 1.1 or 1)
+	return value * (state.heavenly and state.heavenly.tapping and 1.1 or 1) * (state.spirit=="clicking" and 1.1 or 1)*(1+Model.empireBonus(state))
 end
 function Model.checkAchievements(state)
 	for _,a in achievements do

@@ -21,6 +21,8 @@ function Persistence.new(Model, store, options)
 		for _, u in Model.Upgrades do if type(data.upgrades)=="table" and data.upgrades[u.id]==true then state.upgrades[u.id]=true end end
 		for _, a in Model.Achievements do if type(data.achievements)=="table" and data.achievements[a[1]]==true then state.achievements[a[1]]=true end end
 		Model.restoreAdvanced(state,data)
+		Model.restoreEconomy(state,data)
+		Model.restoreSocial(state,data)
 		state.soundEnabled = data.soundEnabled ~= false
 		state.reducedMotion = data.reducedMotion == true
 		if type(data.customName)=="string" and #data.customName<=96 then state.customName=data.customName end

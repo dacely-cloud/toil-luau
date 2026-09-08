@@ -59,6 +59,7 @@ Model.Achievements = achievements
 function Model.new()
 	local state = { version = 1, cookies = 0, earned = 0, handmade = 0, clicks = 0, buildings = table.create(#Model.Buildings, 0), upgrades = {}, achievements = {}, played = 0, bakery = "Your bakery", goldenClicks = 0, goldenAt = 75, goldenId = 0, goldenUntil = 0, frenzyUntil = 0, soundEnabled = true }
 	if Model.initAdvanced then Model.initAdvanced(state) end
+	if Model.initEconomy then Model.initEconomy(state) end
 	return state
 end
 function Model.multiplier(state, building)
@@ -100,6 +101,7 @@ end
 function Model.tick(state, dt)
 	if dt <= 0 or dt ~= dt or dt == math.huge then return end
 	state.played += dt
+	Model.economyTick(state,dt)
 	-- Split production at the bonus boundary so a long tick cannot extend it.
 	local bonusSeconds=math.clamp((state.frenzyUntil or 0)-(state.played-dt),0,dt)
 	local base=0
@@ -157,7 +159,10 @@ end
 function Model.goldenTick(state)
 	if state.played >= (state.goldenAt or 75) then
 		state.goldenId=(state.goldenId or 0)+1
-		state.goldenUntil=state.played+20
+		state.goldenDuration=8+(state.goldenId*7)%9
+		state.goldenStarted=state.played
+		state.goldenX=.1+((state.goldenId*37)%81)/100
+		state.goldenUntil=state.played+state.goldenDuration
 		state.goldenAt=state.played+75+(state.goldenId%4)*10
 	end
 end
@@ -194,4 +199,10 @@ end
 local installLateGame
 if script then installLateGame=require(script.Parent.LateGame) else installLateGame=require("./LateGame") end
 installLateGame(Model)
+local installEconomy
+if script then installEconomy=require(script.Parent.Economy) else installEconomy=require("./Economy") end
+installEconomy(Model)
+local installSocial
+if script then installSocial=require(script.Parent.Social) else installSocial=require("./Social") end
+installSocial(Model)
 return Model

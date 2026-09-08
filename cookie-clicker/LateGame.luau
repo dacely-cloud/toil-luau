@@ -46,7 +46,7 @@ return function(Model)
 			if gain<1 then return false,"Bake a trillion cookies to start your next bakery." end
 			local fresh=Model.new()
 			fresh.pastEarned=s.pastEarned+s.earned;fresh.prestige=s.prestige+gain;fresh.chips=s.chips+gain
-			for _,key in {"heavenly","lumps","lumpTime","levels","permanentUpgrade","customName","bakery","soundEnabled","reducedMotion","achievements"} do fresh[key]=s[key] end
+			for _,key in {"heavenly","lumps","lumpTime","levels","permanentUpgrade","economy","customName","bakery","soundEnabled","reducedMotion","achievements"} do fresh[key]=s[key] end
 			if fresh.permanentUpgrade~="" then fresh.upgrades[fresh.permanentUpgrade]=true end
 			for key in s do s[key]=nil end;for key,value in fresh do s[key]=value end
 			return true,"A fresh bakery! You earned "..gain.." star chips and a lasting baking boost."

@@ -917,6 +917,20 @@ function transformFile(filePath) {
 	// module instead of choking on the top-level import/export statements.
 	const ast = babelParser.parse(source, { sourceType: "unambiguous", allowReturnOutsideFunction: true });
 	const stats = emptyStats();
+    // Restart resumed bailout children from committed fibers. Their queued
+    // updates and lanes survive through createWorkInProgress below.
+    traverse(ast, {
+        ThrowStatement(p) {
+            const call=p.node.argument;
+            if (!t.isCallExpression(call) || !t.isIdentifier(call.callee,{name:"Error"}) ||
+                !t.isStringLiteral(call.arguments[0],{value:"Resuming work not yet implemented."})) return;
+            p.replaceWith(t.blockStatement([
+                t.expressionStatement(t.assignmentExpression("=",t.memberExpression(t.identifier("workInProgress"),t.identifier("child")),t.memberExpression(t.identifier("current"),t.identifier("child")))),
+                t.expressionStatement(t.assignmentExpression("=",t.memberExpression(t.identifier("workInProgress"),t.identifier("subtreeFlags")),t.numericLiteral(0))),
+                t.expressionStatement(t.assignmentExpression("=",t.memberExpression(t.identifier("workInProgress"),t.identifier("deletions")),t.nullLiteral())),
+            ]));
+        },
+    });
 	renameReservedLocals(ast, stats);
 	sanitizeDollarIdentifiers(ast, stats);
 	cjsToEs(ast, stats);

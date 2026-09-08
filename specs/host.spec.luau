@@ -65,6 +65,29 @@ local function findReact()
 end
 
 describe('roblox host', function ()
+    it("preserves simultaneous parent and cached child updates", function()
+        local React=findReact()
+        local setParent,setChild
+        local ref={}
+        local function Child()
+            local state=React.useState(0);setChild=state[2]
+            return React.createElement("span",{ref=function(v)ref.current=v end},tostring(state[1]))
+        end
+        local cached=React.createElement(Child,{key="cached"})
+        local function Parent()
+            local state=React.useState(0);setParent=state[2]
+            local children={cached}
+            for i=1,100 do children[#children+1]=React.createElement("span",{key=tostring(i)},tostring(state[1])) end
+            return React.createElement("div",nil,table.unpack(children))
+        end
+        local handle=hostModule.mountReactRoot(nil,{},React.createElement(Parent),nil,hostEnv.env)
+        for i=1,50 do
+            setChild(i);setParent(i);polyfills.drainTasks()
+            assert(ref.current and ref.current.Text==tostring(i),"child state lost at "..i)
+        end
+        handle.unmount()
+    end)
+
 	it('uses one Activated handler for mouse touch and controller buttons', function ()
 		local callbacks={}
 		local env=table.clone(hostEnv.env)

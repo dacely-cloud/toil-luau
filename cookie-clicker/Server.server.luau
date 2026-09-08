@@ -18,7 +18,10 @@ local store = studio and {UpdateAsync=function(_,key,callback)
 end} or DataStoreService:GetDataStore("ToilCookieClicker_v1")
 local persistence = Persistence.new(Model,store,{now=os.time,wait=task.wait})
 local sessions = {}
+local economyRandom=Random.new()
 local shuttingDown = false
+local publicPlayers={}
+local publicUpdated=-math.huge
 local function filteredName(player,text)
 	if type(text)~="string" or #text>96 then return nil end
 	text=text:match("^%s*(.-)%s*$")
@@ -41,6 +44,19 @@ local function send(player, session)
 	snapshot.saveStatus = session.saveStatus
 	snapshot.ready = session.ready and not session.closing
 	snapshot.events = session.events
+    snapshot.serverNow=os.time()
+    snapshot.playerId=player.UserId
+    if os.clock()-publicUpdated>=1 then
+        publicUpdated=os.clock();publicPlayers={}
+        for other,entry in sessions do
+            if entry.ready and not entry.closing then
+                local charity=entry.state.economy.charity
+                table.insert(publicPlayers,{id=other.UserId,name=other.DisplayName,endsAt=charity and charity.endsAt or 0,pot=charity and charity.pot or 0})
+            end
+        end
+        table.sort(publicPlayers,function(a,b)return a.id<b.id end)
+    end
+    snapshot.socialPlayers=publicPlayers
 	remote:FireClient(player,snapshot)
 end
 local function achievements(session)
@@ -115,6 +131,29 @@ remote.OnServerEvent:Connect(function(player, action, index, quantity, sell)
 	elseif action=="upgrade" and type(index)=="string" then
 		if Model.buyUpgrade(state,index) then notice(session,"success","Boost bought! Your bakery is stronger now.")
 		else notice(session,"error","You need more cookies, or already have this boost.") end
+	elseif action=="fundraiser" then
+        local ok,message
+        if index=="start" then ok,message=Model.startFundraiser(state,quantity,os.time())
+        elseif index=="claim" then ok,message=Model.claimFundraiser(state,os.time())
+        else return end
+        notice(session,ok and "success" or "error",message)
+        publicUpdated=-math.huge
+    elseif action=="charity" and (index=="help" or index=="steal") then
+        if type(quantity)~="number" or quantity~=quantity or quantity%1~=0 or math.abs(quantity)>9007199254740991 then return end
+        local other=Players:GetPlayerByUserId(quantity)
+        local target=other and sessions[other]
+        if not target or not target.ready or target.closing then notice(session,"error","That player is no longer available.")
+        else
+            local ok,message=Model.charityAction(state,target.state,player.UserId,other.UserId,index,os.time())
+            notice(session,ok and "success" or "error",message)
+            if ok then
+                notice(target,"info",player.DisplayName..(index=="help" and " helped your fundraiser!" or " took some fundraiser cookies."))
+                publicUpdated=-math.huge;send(other,target)
+            end
+        end
+    elseif action=="economy" and type(index)=="string" then
+		local ok,message=Model.economyAction(state,index,quantity,economyRandom:NextNumber())
+		notice(session,ok and "success" or "error",message)
 	elseif action=="advanced" and type(index)=="string" then
 		local ok,message=Model.advancedAction(state,index,quantity)
 		notice(session,ok and "success" or "error",message)

@@ -1,0 +1,38 @@
+import fs from 'node:fs';
+import vm from 'node:vm';
+import assert from 'node:assert/strict';
+import {parse} from '@babel/parser';
+import traverseModule from '@babel/traverse';
+import generateModule from '@babel/generator';
+const traverse=traverseModule.default ?? traverseModule;
+const generate=generateModule.default ?? generateModule;
+const source=fs.readFileSync('src/vendor/toil-react-reconciler/cjs/react-reconciler.development.js','utf8');
+const ast=parse(source,{sourceType:'module'});
+const functions={};
+traverse(ast,{AssignmentExpression(p){const left=p.node.left;if(left.type==='MemberExpression' && left.object.name==='__ST' && ['bailoutOnAlreadyFinishedWork','createWorkInProgress'].includes(left.property.name))functions[left.property.name]=generate(p.node.right).code;}});
+const st={workInProgressRootSkippedLanes:0,createFiber:(tag,pendingProps,key,mode)=>({tag,pendingProps,key,mode})};
+const context=vm.createContext({__ST:st,Error});
+for(const [name,code] of Object.entries(functions))st[name]=vm.runInContext('('+code+')',context);
+assert.equal(Object.keys(functions).length,2);
+const child={tag:5,pendingProps:{id:'child'},flags:0,lanes:1,childLanes:0,updateQueue:{pending:[1,2,3]}};
+const sibling={...child,pendingProps:{id:'sibling'},updateQueue:{pending:[4]}};
+child.sibling=sibling;
+const current={tag:3,child,childLanes:1,lanes:1,flags:0};
+for(let i=0;i<3;i++){
+ const work=st.createWorkInProgress(current,{});
+ work.child=st.createWorkInProgress(child,child.pendingProps);
+ work.subtreeFlags=16;work.deletions=[sibling];
+ const result=st.bailoutOnAlreadyFinishedWork(current,work,1);
+ assert.notEqual(result,child);
+ assert.equal(result.alternate,child);
+ assert.equal(result.updateQueue,child.updateQueue);
+ assert.equal(result.lanes,1);
+ assert.equal(result.return,work);
+ assert.equal(result.sibling.alternate,sibling);
+ assert.equal(result.sibling.updateQueue,sibling.updateQueue);
+ assert.equal(result.sibling.return,work);
+ assert.equal(work.subtreeFlags,0);
+ assert.equal(work.deletions,undefined);
+ assert.deepEqual(child.updateQueue.pending,[1,2,3]);
+}
+console.log('PASS resumed bailout rebuilds siblings and retains pending queues and lanes across repeated restarts');

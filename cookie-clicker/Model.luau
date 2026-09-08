@@ -69,11 +69,14 @@ function Model.multiplier(state, building)
 	end
 	return value * (1+((state.levels and state.levels[building]) or 0)*.01)
 end
+function Model.friendMultiplier(state)
+    return 1+(state.friendCount or 0)*.01
+end
 function Model.cps(state)
 	local value = 0
 	for i, b in Model.Buildings do value += b.cps * state.buildings[i] * Model.multiplier(state, i) end
 	local retained=state.buddies and state.buildings[2]>=10 and (1-#state.wrinklers*.05) or 1
-	return value * retained * Model.productionFactor(state) * ((state.frenzyUntil or 0)>state.played and 2 or 1) * ((state.gardenBoostUntil or 0)>state.played and 1.05 or 1) + Model.propertyIncome(state)
+	return value * retained * Model.productionFactor(state) * Model.friendMultiplier(state) * ((state.frenzyUntil or 0)>state.played and 2 or 1) * ((state.gardenBoostUntil or 0)>state.played and 1.05 or 1) + Model.propertyIncome(state)
 end
 function Model.setVolume(state,percent)
 	if type(percent)~="number" or percent~=percent or percent<0 or percent>100 or percent%1~=0 then return false end
@@ -111,7 +114,7 @@ function Model.tick(state, dt)
 	-- Split production at the bonus boundary so a long tick cannot extend it.
 	local base=0
 	for i,b in Model.Buildings do base+=b.cps*state.buildings[i]*Model.multiplier(state,i) end
-	base*=Model.productionFactor(state)
+	base*=Model.productionFactor(state)*Model.friendMultiplier(state)
     Model.advancedTick(state,dt,base)
     local start=state.played-dt
     local amount=Model.feedWrinklers(state,dt,function(from,to)
@@ -155,15 +158,16 @@ function Model.trade(state, index, quantity, sell)
 		else break end
 		traded += 1
 	end
+	local xp=not sell and traded>0 and Model.buildingPurchaseXp(state,index) or 0
 	Model.checkAchievements(state)
-	return traded > 0
+	return traded > 0,xp
 end
 function Model.buyUpgrade(state, id)
 	for _, u in Model.Upgrades do
 		if u.id == id and not state.upgrades[id] and state.buildings[u.building] >= u.required and state.cookies >= u.price then
 			state.cookies -= u.price
 			state.upgrades[id] = true
-			return true
+			return true,Model.upgradePurchaseXp(state,id)
 		end
 	end
 	return false

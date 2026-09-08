@@ -84,6 +84,7 @@ export function identityFromProps(
 
 export type RobloxClassName =
 	| "Frame"
+	| "CanvasGroup"
 	| "ScrollingFrame"
 	| "Path2D"
 	| "TextLabel"
@@ -270,6 +271,7 @@ export const TAG_TO_CLASS: Record<string, RobloxClassName> = {
 	Path2D: "Path2D",
 	scroll: "ScrollingFrame",
 	div: "Frame",
+	canvasgroup: "CanvasGroup",
 	section: "Frame",
 	article: "Frame",
 	aside: "Frame",

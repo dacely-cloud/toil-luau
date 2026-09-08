@@ -25,12 +25,21 @@ return function(Model)
         return type(value)=="number" and value==value and value>=0 and value<math.huge and math.min(value,limit) or 0
     end
     function Model.initEconomy(s)
-        s.economy={xp=0,energy=100,stamina=100,inventory={},collection={},properties={},jar=0}
+        s.economy={xp=0,energy=100,stamina=100,inventory={},collection={},properties={},jar=0,buildingXpHigh={},upgradeXpClaimed={}}
     end
     function Model.restoreEconomy(s,data)
-        local saved=data.economy
-        if type(saved)~="table" then return end
+        local saved=type(data.economy)=="table" and data.economy or {}
         local e=s.economy
+        -- Lifetime records survive sales, ascension and rejoin. Existing saves
+        -- start at current ownership, without granting retroactive XP.
+        for i=1,#Model.Buildings do
+            local high=type(saved.buildingXpHigh)=="table" and saved.buildingXpHigh[i]
+            e.buildingXpHigh[i]=math.max(s.buildings[i],math.floor(number(high,1000000)))
+        end
+        for _,u in Model.Upgrades do
+            e.upgradeXpClaimed[u.id]=s.upgrades[u.id]==true or (type(saved.upgradeXpClaimed)=="table" and saved.upgradeXpClaimed[u.id]==true)
+        end
+        if type(data.economy)~="table" then return end
         if type(saved.empireId)=="number" and saved.empireId==saved.empireId and saved.empireId%1==0 and math.abs(saved.empireId)<=9007199254740991 then e.empireId=saved.empireId end
         e.empireSequence=math.floor(number(saved.empireSequence,1e12))
         e.empireLevel=e.empireId and math.floor(number(saved.empireLevel,100)) or 0
@@ -79,6 +88,22 @@ return function(Model)
     end
     function Model.empireBonus(s) return ((s.economy and s.economy.empireLevel) or 0)*.01 end
     function Model.jobLevel(s) return 1+math.floor(math.sqrt(s.economy.xp/100)) end
+    function Model.buildingPurchaseXp(s,index)
+        local e=s.economy
+        local high=e.buildingXpHigh[index] or 0
+        local added=math.max(0,s.buildings[index]-high)
+        e.buildingXpHigh[index]=math.max(high,s.buildings[index])
+        local reward=added*(1+math.floor((index-1)/5))
+        e.xp=math.min(1e15,e.xp+reward)
+        return reward
+    end
+    function Model.upgradePurchaseXp(s,id)
+        local e=s.economy
+        if e.upgradeXpClaimed[id] then return 0 end
+        e.upgradeXpClaimed[id]=true
+        e.xp=math.min(1e15,e.xp+5)
+        return 5
+    end
     function Model.collectionBonus(s)
         local bonus=1
         for _,item in Model.Items do if s.economy.collection[item.id] then bonus+=item.bonus end end
@@ -91,7 +116,7 @@ return function(Model)
     function Model.propertyIncome(s)
         local income=0
         for _,p in Model.Properties do income+=p.income*(s.economy.properties[p.id] or 0) end
-        return income*Model.collectionBonus(s)*(1+Model.empireBonus(s))^2
+        return income*Model.collectionBonus(s)*(1+Model.empireBonus(s))^2*Model.friendMultiplier(s)
     end
     function Model.economyTick(s,dt)
         local e=s.economy

@@ -5,12 +5,46 @@ import assert from 'node:assert/strict';
 import {spawnSync} from 'node:child_process';
 
 const source=fs.readFileSync('cookie-clicker/App.luau','utf8').replaceAll('\r\n','\n');
+const server=fs.readFileSync('cookie-clicker/Server.server.luau','utf8');
+const inviteStart=server.indexOf('if index=="invite" then');
+const inviteEnd=server.indexOf('if session.empireBusy',inviteStart);
+assert(inviteStart>=0 && inviteEnd>inviteStart);
 const start=source.indexOf('local empire=state.empire');
 const end=source.indexOf('elseif workPage[1]=="Charity" then',start);
 assert(start>=0 && end>start);
 const code=`
-local function render(empire,stamina,pending,friends,width,editing)
- local state={empire=empire,empirePending=pending,playerId=1,socialPlayers=friends}
+local sender={UserId=1,DisplayName="Owner"}
+local friend={UserId=2,DisplayName="Friend"}
+local Players={GetPlayerByUserId=function(_,id)if id==2 then return friend elseif id==1 then return sender end end}
+local function invite(session,recipient,quantity)
+ local sessions={[friend]=recipient,[sender]=session}
+ local player,index=sender,"invite"
+ local function notice()end
+ local function send()end
+ ${server.slice(inviteStart,inviteEnd)}
+end
+local function memberSession()
+ return {ready=true,state={economy={empireId=1}},empire={owner=1,name="Team",badge="cookie",members={["1"]={active=true}}}}
+end
+local function recipientSession()return {ready=true,state={economy={}}}end
+local owner,recipient=memberSession(),recipientSession()
+invite(owner,recipient,2)
+assert(recipient.empireInvite.id==1 and recipient.empireInvite.expires>os.time())
+assert(not recipient.state.economy.empireId,"invite must not auto-join")
+local first=recipient.empireInvite;invite(owner,recipient,2);assert(recipient.empireInvite==first)
+for _,id in {0/0,math.huge,2.5,"2",1,999} do
+ recipient=recipientSession();invite(memberSession(),recipient,id);assert(not recipient.empireInvite)
+end
+owner=memberSession();owner.empire.members["1"].active=false
+recipient=recipientSession();invite(owner,recipient,2);assert(not recipient.empireInvite)
+recipient=recipientSession();recipient.state.economy.empireId=3
+invite(memberSession(),recipient,2);assert(not recipient.empireInvite)
+recipient=recipientSession();recipient.closing=true
+invite(memberSession(),recipient,2);assert(not recipient.empireInvite)
+recipient=recipientSession();recipient.empireInvite={id=3,expires=os.time()+100}
+invite(memberSession(),recipient,2);assert(recipient.empireInvite.id==3,"cannot overwrite unanswered invitation")
+local function render(empire,stamina,pending,friends,width,editing,invite)
+ local state={empire=empire,empirePending=pending,playerId=1,socialPlayers=friends,empireInvite=invite}
  local economy={stamina=stamina}
  local ImageNames={badges={cookie="Cookie",crown="CookieCrown",star="GoldenCookie",heart="Cookie",shield="CookieJar",bakery="CookieStore"}}
  local function hook(value)local h={value};h[2]=function(v)h[1]=v end;return h end
@@ -25,6 +59,7 @@ local function render(empire,stamina,pending,friends,width,editing)
  local function style(...)return {}end
  local function e(tag,props)controls[props.id]=props;return {}end
  local function send(...)table.insert(requests,{...})end
+ local function inviteFriends()send("nativeInvite")end
  local function button(id,title,x,y,width,height,callback)
   assert(width>=44 and height>=44,"small hit target: "..id)
   assert(not controls[id],"duplicate control "..id)
@@ -37,6 +72,14 @@ local function team(owner,level,points)
  return {id=owner,name="Cookie Team",badge="crown",level=level,points=points,members=2}
 end
 for _,width in {320,401,600,900} do
+ local ic,il,ir=render(nil,100,false,{},width,false,{id=9,name="Friends",badge="cookie"})
+ ic.acceptEmpireInvite.click();ic.declineEmpireInvite.click()
+ assert(ir[1][2]=="join" and ir[1][3]==9 and ir[2][2]=="declineInvite")
+ ic,il,ir=render(nil,100,true,{},width,false,{id=9,name="Friends",badge="cookie"})
+ ic.acceptEmpireInvite.click();assert(#ir==0,"pending membership blocks accepting invite")
+ ic,il,ir=render(team(1,2,200),100,false,{{id=2,name="Friend"},{id=3,name="Member",empireId=1}},width,false)
+ ic.inviteEmpireFriends.click();ic.inviteEmpirePlayer2.click()
+ assert(ir[1][1]=="nativeInvite" and ir[2][2]=="invite" and ir[2][3]==2 and not ic.inviteEmpirePlayer3)
  local c,l,r,images,badge=render(nil,100,false,{
   {empireId=2,empireName="First",empireBadge="crown"},
   {empireId=2,empireName="First",empireBadge="crown"},

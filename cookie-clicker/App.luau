@@ -8,6 +8,7 @@ local e = React.createElement
 local Model = require(script.Parent.Model)
 local Layout = require(script.Parent.Layout)
 local makeAudio = require(script.Parent.Audio)
+local makeFeedbackQueue = require(script.Parent.FeedbackQueue)
 local ImageConfig = require(RS:WaitForChild("ImageConfig"))
 local ImageNames = require(script.Parent.ImageNames)
 local uiFont = "Georgia"
@@ -27,16 +28,18 @@ local function style(x, y, w, h, more)
 	if more then for k, v in more do result[k] = v end end
 	return result
 end
+local shopBackdrop
 local function box(id, x, y, w, h, color, children, more)
 	local s = style(x, y, w, h, more)
 	if color then s.background = color end
 	local zone=s["--zone-background"]
-    if zone then
+    local shopIcon=s["--shop-icon"];s["--shop-icon"]=nil
+    if zone or shopIcon then
         s["--zone-background"]=nil
         s.overflow="hidden"
         children={
             e("div",{key="zoneInset",id="zoneInset",style=style(4,4,w-8,h-8,{overflow="hidden",["z-index"]="0"})},
-                e("img",{key="zoneImage",id="zoneImage",style=style(0,0,w-8,h-8,{["background-image"]="url("..ImageConfig.get("ZoneBackground/"..zone)..")",["object-fit"]="cover"})}),
+                shopIcon and shopBackdrop(shopIcon,w-8,h-8) or e("img",{key="zoneImage",id="zoneImage",style=style(0,0,w-8,h-8,{["background-image"]="url("..ImageConfig.get("ZoneBackground/"..zone)..")",["object-fit"]="cover"})}),
                 e("div",{key="zoneShade",id="zoneShade",style=style(0,0,w-8,h-8,{background="rgba(17,13,10,0.66)",["z-index"]="1"})})),
             e("div",{key="zoneContent",id="zoneContent",style=style(0,0,w,h,{["z-index"]="2"})},table.unpack(children or {})),
         }
@@ -63,6 +66,10 @@ local function button(id, text, x, y, w, h, callback, more, kids, hover, highlig
 	if more then for k, v in more do s[k] = v end end
 	local children = kids or {}
 	if text ~= "" then table.insert(children, 1, text) end
+    local shopIcon=s["--shop-icon"];s["--shop-icon"]=nil
+    if shopIcon then
+        children={shopBackdrop(shopIcon,w,h),e("div",{key="shopContent",id="shopContent",style=style(0,0,w,h,{["z-index"]="2"})},table.unpack(children))}
+    end
 	if hover then return e(HoverButton, {key=id,id=id,style=s,onClick=callback,content=children,hover=hover,highlight=highlight}) end
 	return e("button", { key = id, id = id, style = s, onClick = callback, onMouseEnter = hover and function() hover(true) end, onMouseLeave = hover and function() hover(false) end }, table.unpack(children))
 end
@@ -74,6 +81,74 @@ local function picture(id,name,x,y,w,h,more)
     if more then for k,v in more do s[k]=v end end
     return e("img",{key=id,id=id,style=s})
 end
+-- A static, weighted image stack approximates a soft blur within this card.
+local shopBackdropCache={}
+local function configureShopGroup(group)
+    if group then group.GroupTransparency=.55;group.Interactable=false end
+end
+shopBackdrop=function(name,w,h)
+    local key=name..":"..w..":"..h
+    if shopBackdropCache[key] then return shopBackdropCache[key] end
+    local seed=0
+    for i=1,#name do seed=(seed*31+string.byte(name,i))%2147483647 end
+    local rng=Random.new(seed)
+    local kids={}
+    for i=1,3 do
+        local size=math.min(h*.95,92)*rng:NextNumber(.8,1.2)
+        local x=(i-.5)*w/3-size/2+rng:NextNumber(-w*.06,w*.06)
+        local y=rng:NextNumber(-size*.2,math.max(0,h-size*.65))
+        local rotation=rng:NextInteger(-35,35)
+        for j,offset in {{0,0},{-3,0},{3,0},{0,-3},{0,3}} do
+            kids[#kids+1]=picture("scatter"..i.."_"..j,name,x+offset[1],y+offset[2],size,size,{rotation=tostring(rotation),opacity=j==1 and "0.32" or "0.14"})
+        end
+    end
+    local result=e("canvasgroup",{key="shopBackdrop",id="shopBackdrop",ref=configureShopGroup,style=style(0,0,w,h,{background="transparent",overflow="hidden",["z-index"]="0"})},table.unpack(kids))
+    -- Bound cached layouts when resizing; mounted elements remain owned by React.
+    if not shopBackdropCache[key] then
+        local count=0;for _ in shopBackdropCache do count+=1 end
+        if count>=128 then shopBackdropCache={} end
+    end
+    shopBackdropCache[key]=result
+    return result
+end
+
+local function MenuImageButton(props)
+    local zoom=props.name=="More" and 1.65 or 1.5
+    local visual=React.useRef({}).current
+    if not visual.bind then
+        visual.bind=function(face)
+            if visual.tint then visual.tint:Cancel();visual.tint=nil end
+            if visual.bounce then visual.bounce:Cancel();visual.bounce=nil end
+            visual.face=face
+            visual.scale=nil
+            if face then
+                local scale=Instance.new("UIScale")
+                scale.Name="MenuPressScale";scale.Parent=face
+                visual.scale=scale
+            end
+        end
+    end
+    local function activate()
+        if visual.face then
+            if visual.tint then visual.tint:Cancel() end
+            if visual.bounce then visual.bounce:Cancel() end
+            visual.face.ImageColor3=Color3.fromRGB(145,145,145)
+            local tweenService=game:GetService("TweenService")
+            local timing=TweenInfo.new(.18,Enum.EasingStyle.Quad,Enum.EasingDirection.Out)
+            visual.tint=tweenService:Create(visual.face,timing,{ImageColor3=Color3.new(1,1,1)})
+            visual.tint:Play()
+            if visual.scale and not props.reducedMotion then
+                visual.scale.Scale=.94
+                visual.bounce=tweenService:Create(visual.scale,timing,{Scale=1})
+                visual.bounce:Play()
+            end
+        end
+        props.activate()
+    end
+    return e("button",{id="nav"..props.name,onClick=activate,style=style(props.x,4,props.width,52,{background="transparent",overflow="visible",border="0px solid transparent"})},
+        e("img",{id="menuFace",ref=visual.bind,style=style(props.width*(1-zoom)/2,-26,props.width*zoom,52*zoom,{background="transparent",["background-image"]="url("..ImageConfig.get("MenuButtons/"..props.name.."Button")..")",["object-fit"]="contain"})}))
+end
+
 -- A static, weighted image stack approximates a soft blur within this card.
 -- It is cached, does not animate, and leaves text/buttons outside the blur.
 local standBackgroundCache={}
@@ -130,7 +205,7 @@ local function upgradeBenefit(u, state)
 	return "Each " .. building.name:lower() .. " makes " .. number(before*2,true) .. " cookies a second instead of " .. number(before,true) .. "."
 end
 local animationRules = toil.cssToRules([[
-@keyframes goldenFall { from { top: -72px; rotation: -20; } to { top: 100%; rotation: 160; } }
+@keyframes goldenFall { from { top: -12%; rotation: -20; } to { top: 100%; rotation: 160; } }
 @keyframes shine { from { rotation: 0; } to { rotation: 360; } }
 @keyframes orbit { from { rotation: 0; } to { rotation: -360; } }
 @keyframes cursorTap { 0% { transform: translate(0px,0px); } 90% { transform: translate(0px,0px); } 95% { transform: translate(0px,5px); } 100% { transform: translate(0px,0px); } }
@@ -178,6 +253,27 @@ return function()
 	local audio = makeAudio()
 	local alive = true
 	local notify = function() end
+    local showEmpireInvitation=function()end
+    local invitePromptBusy=false
+    local function inviteFriends()
+        local empire=snapshot.empire
+        if not empire or snapshot.empirePending or invitePromptBusy then return end
+        invitePromptBusy=true
+        task.spawn(function()
+            local options=Instance.new("ExperienceInviteOptions")
+            options.PromptMessage="Invite friends to your cookie empire!"
+            options.LaunchData=game:GetService("HttpService"):JSONEncode({cookieEmpire=empire.id})
+            local ok,allowed=pcall(function()
+                local social=game:GetService("SocialService")
+                if not social:CanSendGameInviteAsync(Players.LocalPlayer) then return false end
+                social:PromptGameInvite(Players.LocalPlayer,options)
+                return true
+            end)
+            options:Destroy();invitePromptBusy=false
+            if alive and (not ok or not allowed) then notify("Friend invites are unavailable here. You can invite players in this server below.","info") end
+        end)
+    end
+    local feedbackQueue
 	local lastEventId = 0
 	snapshot.saveStatus = "Connecting…"
 	local refresh
@@ -188,6 +284,7 @@ return function()
 	-- Reflow panels to the actual viewport; text stays at native pixel sizes.
 	local displayWidth, displayHeight, uiScale, mobile, contentHeight, landscape
 	local guiService=game:GetService("GuiService")
+	local input=game:GetService("UserInputService")
 	local safeArea
 	local function measureViewport()
 		local viewport = workspace.CurrentCamera.ViewportSize
@@ -195,7 +292,8 @@ return function()
 		local size=safeArea and safeArea.AbsoluteSize
 		local width,height=viewport.X-topLeft.X-bottomRight.X,viewport.Y-topLeft.Y-bottomRight.Y
 		if size and size.X>0 and size.Y>0 then width,height=size.X,size.Y end
-		local layout = Layout.measure(width,height)
+		local touchLayout=input.TouchEnabled and (input.PreferredInput==Enum.PreferredInput.Touch or not input.KeyboardEnabled)
+		local layout = Layout.measure(width,height,touchLayout)
 		uiScale, displayWidth, displayHeight, mobile, contentHeight = layout.scale, layout.width, layout.height, layout.mobile, layout.contentHeight
 		landscape=layout.landscape
 		uiFont=mobile and "Arial" or "Georgia"
@@ -215,17 +313,17 @@ return function()
 	end
 	local function Feedback()
 		local message = React.useState(nil)
-		local serial = React.useRef(0)
-		notify=function(text,kind)
-			serial.current+=1
-			local id=serial.current
-			message[2]({text=text,kind=kind})
-			audio.play(kind)
-			task.delay(4,function()if alive and serial.current==id then message[2](nil)end end)
-		end
+        if not feedbackQueue then
+            feedbackQueue=makeFeedbackQueue(function(value)
+                if not alive then return end
+                message[2](value)
+                if value then audio.play(value.kind) end
+            end,task.delay,task.cancel)
+            notify=feedbackQueue.push
+        end
 		local value=message[1]
 		local w=math.min(540,displayWidth-20)
-		return box("feedback",(displayWidth-w)/2,mobile and 34 or 42,w,76,value and value.kind=="error" and "#603728" or "#30462c",{
+		return box("feedback",(displayWidth-w)/2,mobile and math.max(0,displayHeight-172) or 42,w,76,value and value.kind=="error" and "#603728" or "#30462c",{
 			label("feedbackText",value and value.text or "",12,8,w-24,60,19,"#ffffff",{["text-align"]="center"})
 		},{display=value and "block" or "none",["z-index"]="100",border="2px solid #dabf81"})
 	end
@@ -308,7 +406,8 @@ return function()
         refreshCounters = state[2]
         return e(React.Fragment, nil,
             label("cookieCount", number(snapshot.cookies) .. (math.floor(snapshot.cookies) == 1 and " cookie" or " cookies"), 12, 56, props.width-24, 32, 31, "#ffffff", {["text-align"]="center"}),
-            label("cps", number(snapshot.cps, true).." cookies / second", 12, 88, props.width-24, 23, 19, "#ffffff", {["text-align"]="center"}),
+            label("cps", number(snapshot.cps, true).." / sec",12,88,props.width*.55-12,23,17,"#ffffff",{["text-align"]="right"}),
+            label("friendBoost","Friend boost +"..(snapshot.friendCount or 0).."%",props.width*.55+8,88,props.width*.45-20,23,15,"#b6e6bf",{["text-align"]="left"}),
             label("bonusTimer",(snapshot.frenzyUntil or 0)>snapshot.played and ("Double baking! "..math.ceil(snapshot.frenzyUntil-snapshot.played).."s left") or "",12,116,props.width-24,22,16,"#f4d28a",{["text-align"]="center"}))
     end
 
@@ -335,6 +434,7 @@ return function()
         local empireNameDraft=React.useRef("")
         local empireBadge=React.useState("cookie")
         local empireEdit=React.useState(false)
+        showEmpireInvitation=function()setPage("More");setTab("Work");workPage[2]("Empire")end
 		navigateBack=function()
 			if mobile and page~="More" then
 				if page=="Bake" then return false end
@@ -453,12 +553,19 @@ return function()
 					{ "Cookie clicks", number(state.clicks) }, { "Hand-made cookies", number(state.handmade) },
 					{ "Run duration", math.floor(state.played / 60) .. " minutes" }, { "Achievements", unlocked .. " / " .. #Model.Achievements },
 				}
+				local statWidth=centerW-48
+				local stacked=statWidth<540
+				local rowHeight=stacked and 76 or 40
+				local nameWidth=stacked and statWidth or math.floor(statWidth*.5)-8
 				for i, pair in stats do
-					pane[#pane + 1] = label("statName" .. i, pair[1], 24, 68 + (i - 1) * (mobile and 52 or 34), mobile and 210 or 300, mobile and 48 or 30, 17)
-					pane[#pane + 1] = label("statValue" .. i, pair[2], mobile and 235 or 326, 68 + (i - 1) * (mobile and 52 or 34), mobile and centerW-259 or 274, mobile and 48 or 30, 17, "#d4b474", { ["text-align"] = "right" })
+					local rowY=68+(i-1)*rowHeight
+					pane[#pane + 1] = label("statName" .. i, pair[1], 24,rowY,nameWidth,32,17)
+					pane[#pane + 1] = label("statValue" .. i, pair[2],stacked and 24 or 24+nameWidth+16,rowY+(stacked and 32 or 0),stacked and statWidth or statWidth-nameWidth-16,36,19,"#d4b474",{["text-align"]=stacked and "left" or "right"})
 				end
-				pane[#pane + 1] = label("achievementHeading", "Achievements", 24, mobile and 490 or 362, centerW-48, 36, 27)
-				for i, a in Model.Achievements do pane[#pane + 1] = label("achievement" .. i, (state.achievements[a[1]] and "Done: " or "Goal: ") .. a[1] .. "  —  " .. a[2], 24, (mobile and 535 or 405) + (i - 1) * (mobile and 60 or 36), centerW-48, mobile and 56 or 32, 16, state.achievements[a[1]] and "#e6c980" or "#877c6e") end
+				local achievementY=68+#stats*rowHeight+16
+				local achievementHeight=stacked and 88 or 56
+				pane[#pane + 1] = label("achievementHeading", "Achievements",24,achievementY,statWidth,36,27)
+				for i, a in Model.Achievements do pane[#pane + 1] = label("achievement" .. i, (state.achievements[a[1]] and "Done: " or "Goal: ") .. a[1] .. "  —  " .. a[2],24,achievementY+44+(i-1)*achievementHeight,statWidth,achievementHeight-4,16,state.achievements[a[1]] and "#e6c980" or "#877c6e") end
 			elseif tab == "Options" then
 				pane[#pane + 1] = button("saveGame", "Save now", 24, 74, 150, 48, function() send("save") end)
 				pane[#pane + 1] = label("saveStatus", state.saveStatus or "", 190, 74, centerW-214, 60, 17)
@@ -535,15 +642,24 @@ return function()
                         elseif not displayed then
                             card[#card+1]=button("displayItem"..item.id,"Display for +"..math.floor(item.bonus*100).."%",12,112,w-24,48,function()send("economy","collect",item.id)end,{background=owned>0 and "#605193" or "#51483d",["font-size"]="21px"})
                         else card[#card+1]=label("activeBoost","Boost is active",14,117,w-28,35,21,"#b6e6bf") end
-                        pane[#pane+1]=box("itemCard"..item.id,24,y,w,172,"#342d25",card,{border="1px solid "..rarityColors[item.rarity],["border-radius"]="12px",["--zone-background"]=ImageNames.itemBackgrounds[item.id]});y+=184
+                        pane[#pane+1]=box("itemCard"..item.id,24,y,w,172,"#342d25",card,{border="1px solid "..rarityColors[item.rarity],["border-radius"]="12px",["--zone-background"]=ImageNames.itemBackgrounds[item.id],["--shop-icon"]=workPage[1]=="Shop" and ImageNames.items[item.id] or nil});y+=184
                     end
                 elseif workPage[1]=="Empire" then
                     local empire=state.empire
-                    local function empireButton(id,title,kind,arg,extra)
-                        pane[#pane+1]=button(id,title,24,y,w,48,function()if not state.empirePending then send("empire",kind,arg,extra) end end,{["font-size"]="20px",background="#544479"});y+=56
-                    end
                     local function badgeArt(id,badge,x,py)
                         return picture(id,ImageNames.badges[badge] or "CookieEmpire",x,py,64,64)
+                    end
+                    if state.empireInvite and not empire then
+                        local invite=state.empireInvite
+                        pane[#pane+1]=box("empireInvitation",24,y,w,190,"#342d25",{
+                            badgeArt("invitedBadge",invite.badge,8,4),
+                            label("invitedName","Join "..invite.name.."?",82,8,w-94,70,21,"#fff0d8"),
+                            button("acceptEmpireInvite","Join empire",12,88,w-24,44,function()if not state.empirePending then send("empire","join",invite.id) end end,{background="#276849"}),
+                            button("declineEmpireInvite","Not now",12,138,w-24,44,function()send("empire","declineInvite")end,{background="transparent",border="0px solid transparent",["font-size"]="16px"}),
+                        });y+=202
+                    end
+                    local function empireButton(id,title,kind,arg,extra)
+                        pane[#pane+1]=button(id,title,24,y,w,48,function()if not state.empirePending then send("empire",kind,arg,extra) end end,{["font-size"]="20px",background="#544479"});y+=56
                     end
                     if empire then
                         pane[#pane+1]=badgeArt("myEmpireBadge",empire.badge,24,y)
@@ -581,6 +697,15 @@ return function()
                             end
                             pane[#pane+1]=button("editEmpire","Name & picture",24,y,w,48,function()empireEdit[2](not empireEdit[1])end);y+=56
                         else empireButton("leaveEmpire","Leave empire","leave") end
+                    end
+                    if empire then
+                        pane[#pane+1]=button("inviteEmpireFriends","Invite a friend to empire",24,y,w,48,inviteFriends,{background="#276849",["font-size"]="18px"});y+=60
+                        for _,other in state.socialPlayers or {} do
+                            if other.id~=state.playerId and not other.empireId then
+                                local id=other.id
+                                pane[#pane+1]=button("inviteEmpirePlayer"..id,"Invite "..other.name,24,y,w,48,function()send("empire","invite",id)end);y+=56
+                            end
+                        end
                     end
                     if not empire or empireEdit[1] then
                         text("empireCreateLabel",empire and "Give your team a new look" or "Make your cookie team",36)
@@ -714,44 +839,83 @@ return function()
                     pane[#pane+1]=label("activityName",adventurePage[1],176,y+6,w-152,36,24,"#ffe3a3")
                     y+=64
                     if adventurePage[1]=="Stars" then
-				text("prestigeInfo","Fresh start: "..number(state.prestige).." baking stars.\nYou can earn "..number(Model.ascensionGain(state)).." star chips now. Each star adds 1% baking.",85)
-				text("freshWarning","A fresh start resets cookies, buildings and normal boosts. Keep your stars, sugar lumps, building levels and achievements.",90)
-				pane[#pane+1]=button("ascendBakery",confirmFresh[1] and "Confirm: start a new bakery" or "Start a new bakery",24,y,w,48,function()
-					if confirmFresh[1] then send("advanced","ascend");confirmFresh[2](false) else confirmFresh[2](true) end
-				end);y+=56
+                    local gain=Model.ascensionGain(state)
+                    pane[#pane+1]=box("starReward",24,y,w,108,"#342d25",{
+                        picture("starPicture","Stars",12,12,72,72),
+                        label("starGain","+"..number(gain).." star chips",96,12,w-108,38,26,"#ffe3a3"),
+                        label("starBonus","Each star adds 1% baking",96,54,w-108,40,18,"#b6e6bf"),
+                    },{["border-radius"]="10px"});y+=120
+                    text("prestigeInfo",number(state.prestige).." stars earned • "..number(state.chips).." chips to spend",44)
+                    if gain<1 then text("starUnlock","Keep baking to earn your next star chip",48) end
+                    text("freshWarning","Start over: cookies, buildings, regular boosts and Adventure activities.",70)
+                    text("freshKeep","Keep: stars, permanent boosts, lumps, building levels, achievements and Work progress.",84)
+                    if confirmFresh[1] then
+                        text("freshDetails","Your ingredients, garden, helpers, magic and wrinklers also reset.",70)
+                    end
+                    pane[#pane+1]=button("ascendBakery",gain<1 and "No star chips ready yet" or confirmFresh[1] and "Confirm fresh start" or "Start a new bakery",24,y,w,48,function()
+                        if gain<1 then return end
+                        if confirmFresh[1] then send("advanced","ascend");confirmFresh[2](false) else confirmFresh[2](true) end
+                    end,{background=gain>=1 and "#544479" or "#403a43"});y+=56
 				if confirmFresh[1] then pane[#pane+1]=button("cancelAscend","Keep my bakery",24,y,w,48,function()confirmFresh[2](false)end);y+=56 end
 
                     elseif adventurePage[1]=="Boosts" then
 				text("chipCount","Star chips: "..number(state.chips),32)
-				action("heavenlyBaking","10% more baking - 1 star chip","heavenly","baking")
-				action("heavenlyTapping","10% more per click - 1 star chip","heavenly","tapping")
-				action("heavenlySlot","Keep one boost - 3 star chips","heavenly","slot")
+                    for _,boost in {{"baking","CookieBoost","+10% baking",1,"heavenlyBaking"},{"tapping","CursorCookie","+10% per tap",1,"heavenlyTapping"},{"slot","Stars","Keep one boost",3,"heavenlySlot"}} do
+                        local owned=state.heavenly[boost[1]]==true
+                        local ready=not owned and state.chips>=boost[4]
+                        pane[#pane+1]=box("heavenlyCard"..boost[1],24,y,w,136,"#342d25",{
+                            picture("boostPicture",boost[2],12,8,60,60),
+                            label("boostBenefit",boost[3],84,10,w-96,32,22,"#fff4df"),
+                            label("boostLasts","Stays after a fresh start",84,44,w-96,32,17,"#b6e6bf"),
+                            button(boost[5],owned and "Owned!" or (ready and "Buy • " or "Need ")..boost[4]..(boost[4]==1 and " star chip" or " star chips"),12,80,w-24,44,function()if ready then send("advanced","heavenly",boost[1]) end end,{background=owned and "#403a43" or ready and "#544479" or "#403a43",["font-size"]="21px"}),
+                        },{["border-radius"]="10px"});y+=148
+                    end
 				if state.heavenly.slot then
 					text("permanentChoice","Choose a boost to keep. Current: "..(state.permanentUpgrade~="" and (upgradeNames[state.permanentUpgrade] or state.permanentUpgrade) or "none"),60)
 					for _,u in Model.Upgrades do if state.upgrades[u.id] then action("keep"..u.id,"Keep "..(upgradeNames[u.id] or u.name),"permanent",u.id) end end
 				end
 
                     elseif adventurePage[1]=="Levels" then
-				text("lumpCount","Sugar lumps: "..number(state.lumps).."\nAfter baking 1 million cookies, grow a lump every 20 hours of bakery time.",75)
-				for i,b in Model.Buildings do if state.buildings[i]>0 then action("level"..i,b.name.." level "..state.levels[i]..": +1% for "..(state.levels[i]+1).." lumps","level",i) end end
+                    text("lumpCount",number(state.lumps).." sugar lumps",34)
+                    if state.earned<1e6 then
+                        text("lumpUnlock","Bake 1 million cookies to grow sugar lumps",48)
+                    else
+                        local minutes=math.ceil(math.max(0,20*3600-state.lumpTime)/60)
+                        text("lumpNext","Next lump: "..math.floor(minutes/60).."h "..(minutes%60).."m",34)
+                    end
+                    local found=false
+                    for i,b in Model.Buildings do if state.buildings[i]>0 then
+                        found=true
+                        local level=state.levels[i]
+                        local maxed=level>=100
+                        local cost=level+1
+                        local ready=not maxed and state.lumps>=cost
+                        pane[#pane+1]=box("levelCard"..i,24,y,w,144,"#342d25",{
+                            buildingPicture("levelPicture",i,12,12,60,60),
+                            label("levelName",b.name,84,10,w-96,30,22,"#fff4df"),
+                            label("levelBonus","Level "..level.." • +"..level.."% baking",84,44,w-96,34,18,"#b6e6bf"),
+                            button("level"..i,maxed and "Highest level!" or ready and "Level up • "..cost.." lumps" or "Need "..cost.." sugar lumps",12,90,w-24,44,function()if ready then send("advanced","level",i) end end,{background=ready and "#276849" or "#403a43",["font-size"]="20px"}),
+                        },{["border-radius"]="10px"});y+=156
+                    end end
+                    if not found then text("levelsEmpty","Buy a building in the store to level it up",60) end
 
                     elseif adventurePage[1]=="Buddies" then
                     local feeding=state.buddies and state.buildings[2]>=10
                     text("buddyInfo","Wrinklers save 5% of your baking each. Pop one to get its cookies back, plus 10% extra!",72)
                     if state.buildings[2]<10 then text("buddyUnlock","Own 10 grandmas to invite wrinklers.",48)
                     else action("buddyToggle",state.buddies and "Pause feeding" or "Invite wrinklers","buddies") end
-                    text("buddyStatus",#(state.wrinklers or {}).." / 10 wrinklers"..(feeding and " ? feeding" or " ? resting"),32)
+                    text("buddyStatus",#(state.wrinklers or {}).." / 10 wrinklers"..(feeding and " - feeding" or " - resting"),32)
                     if feeding and #(state.wrinklers or {})<10 then
                         text("nextWrinkler","Next arrival: "..math.ceil(60-(state.wrinklerTime or 0)).."s",28)
                     end
                     for i,wrinkler in state.wrinklers or {} do
                         local id=wrinkler.id
-                        pane[#pane+1]=box("wrinklerCard"..id,24,y,w,78,"#342d25",{
-                            picture("savedCookies","Cookie",8,20,32,32),
-                            label("wrinklerName","Wrinkler "..i,48,6,w-152,26,18,"#fff4df"),
-                            label("wrinklerReward",number(wrinkler.bank*1.1).." cookies",48,36,w-152,28,19,"#f5d58f"),
-                            button("popWrinkler"..id,"Pop!",w-96,15,84,48,function()send("advanced","popWrinkler",id)end,{background="#516d36"}),
-                        });y+=86
+                        pane[#pane+1]=box("wrinklerCard"..id,24,y,w,104,"#342d25",{
+                            picture("savedCookies","Cookie",8,14,32,32),
+                            label("wrinklerName","Wrinkler "..i,48,14,w-152,32,18,"#fff4df"),
+                            label("wrinklerReward",number(wrinkler.bank*1.1).." cookies",12,62,w-24,34,19,"#f5d58f"),
+                            button("popWrinkler"..id,"Pop!",w-96,8,84,48,function()send("advanced","popWrinkler",id)end,{background="#516d36"}),
+                        });y+=112
                     end
                     if state.buddyBank>0 then action("collectBuddies","Collect all: "..number(state.buddyBank*1.1),"collectBuddies") end
 
@@ -775,18 +939,41 @@ return function()
                     else text("gardenReward","Harvest for +5% baking for 10 minutes.",44) end
 
                     elseif adventurePage[1]=="Market" then
-				text("marketInfo","Ingredient market (need a bank)\nBuy low, sell later. Prices change every 30 seconds. Selling returns 90% of the price.",90)
-				for i,name in {"Flour","Sugar","Chocolate"} do
-					text("stock"..i,name..": own "..state.stocks[i],30)
-					action("stockBuy"..i,"Buy "..name.." - "..Model.stockPrice(state,i).." cookies","stockBuy",i)
-					action("stockSell"..i,"Sell "..name.." - "..math.floor(Model.stockPrice(state,i)*.9).." cookies","stockSell",i)
-				end
+                    local unlocked=state.buildings[6]>0
+                    text("marketInfo",unlocked and "Buy low. Sell when prices rise." or "Buy a bank to open the market",44)
+                    text("marketTimer","New prices in "..math.ceil(30-state.played%30).."s",32)
+                    for i,name in {"Flour","Sugar","Chocolate"} do
+                        local price=Model.stockPrice(state,i)
+                        local sellPrice=math.floor(price*.9)
+                        local owned=state.stocks[i]
+                        local canBuy=unlocked and state.cookies>=price and owned<10000
+                        local canSell=unlocked and owned>0
+                        local half=(w-32)/2
+                        pane[#pane+1]=box("stockCard"..i,24,y,w,174,"#342d25",{
+                            label("stockName",name,14,10,w-28,32,25,"#fff4df"),
+                            label("stockOwned","In your pantry: "..owned,14,46,w-28,28,19,"#dbc5ef"),
+                            label("stockBuyPrice",number(price).." cookies",12,82,half,28,20,"#ffe3a3",{["text-align"]="center"}),
+                            label("stockSellPrice",number(sellPrice).." cookies",20+half,82,half,28,20,"#b6e6bf",{["text-align"]="center"}),
+                            button("stockBuy"..i,owned>=10000 and "Pantry full" or "Buy one",12,118,half,44,function()if canBuy then send("advanced","stockBuy",i) end end,{background=canBuy and "#276849" or "#403a43",["font-size"]="20px"}),
+                            button("stockSell"..i,"Sell one",20+half,118,half,44,function()if canSell then send("advanced","stockSell",i) end end,{background=canSell and "#544479" or "#403a43",["font-size"]="20px"}),
+                        },{["border-radius"]="10px",["--zone-background"]="CookieMarket"});y+=186
+                    end
+                    text("marketFee","Selling pays 90% of the current price.",40)
 
                     elseif adventurePage[1]=="Helpers" then
-				text("spiritInfo","Temple helpers (need a temple)\nChoose one helper. Wait 1 minute to change. Current: "..state.spirit,80)
-				action("spiritBake","Baking helper: 10% more baking","spirit","baking")
-				action("spiritClick","Click helper: 10% more per click","spirit","clicking")
-				action("spiritLuck","Lucky helper: 20% more lucky rewards","spirit","luck")
+                    local unlocked=state.buildings[7]>0
+                    local remaining=math.max(0,60-(state.played-state.spiritChanged))
+                    text("spiritInfo",not unlocked and "Buy a temple to meet your helpers" or remaining>0 and "Switch helpers in "..math.ceil(remaining).."s" or "Choose one helper",48)
+                    for _,helper in {{"baking","Cookie","Baker","+10% baking","spiritBake"},{"clicking","CursorCookie","Tap helper","+10% per tap","spiritClick"},{"luck","GoldenCookie","Lucky helper","+20% lucky cookies","spiritLuck"}} do
+                        local active=state.spirit==helper[1]
+                        local ready=unlocked and remaining==0 and not active
+                        pane[#pane+1]=box("helperCard"..helper[1],24,y,w,146,"#342d25",{
+                            picture("helperPicture",helper[2],12,12,60,60),
+                            label("helperName",helper[3],84,12,w-96,30,22,"#fff4df"),
+                            label("helperBonus",helper[4],84,46,w-96,32,19,"#b6e6bf"),
+                            button(helper[5],active and "Helping you!" or not unlocked and "Need a temple" or remaining>0 and "Wait "..math.ceil(remaining).."s" or "Choose helper",12,90,w-24,44,function()if ready then send("advanced","spirit",helper[1]) end end,{background=active and "#276849" or ready and "#544479" or "#403a43",["font-size"]="21px"}),
+                        },{border=active and "2px solid #97ce8a" or "1px solid #827052",["border-radius"]="10px"});y+=158
+                    end
 
                     elseif adventurePage[1]=="Magic" then
                     local unlocked=state.buildings[8]>0
@@ -851,7 +1038,7 @@ return function()
 			}
 			upgradeCards[#upgradeCards+1] = button("upgrade_"..u.id,"",0,(i-1)*112,boostW-22,108,function()
 				send("upgrade",u.id)
-			end,{background=affordable and "#3e5130" or "#393129"},kids,function(inside) setHover(inside and u.id or 0) end)
+			end,{background=affordable and "#3e5130" or "#393129",["--shop-icon"]=ImageNames.buildings[u.building]},kids,function(inside) setHover(inside and u.id or 0) end)
 		end
 		if #upgrades == 0 then
 			local hasBuildings = false
@@ -881,7 +1068,7 @@ return function()
 				label("buildingPrice" .. i, number(price), 109, 38, productW-124, 30, 22, affordable and "#91cf74" or "#b07865"),
 				label("buildingOwned" .. i, state.buildings[i] > 0 and tostring(state.buildings[i]) or "", productW - 68, 8, 46, 52, 38, "#afa18a", { ["text-align"] = "right" }),
 			}
-			products[#products + 1] = button("buyBuilding" .. i, "", 0, (i - 1) * 76, productW - 9, 74, function() send("trade", i, bulk, sell) end, { background = "linear-gradient(90deg, #534c40, #2d2923)", border = "1px solid #74634c" }, kids, function(inside) setHover(inside and i or 0) end, "linear-gradient(90deg, #766a54, #463f34)")
+			products[#products + 1] = button("buyBuilding" .. i, "", 0, (i - 1) * 76, productW - 9, 74, function() send("trade", i, bulk, sell) end, { background = "linear-gradient(90deg, #534c40, #2d2923)", border = "1px solid #74634c",["--shop-icon"]=unlockedBuilding and ImageNames.buildings[i] or nil }, kids, function(inside) setHover(inside and i or 0) end, "linear-gradient(90deg, #766a54, #463f34)")
 			productCache[i] = {signature=signature,element=products[#products]}
 		end
 		store[#store + 1] = e("scroll", { key = "storeProducts", id = "storeProducts", style = style(productX, landscape and 78 or mobile and 275 or 258, productW, math.max(40,h - (landscape and 78 or mobile and 275 or 258)), { overflow = "scroll" }) }, table.unpack(products))
@@ -895,8 +1082,7 @@ return function()
 		if mobile then
 			local nav={}
 			for i,name in {"Bake","Shop","More"} do
-                local navW=displayWidth/3-8
-				nav[i]=button("nav"..name,"",(i-1)*(displayWidth/3)+4,4,navW,52,function()setPage(name);setHover(0)end,{background="transparent",overflow="visible",border=page==name and "2px solid #ffe19a" or "0px solid transparent"},{picture("menuFace","MenuButtons/"..name.."Button",-navW*.25,-26,navW*1.5,78,{["object-fit"]="contain"})})
+                nav[i]=e(MenuImageButton,{key=name,name=name,x=(i-1)*(displayWidth/3)+4,width=displayWidth/3-8,selected=page==name,reducedMotion=state.reducedMotion,activate=function()setPage(name);setHover(0)end})
 			end
 			children[#children+1]=box("mobileNav",0,displayHeight-60,displayWidth,60,"#171510",nav,{["z-index"]="50"})
 		end
@@ -966,21 +1152,24 @@ return function()
 	local lastAdventureSecond=-1
 	local priceCache = {}
 	local function pageSignature()
+		local storeVisible=not mobile or currentPage=="Shop"
 		local parts = {tostring(math.floor(Model.jobLevel(snapshot)/5)), snapshot.bakery, snapshot.saveStatus or "", tostring(snapshot.cps), tostring(snapshot.clickPower), tostring(snapshot.soundEnabled), tostring(snapshot.soundVolume), tostring(snapshot.reducedMotion), tostring(snapshot.goldenId), tostring((snapshot.goldenUntil or 0)>snapshot.played), tostring(snapshot.ready), tostring(snapshot.earned < 50), tostring(snapshot.earned < 1000)}
 		for i, b in Model.Buildings do
 			parts[#parts+1] = tostring(snapshot.buildings[i])
-			parts[#parts+1] = tostring(snapshot.earned >= b.price)
+			if storeVisible then parts[#parts+1] = tostring(snapshot.earned >= b.price) end
 			local cached = priceCache[i]
 			if not cached or cached.owned ~= snapshot.buildings[i] then
 				cached = {owned=snapshot.buildings[i],prices={}}
 				for _, bulk in {1,10,100} do cached.prices[#cached.prices+1] = Model.price(snapshot,i,bulk,false) end
 				priceCache[i] = cached
 			end
-			for _, price in cached.prices do parts[#parts+1] = tostring(snapshot.cookies >= price) end
+			if storeVisible then for _, price in cached.prices do parts[#parts+1] = tostring(snapshot.cookies >= price) end end
 		end
 		for _, u in Model.Upgrades do
 			parts[#parts+1] = tostring(snapshot.upgrades[u.id] == true)
-			parts[#parts+1] = tostring(snapshot.cookies >= u.price)
+			if storeVisible and not snapshot.upgrades[u.id] and snapshot.buildings[u.building]>=u.required then
+				parts[#parts+1] = tostring(snapshot.cookies >= u.price)
+			end
 		end
 		for _, a in Model.Achievements do parts[#parts+1] = tostring(snapshot.achievements[a[1]] == true) end
 		return table.concat(parts,"|")
@@ -989,13 +1178,16 @@ return function()
 		revision += 1
 		if refreshCounters then refreshCounters(revision) end
 		local signature = pageSignature()
-		if force or signature ~= lastSignature or currentTab == "Stats" or ((currentTab == "Adventure" or currentTab == "Work") and math.floor(snapshot.played) ~= lastAdventureSecond) then
+		local centerVisible=not mobile or currentPage=="More"
+		local timedMenu=centerVisible and (currentTab=="Stats" or currentTab=="Adventure" or currentTab=="Work")
+		if force or signature ~= lastSignature or (timedMenu and math.floor(snapshot.played) ~= lastAdventureSecond) then
 			lastSignature = signature
 			lastAdventureSecond=math.floor(snapshot.played)
 			if refresh then refresh(revision) end
 		end
 	end
 	local connection = remote.OnClientEvent:Connect(function(nextState)
+		local oldInvite=snapshot.empireInvite
 		snapshot = nextState
         refreshResources(nextState)
 		audio.setEnabled(snapshot.soundEnabled~=false)
@@ -1004,6 +1196,8 @@ return function()
 			if event.id>lastEventId then lastEventId=event.id;notify(event.text,event.kind) end
 		end
 		update(false)
+        local invite=snapshot.empireInvite
+        if invite and (not oldInvite or invite.id~=oldInvite.id or invite.expires~=oldInvite.expires) then showEmpireInvitation() end
 	end)
 	local resize = workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
 		measureViewport()
@@ -1013,9 +1207,11 @@ return function()
 	local safeResize=safeArea:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
 		measureViewport();viewportScale.Scale=uiScale;update(true)
 	end)
+	local inputResize=input:GetPropertyChangedSignal("PreferredInput"):Connect(function()
+		measureViewport();viewportScale.Scale=uiScale;update(true)
+	end)
 	measureViewport();viewportScale.Scale=uiScale;update(true)
-	script.Destroying:Connect(function() alive=false;connection:Disconnect(); resize:Disconnect();safeResize:Disconnect(); audio.destroy();handle.unmount();backdrop:Destroy() end)
-	local input=game:GetService("UserInputService")
+	script.Destroying:Connect(function() alive=false;if feedbackQueue then feedbackQueue.destroy() end;connection:Disconnect(); resize:Disconnect();safeResize:Disconnect();inputResize:Disconnect(); audio.destroy();handle.unmount();backdrop:Destroy() end)
 	local actions=game:GetService("ContextActionService")
 	actions:BindAction("CookieClickerBake",function(_,state)
 		if input:GetFocusedTextBox() then return Enum.ContextActionResult.Pass end

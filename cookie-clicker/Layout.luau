@@ -1,7 +1,7 @@
 local Layout={}
-function Layout.measure(width,height)
+function Layout.measure(width,height,touchLayout)
 	width,height=math.max(1,width),math.max(1,height)
-	local mobile=width<1100 or (height<600 and width<1200)
+	local mobile=touchLayout==true and (width<1100 or (height<600 and width<1200))
 	local landscape=mobile and width>height
 	-- Keep desktop controls comfortably sized while using the full viewport.
 	-- Mobile remains at native pixels; neither mode imposes an aspect ratio.

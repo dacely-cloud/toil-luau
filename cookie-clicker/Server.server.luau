@@ -25,6 +25,17 @@ local empireService=EmpireService.new(empireStore,persistence,function(record)em
 local charityStore=require(folder:WaitForChild("CharityStore")).new(Model,studio and store or DataStoreService:GetDataStore("ToilCookieCharities_v1"))
 local charityService=require(folder:WaitForChild("CharityService")).new(Model,charityStore,persistence,os.time)
 local sessions = {}
+local friendBoost=require(folder:WaitForChild("FriendBoost"))(function(a,b)
+    for attempt=1,3 do
+        local ok,result=pcall(function()return a:IsFriendsWithAsync(b.UserId)end)
+        if ok then return result end
+        if attempt<3 then task.wait(attempt) end
+    end
+    return false
+end,task.spawn,function(player,count)
+    local session=sessions[player]
+    if session and not session.closing then session.state.friendCount=count end
+end)
 local economyRandom=Random.new()
 local shuttingDown = false
 local publicPlayers={}
@@ -53,6 +64,9 @@ local function send(player, session)
 	snapshot.events = session.events
     snapshot.serverNow=os.time()
     snapshot.playerId=player.UserId
+    if session.empireInvite and session.empireInvite.expires>os.time() and not session.state.economy.empireId then
+        snapshot.empireInvite=session.empireInvite
+    end
     if session.empire then
         local r=session.empire;local count=0
         for _,member in r.members do if member.active then count+=1 end end
@@ -104,6 +118,27 @@ local function load(player)
 			session.saveStatus=studio and "Test game: progress resets when testing stops" or "Your bakery is saved"
 			session.seenAchievements=table.clone(session.state.achievements)
 			sessions[player]=session
+            session.state.friendCount=friendBoost.count(player)
+            task.spawn(function()
+                for _=1,10 do
+                    if not player.Parent or session.closing then return end
+                    local ok,data=pcall(function()return player:GetJoinData()end)
+                    local launch=ok and data.LaunchData
+                    if type(launch)=="string" and launch~="" then
+                        local parsed,value=pcall(function()return HttpService:JSONDecode(launch)end)
+                        local id=parsed and type(value)=="table" and value.cookieEmpire
+                        if type(id)=="number" and id==id and id%1==0 and id>0 and id<=9007199254740991 then
+                            local record=empireStore.read(id)
+                            if record and not session.closing and not session.state.economy.empireId then
+                                session.empireInvite={id=id,name=record.name,badge=record.badge,expires=os.time()+600}
+                                send(player,session)
+                            end
+                        end
+                        return
+                    end
+                    task.wait(1)
+                end
+            end)
             task.spawn(function() session.empireBusy=true;empireService.refresh(session,player.UserId);empireService.resume(session,player.UserId);session.empireBusy=false;session.charityBusy=true;charityService.refresh(session,player.UserId);charityService.resume(session,player.UserId);session.charityBusy=false end)
 			if session.offlineCookies>=1 then notice(session,"success","Welcome back! Your bakery made "..math.floor(session.offlineCookies).." cookies while you were away.") end
 			send(player,session)
@@ -124,9 +159,10 @@ local function save(player, session, release)
 	send(player,session)
 	return ok
 end
-Players.PlayerAdded:Connect(load)
-for _, player in Players:GetPlayers() do task.spawn(load,player) end
+Players.PlayerAdded:Connect(function(player)friendBoost.add(player);load(player)end)
+for _, player in Players:GetPlayers() do friendBoost.add(player);task.spawn(load,player) end
 Players.PlayerRemoving:Connect(function(player)
+    friendBoost.remove(player)
 	local session=sessions[player]
 	if session then
 		session.closing=true
@@ -149,6 +185,29 @@ remote.OnServerEvent:Connect(function(player, action, index, quantity, sell)
 	end
 	local state=session.state
 	if action=="empire" then
+        if index=="declineInvite" then session.empireInvite=nil;send(player,session);return end
+        if index=="invite" then
+            if session.lastEmpireInvite and os.clock()-session.lastEmpireInvite<5 then return end
+            session.lastEmpireInvite=os.clock()
+            local valid=type(quantity)=="number" and quantity==quantity and quantity%1==0 and math.abs(quantity)<=9007199254740991
+            local target=valid and Players:GetPlayerByUserId(quantity)
+            local recipient=target and sessions[target]
+            local empire=session.empire
+            local member=empire and empire.members[tostring(player.UserId)]
+            if not recipient or target==player or not recipient.ready or recipient.closing or recipient.state.economy.empireId then
+                notice(session,"error","Choose a player here who is not in an empire yet.")
+            elseif not empire or not member or not member.active or session.state.economy.empireId~=empire.owner or session.state.economy.empireMembership then
+                notice(session,"error","Join an empire before inviting friends.")
+            elseif recipient.empireInvite and recipient.empireInvite.expires>os.time() then
+                notice(session,"info","They already have an invitation to answer.")
+            else
+                recipient.empireInvite={id=empire.owner,name=empire.name,badge=empire.badge,expires=os.time()+120}
+                notice(recipient,"info",player.DisplayName.." invited you to their empire!")
+                notice(session,"success","Invitation sent to "..target.DisplayName.."!")
+                send(target,recipient)
+            end
+            send(player,session);return
+        end
         if session.empireBusy or (session.lastEmpireAction and os.clock()-session.lastEmpireAction<1) then return end
         session.lastEmpireAction=os.clock();session.empireBusy=true
         local arg=quantity
@@ -158,17 +217,20 @@ remote.OnServerEvent:Connect(function(player, action, index, quantity, sell)
         if (index=="create" or index=="rename") and not arg then ok,message=false,"Try a short empire name."
         else ok,message=empireService.action(session,player.UserId,index,arg,sell) end
         session.empireBusy=false;publicUpdated=-math.huge
+        if session.state.economy.empireId then session.empireInvite=nil end
         notice(session,ok and "success" or "error",message)
         send(player,session);return
     elseif action=="click" then Model.click(state); achievements(session); return
 	elseif action=="trade" and type(index)=="number" and index%1==0 and Model.Buildings[index] and (quantity==1 or quantity==10 or quantity==100) and type(sell)=="boolean" then
 		local before=state.buildings[index]
-		if Model.trade(state,index,quantity,sell) then
+		local success,xp=Model.trade(state,index,quantity,sell)
+		if success then
 			local amount=math.abs(state.buildings[index]-before)
-			notice(session,"success",(sell and "Sold " or "You bought ")..amount.." "..Model.Buildings[index].name..(amount>1 and " buildings!" or "!"))
+			notice(session,"success",(sell and "Sold " or "You bought ")..amount.." "..Model.Buildings[index].name..(amount>1 and " buildings!" or "!")..(xp>0 and " +"..xp.." XP" or ""))
 		else notice(session,"error",sell and "You do not own any of these yet." or "Not enough cookies yet. Keep baking!") end
 	elseif action=="upgrade" and type(index)=="string" then
-		if Model.buyUpgrade(state,index) then notice(session,"success","Boost bought! Your bakery is stronger now.")
+		local success,xp=Model.buyUpgrade(state,index)
+		if success then notice(session,"success","Boost bought! Your bakery is stronger now."..(xp>0 and " +"..xp.." XP" or ""))
 		else notice(session,"error","You need more cookies, or already have this boost.") end
     elseif action=="fundraiser" or action=="charity" then
         if session.charityBusy or (session.lastCharityAction and os.clock()-session.lastCharityAction<1) then return end

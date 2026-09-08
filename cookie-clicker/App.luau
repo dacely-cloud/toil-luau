@@ -304,6 +304,8 @@ return function()
 		local nameDraft = React.useRef("")
 		local confirmFresh=React.useState(false)
 		local workPage=React.useState("Jobs")
+        local adventurePage=React.useState("Home")
+        local jarAmount=React.useState(100)
         local empireNameDraft=React.useRef("")
         local empireBadge=React.useState("cookie")
         local empireEdit=React.useState(false)
@@ -315,6 +317,7 @@ return function()
 			if confirmFresh[1] then confirmFresh[2](false)
 			elseif empireEdit[1] and tab=="Work" then empireEdit[2](false)
 			elseif tab=="Work" and workPage[1]~="Jobs" then workPage[2]("Jobs")
+			elseif tab=="Adventure" and adventurePage[1]~="Home" then adventurePage[2]("Home")
 			elseif tab~="Buildings" then setTab("Buildings")
 			elseif mobile and page=="More" then setPage("Bake")
 			else return false end
@@ -361,9 +364,21 @@ return function()
 		},{animation=not state.reducedMotion and "milkFlow 4s linear infinite" or "",transition="top 0.8s ease-out"})
 		left[#left + 1] = label("version", "v1", 12, h - 28, 120, 20, 14, "#516572")
 		local center = { stripes("brownStripes", centerW, h, "#211d19", "#28231e") }
-		center[#center + 1] = box("newsBackdrop", 0, 0, centerW, 92, "linear-gradient(90deg, #423729, #181614)")
-		center[#center + 1] = label("news", state.earned < 50 and "You feel like making cookies. But nobody wants to eat your cookies." or (state.earned < 1000 and "Your first batch goes to the neighbors. They have high hopes." or "News : local cookie production continues to rise!"), 100, 8, centerW - 200, 72, 21, "#f1e6d5", titleStyle)
-		center[#center + 1] = rail("newsRail", 0, 92, centerW, 10)
+        local workSections={
+            {"Jobs","WashCookieTray"},{"Properties","CookieStore"},{"Shop","Spatula"},{"Bag","CookieTray"},
+            {"Collection","CookieCrown"},{"Jar","CookieJar"},{"Charity","CookieFestival"},{"Empire","CookieEmpire"},
+        }
+        local shortcuts={}
+        for i,section in workSections do
+            local name=section[1]
+            shortcuts[#shortcuts+1]=button("work"..name,"",(i-1)*100,0,96,82,function()setTab("Work");workPage[2](name)end,{background=tab=="Work" and workPage[1]==name and "#74603a" or "#30271f"},{
+                picture("shortcutPicture",section[2],27,4,42,42),
+                label("shortcutName",name,2,51,92,26,16,"#fff4df",{["text-align"]="center"}),
+            })
+        end
+        center[#center+1]=e("scroll",{key="workShortcuts",id="workShortcuts",style=style(8,4,centerW-16,88,{overflow="scroll",["overflow-x"]="scroll",["overflow-y"]="hidden"})},table.unpack(shortcuts))
+        center[#center+1]=rail("shortcutsRail",0,92,centerW,10)
+
 		local tabs = { "Options", "Stats", "Adventure", "Work" }
 		for i, name in tabs do
 			center[#center + 1] = button("tab" .. name, name, 8 + (i - 1) * ((centerW - 14) / #tabs), 110, (centerW - 14) / #tabs - 4, mobile and 44 or 31, function() setTab(tab == name and "Buildings" or name) end, { background = tab == name and "#726047" or "#322a22", ["font-size"] = math.min(18,(centerW-34)/#tabs/5.5).."px" })
@@ -391,7 +406,7 @@ return function()
 				rows[#rows + 1] = label("emptyHint", "Your cookie empire starts with a click.", 25, 62, centerW - 50, 35, 22, "#968675", titleStyle)
 				rows[#rows + 1] = label("emptySub", "Buy buildings in the store to start baking automatically.", 35, 103, centerW - 70, 48, 16, "#7d7165", titleStyle)
 			end
-			center[#center + 1] = e("scroll", { key = "buildingScenes", id = "buildingScenes", style = style(0, 160, centerW, h - 190, { overflow = "scroll" }) }, table.unpack(rows))
+			center[#center + 1] = e("scroll", { key = "buildingScenes", id = "buildingScenes", style = style(0, 160, centerW, math.max(30,h - 190), { overflow = "scroll" }) }, table.unpack(rows))
 		else
 			local pane = tab=="Work" and {} or { label("panelTitle", tab, 24, 12, centerW-48, 40, 32, "#fff0d8") }
 			if tab == "Stats" then
@@ -438,12 +453,6 @@ return function()
                 local function action(id,title,kind,arg)
                     pane[#pane+1]=button(id,title,24,y,w,48,function()send("economy",kind,arg)end,{["font-size"]="18px"});y+=56
                 end
-                local sections={"Jobs","Properties","Shop","Bag","Collection","Jar","Charity","Empire"}
-                local shortcuts={}
-                for i,name in sections do
-                    shortcuts[#shortcuts+1]=button("work"..name,name,(i-1)*98,0,94,44,function()workPage[2](name)end,{background=workPage[1]==name and "#74603a" or "#30271f",["font-size"]="16px"})
-                end
-                center[#center+1]=e("scroll",{key="workShortcuts",id="workShortcuts",style=style(8,158,centerW-16,50,{overflow="scroll",["overflow-x"]="scroll",["overflow-y"]="hidden"})},table.unpack(shortcuts))
                 if workPage[1]=="Jobs" then
                     for _,job in Model.Jobs do
                         local locked=Model.jobLevel(state)<job.level
@@ -539,39 +548,74 @@ return function()
                         if not found then text("noEmpires","No teams here yet. Create one together!",50) end
                     end
                 elseif workPage[1]=="Charity" then
-                    local function socialButton(id,title,kind,arg,target)
-                        pane[#pane+1]=button(id,title,24,y,w,48,function()send(kind,arg,target)end,{["font-size"]="18px"});y+=56
-                    end
-                    text("charityHelp",state.charityPending and "Saving your fundraiser action..." or "Start a cookie party! Invite friends to help.",48)
+                    text("charityHelp",state.charityPending and "Saving your party..." or "Cookie parties",36)
                     local charity=economy.charity
                     if charity then
                         local remaining=math.max(0,charity.endsAt-(state.serverNow or 0))
-                        text("ownCharity","Your fundraiser: "..number(charity.pot).." cookies\n"..(remaining>0 and math.ceil(remaining/60).." minutes left" or "Ready to collect!"),70)
-                        socialButton("claimCharity","Collect fundraiser","fundraiser","claim")
+                        local ready=remaining==0 and not state.charityPending
+                        local tier=Model.Fundraisers[charity.tier]
+                        local progress=math.clamp(1-remaining/tier.seconds,0,1)
+                        pane[#pane+1]=box("ownParty",24,y,w,188,"#342d25",{
+                            picture("partyPicture","CookieFestival",12,12,64,64),
+                            label("partyPot",number(charity.pot).." cookies",88,12,w-100,34,23,"#ffe3a3"),
+                            label("partyTime",remaining>0 and math.ceil(remaining/60).." min left" or "Ready!",88,48,w-100,30,19,"#b6e6bf"),
+                            box("partyTrack",14,92,w-28,8,"#51483d",{box("fill",0,0,(w-28)*progress,8,"#97ce8a")}),
+                            button("claimCharity",ready and "Collect cookies" or "Growing...",12,122,w-24,50,function()if ready then send("fundraiser","claim") end end,{background=ready and "#276849" or "#51483d",["font-size"]="22px"}),
+                        },{["border-radius"]="12px"});y+=200
                     else
-                        text("charityJar","Available in jar: "..number(economy.jar).." cookies",40)
+                        pane[#pane+1]=box("partyJar",24,y,w,80,nil,{
+                            picture("jarPicture","CookieJar",0,0,64,64),
+                            label("jarBalance",number(economy.jar).." in your jar",76,4,w-76,34,22,"#ffe3a3"),
+                            button("openJar","Add cookies",76,40,w-76,40,function()workPage[2]("Jar")end,{["font-size"]="18px"}),
+                        });y+=92
                         for i,tier in Model.Fundraisers do
-                            text("charityTier"..i,tier.name..": invest "..number(tier.cost)..", collect "..number(math.floor(tier.cost*tier.multiplier)).." cookies before help or stealing.",70)
-                            socialButton("startCharity"..i,"Start "..tier.name.." fundraiser","fundraiser","start",i)
+                            local ready=economy.jar>=tier.cost and not state.charityPending
+                            pane[#pane+1]=box("partyTier"..i,24,y,w,154,"#342d25",{
+                                picture("partyPicture","CookieFestival",12,12,56,56),
+                                label("partyDuration",tier.name,80,10,w-92,28,23,"#fff4df"),
+                                label("partyReward",number(math.floor(tier.cost*tier.multiplier)).." cookies back",80,42,w-92,30,19,"#b6e6bf"),
+                                button("startCharity"..i,(ready and "Start: " or "Need: ")..number(tier.cost).." from jar",12,90,w-24,50,function()if ready then send("fundraiser","start",i) else workPage[2]("Jar") end end,{background=ready and "#276849" or "#51483d",["font-size"]="20px"}),
+                            },{["border-radius"]="12px"});y+=166
                         end
+                        text("partyChanges","Friends can add cookies. Thieves can take some.",48)
                     end
-                    text("charityPlayers","Friends? cookie parties",40)
+                    text("charityPlayers","Friends' parties",36)
                     local found=false
                     for _,other in state.socialPlayers or {} do
                         if other.id~=state.playerId and other.endsAt>(state.serverNow or 0) then
                             found=true
-                            text("charityPlayer"..other.id,other.name.."\n"..number(other.pot).." cookies | "..math.ceil((other.endsAt-state.serverNow)/60).." minutes left",65)
-                            socialButton("helpCharity"..other.id,"Help: +50 cookies, +20 XP | 5 stamina","charity","help",other.id)
-                            socialButton("stealCharity"..other.id,"Steal - 10 stamina","charity","steal",other.id)
+                            local half=(w-32)/2
+                            pane[#pane+1]=box("friendParty"..other.id,24,y,w,204,"#342d25",{
+                                picture("friendPicture","CookieDelivery",12,12,56,56),
+                                label("friendName",other.name,80,8,w-92,30,21,"#fff4df"),
+                                label("friendPot",number(other.pot).." cookies",80,40,w-92,28,19,"#ffe3a3"),
+                                label("friendTime",math.ceil((other.endsAt-state.serverNow)/60).." min left",14,78,w-28,26,18,"#ccc0ac"),
+                                button("helpCharity"..other.id,"Help",12,112,half,48,function()send("charity","help",other.id)end,{background="#276849",["font-size"]="22px"}),
+                                button("stealCharity"..other.id,"Steal",20+half,112,half,48,function()send("charity","steal",other.id)end,{background="#68402d",["font-size"]="22px"}),
+                                label("helpCost","5 stamina",12,164,half,26,17,"#a6ddeb",{["text-align"]="center"}),
+                                label("stealCost","10 stamina",20+half,164,half,26,17,"#a6ddeb",{["text-align"]="center"}),
+                            },{["border-radius"]="12px"});y+=216
                         end
                     end
-                    if not found then text("noCharities","No parties yet. Invite a friend!",48) end
+                    if found then text("helpReward","Each help earns 50 cookies + 20 XP.",48)
+                    else text("noCharities","No parties yet. Invite a friend!",48) end
                 else
-                    text("jarInfo","Cookie jar: "..number(economy.jar).." cookies\nMove cookies into your jar or take them back out.",80)
-                    for _,amount in {100,1000,10000} do
-                        action("deposit"..amount,"Deposit "..number(amount).." cookies","deposit",amount)
-                        action("withdraw"..amount,"Withdraw "..number(amount).." cookies","withdraw",amount)
+                    local artW=math.min(140,math.floor(w*.36))
+                    local controlsX=24+artW+12
+                    local controlsW=w-artW-12
+                    pane[#pane+1]=box("jarCard",24,y,artW,224,nil,{
+                        picture("jarPicture","CookieJar",0,16,artW,artW),
+                        label("jarBalance",number(economy.jar).."\ncookies in jar",0,artW+24,artW,62,21,"#ffe3a3",{["text-align"]="center"}),
+                    })
+                    local cell=(controlsW-8)/2
+                    for i,amount in {100,500,1000,10000} do
+                        pane[#pane+1]=button("jarAmount"..amount,number(amount),controlsX+((i-1)%2)*(cell+8),y+math.floor((i-1)/2)*52,cell,44,function()jarAmount[2](amount)end,{background=jarAmount[1]==amount and "#74603a" or "#30271f",["font-size"]="17px"})
                     end
+                    pane[#pane+1]=button("depositCookies","Put in",controlsX,y+108,controlsW,48,function()send("economy","deposit",jarAmount[1])end,{background="#276849",["font-size"]="22px"})
+                    pane[#pane+1]=button("withdrawCookies","Take out",controlsX,y+164,controlsW,48,function()send("economy","withdraw",jarAmount[1])end,{["font-size"]="22px"})
+                    y+=228
+                    pane[#pane+1]=button("jarParty","Start a cookie party",24,y,w,48,function()workPage[2]("Charity")end,{background="#544479",["font-size"]="21px"});y+=56
+
                 end
 
 			else
@@ -583,13 +627,38 @@ return function()
 				local function action(id,title,kind,arg)
 					pane[#pane+1]=button(id,title,24,y,w,48,function()send("advanced",kind,arg)end,{["font-size"]="18px"});y+=56
 				end
-				text("journeyIntro","Bakery adventures\nThese are simple games for growing your bakery.",64)
+                local activities={
+                    {"Stars","GoldenCookie"},{"Boosts","CookieCrown"},{"Levels","CookieTray"},
+                    {"Buddies","Grandma"},{"Garden","Farm"},{"Market","CookieMarket"},
+                    {"Helpers","CookieTemple"},{"Magic","CookieWizardTower"},{"Seasons","CookieFestival"},
+                }
+                if adventurePage[1]=="Home" then
+                    local columns=w>=480 and 3 or 2
+                    local cardW=(w-(columns-1)*12)/columns
+                    for i,activity in activities do
+                        local x=24+((i-1)%columns)*(cardW+12)
+                        local row=math.floor((i-1)/columns)
+                        pane[#pane+1]=button("adventure"..activity[1],"",x,y+row*120,cardW,108,function()adventurePage[2](activity[1])end,{background="#342d25",["border-radius"]="10px"},{
+                            picture("activityPicture",activity[2],(cardW-60)/2,8,60,60),
+                            label("activityName",activity[1],4,74,cardW-8,28,21,"#fff4df",{["text-align"]="center"}),
+                        })
+                    end
+                else
+                    local imageName="Cookie"
+                    for _,activity in activities do if activity[1]==adventurePage[1] then imageName=activity[2];break end end
+                    pane[#pane+1]=button("adventureBack","Back",24,y,80,48,function()confirmFresh[2](false);adventurePage[2]("Home")end,{["font-size"]="21px"})
+                    pane[#pane+1]=picture("activityPicture",imageName,116,y,48,48)
+                    pane[#pane+1]=label("activityName",adventurePage[1],176,y+6,w-152,36,24,"#ffe3a3")
+                    y+=64
+                    if adventurePage[1]=="Stars" then
 				text("prestigeInfo","Fresh start: "..number(state.prestige).." baking stars.\nYou can earn "..number(Model.ascensionGain(state)).." star chips now. Each star adds 1% baking.",85)
 				text("freshWarning","A fresh start resets cookies, buildings and normal boosts. Keep your stars, sugar lumps, building levels and achievements.",90)
 				pane[#pane+1]=button("ascendBakery",confirmFresh[1] and "Confirm: start a new bakery" or "Start a new bakery",24,y,w,48,function()
 					if confirmFresh[1] then send("advanced","ascend");confirmFresh[2](false) else confirmFresh[2](true) end
 				end);y+=56
 				if confirmFresh[1] then pane[#pane+1]=button("cancelAscend","Keep my bakery",24,y,w,48,function()confirmFresh[2](false)end);y+=56 end
+
+                    elseif adventurePage[1]=="Boosts" then
 				text("chipCount","Star chips: "..number(state.chips),32)
 				action("heavenlyBaking","10% more baking - 1 star chip","heavenly","baking")
 				action("heavenlyTapping","10% more per click - 1 star chip","heavenly","tapping")
@@ -598,34 +667,63 @@ return function()
 					text("permanentChoice","Choose a boost to keep. Current: "..(state.permanentUpgrade~="" and (upgradeNames[state.permanentUpgrade] or state.permanentUpgrade) or "none"),60)
 					for _,u in Model.Upgrades do if state.upgrades[u.id] then action("keep"..u.id,"Keep "..(upgradeNames[u.id] or u.name),"permanent",u.id) end end
 				end
+
+                    elseif adventurePage[1]=="Levels" then
 				text("lumpCount","Sugar lumps: "..number(state.lumps).."\nAfter baking 1 million cookies, grow a lump every 20 hours of bakery time.",75)
 				for i,b in Model.Buildings do if state.buildings[i]>0 then action("level"..i,b.name.." level "..state.levels[i]..": +1% for "..(state.levels[i]+1).." lumps","level",i) end end
+
+                    elseif adventurePage[1]=="Buddies" then
 				text("buddyInfo","Cookie buddies (need 10 grandmas)\nThey hold 5% of your baking and return 10% extra. Saved: "..number(state.buddyBank).." cookies.",90)
 				action("buddyToggle",state.buddies and "Let buddies rest" or "Invite cookie buddies","buddies")
 				action("collectBuddies","Collect buddy cookies","collectBuddies")
-				text("gardenInfo","Garden (need a farm)\nPlant for 1 lump. Harvest in 1 minute for 5% extra baking for 10 minutes.",85)
-				if state.gardenReady>state.played then text("gardenTimer","Growing: "..math.ceil(state.gardenReady-state.played).." seconds left.",32) end
-				action("plantGarden","Plant seeds - 1 sugar lump","plant")
-				action("harvestGarden","Harvest garden","harvest")
+
+                    elseif adventurePage[1]=="Garden" then
+                    local planted=state.gardenReady>0
+                    local remaining=math.max(0,state.gardenReady-state.played)
+                    local ripe=planted and remaining==0
+                    local canPlant=not planted and state.buildings[3]>0 and state.lumps>=1
+                    local progress=planted and math.clamp(1-remaining/60,0,1) or 0
+                    pane[#pane+1]=box("gardenPlot",24,y,w,178,"#283b28",{
+                        picture("gardenPicture","Farm",12,10,88,88,{opacity=planted and "1" or "0.55"}),
+                        label("gardenStatus",ripe and "Ready to pick!" or planted and "Growing..." or "Plant your garden",112,10,w-124,34,22,"#fff4df"),
+                        label("gardenTimer",planted and (ripe and "+5% baking for 10 min" or math.ceil(remaining).." seconds left") or "1 sugar lump • 1 minute",112,48,w-124,48,18,"#b6e6bf"),
+                        box("gardenTrack",12,104,w-24,8,"#43523a",{box("fill",0,0,(w-24)*progress,8,"#a5d987")}),
+                        button(ripe and "harvestGarden" or "plantGarden",ripe and "Harvest!" or planted and "Growing..." or canPlant and "Plant • 1 lump" or state.buildings[3]<1 and "Buy a farm first" or "Need 1 sugar lump",12,124,w-24,44,function()
+                            if ripe then send("advanced","harvest") elseif canPlant then send("advanced","plant") end
+                        end,{background=(ripe or canPlant) and "#477d35" or "#4d5141",["font-size"]="21px"}),
+                    },{["border-radius"]="12px"});y+=190
+                    local boost=math.max(0,state.gardenBoostUntil-state.played)
+                    if boost>0 then text("gardenBoost","+5% baking • "..math.ceil(boost/60).." min left",36)
+                    else text("gardenReward","Harvest for +5% baking for 10 minutes.",44) end
+
+                    elseif adventurePage[1]=="Market" then
 				text("marketInfo","Ingredient market (need a bank)\nBuy low, sell later. Prices change every 30 seconds. Selling returns 90% of the price.",90)
 				for i,name in {"Flour","Sugar","Chocolate"} do
 					text("stock"..i,name..": own "..state.stocks[i],30)
 					action("stockBuy"..i,"Buy "..name.." - "..Model.stockPrice(state,i).." cookies","stockBuy",i)
 					action("stockSell"..i,"Sell "..name.." - "..math.floor(Model.stockPrice(state,i)*.9).." cookies","stockSell",i)
 				end
+
+                    elseif adventurePage[1]=="Helpers" then
 				text("spiritInfo","Temple helpers (need a temple)\nChoose one helper. Wait 1 minute to change. Current: "..state.spirit,80)
 				action("spiritBake","Baking helper: 10% more baking","spirit","baking")
 				action("spiritClick","Click helper: 10% more per click","spirit","clicking")
 				action("spiritLuck","Lucky helper: 20% more lucky rewards","spirit","luck")
+
+                    elseif adventurePage[1]=="Magic" then
 				text("spellInfo","Spell book (need a wizard tower)\nMagic: "..math.floor(state.magic).." / 100. Gain 1 magic each second.",75)
 				action("spellLucky","Make a lucky cookie - 40 magic","spell","lucky")
 				action("spellCookies","Bake a minute of cookies - 60 magic","spell","cookies")
+
+                    elseif adventurePage[1]=="Seasons" then
 				text("seasonInfo","Seasonal cookie hunt\nCurrent: "..state.season..". Found: "..state.seasonCookies..". Every 5 lucky cookies earns an extra reward.",85)
 				action("winterSeason","Start winter cookie hunt","season","winter")
 				action("springSeason","Start spring cookie hunt","season","spring")
 				action("normalSeason","End seasonal hunt","season","none")
+                    end
+                end
 			end
-			center[#center + 1] = e("scroll", { key = "menuPanel", id = "menuPanel", style = style(0, tab=="Work" and 214 or 160, centerW, math.max(30,h-(tab=="Work" and 244 or 190)), { background = "#241f19", overflow = "scroll" }) }, table.unpack(pane))
+			center[#center + 1] = e("scroll", { key = "menuPanel"..tab..workPage[1]..adventurePage[1], id = "menuPanel", style = style(0, 160, centerW, math.max(30,h-190), { background = "#241f19", overflow = "scroll" }) }, table.unpack(pane))
 		end
         center[#center+1]=e(ResourceStatus,{key="resourceStatus",width=centerW,height=h})
 		local store = { stripes("storeStripes", storeW, h, "#24221f", "#2a2723"), label("storeTitle", "Store", 10, 7, boostW - 20, 42, 36, "#fff2dd", titleStyle) }
@@ -669,7 +767,7 @@ return function()
 				continue
 			end
 			local kids = {
-				buildingPicture("buildingIcon"..i,i,10,4,58,61,{opacity=unlockedBuilding and "1" or "0.25"}),
+				unlockedBuilding and buildingPicture("buildingIcon"..i,i,10,4,58,61) or label("buildingIcon"..i,"???",10,4,58,61,23,"#8c8070",{["text-align"]="center"}),
 				label("buildingName" .. i, unlockedBuilding and b.name or "???", 77, 7, productW - 139, 31, 25, affordable and "#fff7e6" or "#a59a89"),
 				cookieCurrency("buildingCurrency"..i,79,40),
 				label("buildingPrice" .. i, number(price), 109, 38, productW-124, 30, 22, affordable and "#91cf74" or "#b07865"),

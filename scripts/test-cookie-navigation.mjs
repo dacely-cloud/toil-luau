@@ -14,6 +14,7 @@ local function run(mobile,page,tab,work,confirm,editing)
   local cell={value};cell[2]=function(next)cell[1]=next end;return cell
  end
  local confirmFresh,empireEdit,workPage=state(confirm),state(editing),state(work)
+ local adventurePage=state("Home")
  local hover=7
  local function setHover(v)hover=v end
  local function setPage(v)page=v end

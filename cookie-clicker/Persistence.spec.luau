@@ -49,7 +49,6 @@ end)
 test("failed saves retain previously stored progress",function()
 	local p,d,advance,fail=fixture();local s=assert(p.load("a","first"));s.state.cookies=10;assert(p.save(s,false));s.state.cookies=20;fail(3);assert(not p.save(s,false));assert(d.a.cookies==10);assert(p.save(s,true));assert(d.a.cookies==20)
 end)
-print(passed.." persistence tests passed")
 test("volume saves, restores and rejects malformed requests",function()
 	local p,d=fixture();local s=assert(p.load("volume","first"))
 	assert(s.state.soundVolume==100)
@@ -62,3 +61,5 @@ test("volume saves, restores and rejects malformed requests",function()
 	d.legacy={version=1,soundVolume=math.huge}
 	assert(p.load("legacy","legacy").state.soundVolume==100)
 end)
+
+print(passed.." persistence tests passed")

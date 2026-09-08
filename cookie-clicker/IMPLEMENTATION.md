@@ -12,7 +12,7 @@ The scope is the complete attached `pasted-text-1.txt`, plus subsequent UI and a
 | Artwork | Named lookups from ReplicatedStorage.ImageConfig for buildings, jobs, properties, items, badges, cookies and currency | Live ImageLabels verified. New cursor in shop/middle; old cursor around cookie, per user. Image mappings and all building render branches pass regression. |
 | Mobile, PC and controller | Responsive portrait/landscape, native mobile pixels, desktop zoom, CoreGui safe-area sizing, gamepad bake action and initial selection | Layout.spec covers 13 sizes. Portrait safe area observed at 401x719 inside a 401x777 viewport. Physical touch/controller navigation and all pages still need coverage. |
 | Save/rejoin and offline income | Session-locked UpdateAsync saves, retries, eight-hour offline cap, property income included | Persistence.spec: 8 pass, including stored lease expiry after retries. Published-server save verification is still outstanding. |
-| Rename and fuller settings | Filtered bakery name; sound and reduced-motion toggles | Code and save restoration tested. Settings remain limited to these controls. |
+| Rename and fuller settings | Filtered bakery name; sound, saved 0?100% volume and reduced-motion controls | Save restoration and malformed volume inputs tested. Live volume interaction still needs verification. |
 | Late-game systems | Ascension, three heavenly boosts, permanent slot, sugar lumps/levels, garden, market, helpers, spells and seasons; cookie buddies stand in for wrinklers | Model.spec covers the simplified rules. Full requested late-game UX and wrinkler interaction remain incomplete; this is not full original-game parity. |
 | Jobs | Energy, level gates, instant cookies/XP, server-generated item roll | Economy.spec and MultiplayerFlow.spec pass; job remote actions and resource updates observed live. |
 | Properties | Stand/store/market purchases, escalating price and passive income | Economy.spec and integrated save/rejoin test pass. Bakery CPS now includes property income. |
@@ -52,3 +52,13 @@ A limited Studio client sample sent 60 click requests over 4.17 seconds: 965 ren
 7. Refresh and verify the standalone place artifact with the final runtime, game modules and ImageConfig.
 
 The goal remains active until these requirements are implemented and verified at their intended scope.
+
+## Controller navigation follow-up
+
+Added B-button back navigation through confirmations, empire editing, Work sections, menus and mobile pages. A small controller-only focus check recovers selection when a UI target disappears or becomes hidden, without taking focus from Roblox menus. `node scripts/test-cookie-navigation.mjs` executes the actual back-navigation closure and passes all routes. Studio mounted without new errors. VirtualInput rejected ButtonB as a CoreGui-reserved key, so this is not physical-controller verification.
+
+## Standalone build and Jar/Charity verification
+
+The full `npm run cookie:build` pipeline passed after the UI changes. `python scripts/refresh-cookie-place.py` refreshed 33 runtime/game sources in `cookie-animation-test.rbxlx` and checked each serialized source against staging before replacing the artifact. This verifies packaging, not a fresh playtest of that standalone file.
+
+Jar UI now has the configured image on the left and amount/transfer controls on the right. Put in, Take out and Start a cookie party were all within the visible desktop panel. An input-tool test selected 500, deposited it, and opened the fundraiser choices, which displayed 500 available in the jar. Studio returned to Edit before the start action, so the updated start-party button still needs interactive verification. Locked shop icons now show ???; unlocked images remain configured assets.

@@ -132,7 +132,7 @@ describe('roblox host', function ()
 	it('transitions a mounted React component after setState', function ()
 		local React = findReact()
 		local update
-		local ref = {}
+		local ref = React.createRef()
 		local function App()
 			local state = React.useState(false); update = state[2]
 			return React.createElement("div", {ref=ref,style={rotation=state[1] and "100" or "0",transition="rotation 2s linear"}})

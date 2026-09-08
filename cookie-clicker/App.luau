@@ -32,11 +32,22 @@ local function label(id, text, x, y, w, h, size, color, more)
 	if more then for k, v in more do s[k] = v end end
 	return e("span", { key = id, id = id, style = s }, text)
 end
-local function button(id, text, x, y, w, h, callback, more, kids, hover)
+-- Hover updates only this button and the tooltip.
+local function HoverButton(props)
+	local state = React.useState(false)
+	local hovered, setHovered = state[1], state[2]
+	local s = table.clone(props.style)
+	if hovered and props.highlight then s.background = props.highlight end
+	return e("button", {id=props.id,style=s,onClick=props.onClick,
+		onMouseEnter=function() setHovered(true); props.hover(true) end,
+		onMouseLeave=function() setHovered(false); props.hover(false) end}, table.unpack(props.content))
+end
+local function button(id, text, x, y, w, h, callback, more, kids, hover, highlight)
 	local s = style(x, y, w, h, { color = "#eee5dc", ["font-family"] = "Georgia", ["font-size"] = "19px", background = "linear-gradient(90deg, #554638, #30271f)", border = "1px solid #89745c", ["text-align"] = "center" })
 	if more then for k, v in more do s[k] = v end end
 	local children = kids or {}
 	if text ~= "" then table.insert(children, 1, text) end
+	if hover then return e(HoverButton, {key=id,id=id,style=s,onClick=callback,content=children,hover=hover,highlight=highlight}) end
 	return e("button", { key = id, id = id, style = s, onClick = callback, onMouseEnter = hover and function() hover(true) end, onMouseLeave = hover and function() hover(false) end }, table.unpack(children))
 end
 local function rail(id, x, y, w, h)
@@ -78,6 +89,34 @@ return function()
 	local displayWidth = 1440
 	local displayHeight = workspace.CurrentCamera.ViewportSize.Y / workspace.CurrentCamera.ViewportSize.X * displayWidth
 	local function send(...) remote:FireServer(...) end
+	local tooltipHover = 0
+	local updateTooltip
+	local function setHover(value)
+		if tooltipHover == value then return end
+		tooltipHover = value
+		if updateTooltip then updateTooltip(value) end
+	end
+	local function Tooltip(props)
+		local selection = React.useState(tooltipHover)
+		updateTooltip = selection[2]
+		local hover = selection[1]
+		local state, bulk, sell = props.state, props.bulk, props.sell
+		if hover ~= 0 then
+			local name, description, cost
+			if type(hover) == "number" then
+				local b = Model.Buildings[hover]
+				name, description, cost = b.name, "Each " .. b.name:lower() .. " produces " .. number(b.cps * Model.multiplier(state, hover), true) .. " cookies per second.\nOwned: " .. state.buildings[hover], Model.price(state, hover, bulk, sell)
+			else
+				local u
+				for _, candidate in Model.Upgrades do if candidate.id == hover then u = candidate; break end end
+				if u then name, description, cost = u.name, u.description, u.price end
+			end
+			if name then return box("tooltip", 666, 233, 410, 175, "#1d1914", {
+				label("tooltipTitle", name, 16, 10, 378, 42, 25, "#f8ead2"), label("tooltipCost", "● " .. number(cost), 16, 54, 378, 26, 19, state.cookies >= cost and "#9cda78" or "#d68f78"), label("tooltipDescription", description, 16, 92, 378, 68, 17, "#c3b8a8"),
+			}, { border = "3px solid #9c8159", ["z-index"] = "40" }) end
+		end
+		return nil
+	end
 	local function App()
 		local renderState = React.useState(0)
 		refresh = renderState[2]
@@ -87,8 +126,6 @@ return function()
 		local bulk, setBulk = bulkState[1], bulkState[2]
 		local sellState = React.useState(false)
 		local sell, setSell = sellState[1], sellState[2]
-		local hoverState = React.useState(0)
-		local hover, setHover = hoverState[1], hoverState[2]
 		local state = snapshot
 		local h = displayHeight - 30
 		local leftW, centerX, centerW, storeX, storeW = 420, 432, 646, 1090, 350
@@ -177,7 +214,7 @@ return function()
 		end
 		for i = 1, math.min(5, #upgrades) do
 			local u = upgrades[i]
-			store[#store + 1] = button("upgrade_" .. u.id, "✦", 10 + (i - 1) * 66, 56, 60, 60, function() send("upgrade", u.id) end, { ["font-size"] = "38px", color = state.cookies >= u.price and "#f4d28a" or "#807565", background = "linear-gradient(120deg, #605447, #30271e)" }, nil, function(inside) setHover(inside and -i or 0) end)
+			store[#store + 1] = button("upgrade_" .. u.id, "✦", 10 + (i - 1) * 66, 56, 60, 60, function() send("upgrade", u.id) end, { ["font-size"] = "38px", color = state.cookies >= u.price and "#f4d28a" or "#807565", background = "linear-gradient(120deg, #605447, #30271e)" }, nil, function(inside) setHover(inside and u.id or 0) end)
 		end
 		if #upgrades == 0 then store[#store + 1] = label("upgradeEmpty", "Upgrades", 10, 67, 330, 34, 18, "#756b5d", titleStyle) end
 		store[#store + 1] = rail("upgradeRail", 0, 126, storeW, 9)
@@ -195,7 +232,7 @@ return function()
 				label("buildingPrice" .. i, "● " .. number(price), 79, 40, 210, 23, 16, affordable and "#91cf74" or "#b07865"),
 				label("buildingOwned" .. i, state.buildings[i] > 0 and tostring(state.buildings[i]) or "", 282, 8, 46, 52, 38, "#afa18a", { ["text-align"] = "right" }),
 			}
-			products[#products + 1] = button("buyBuilding" .. i, "", 0, (i - 1) * 76, storeW - 9, 74, function() send("trade", i, bulk, sell) end, { background = hover == i and "linear-gradient(90deg, #766a54, #463f34)" or "linear-gradient(90deg, #534c40, #2d2923)", border = "1px solid #74634c" }, kids, function(inside) setHover(inside and i or 0) end)
+			products[#products + 1] = button("buyBuilding" .. i, "", 0, (i - 1) * 76, storeW - 9, 74, function() send("trade", i, bulk, sell) end, { background = "linear-gradient(90deg, #534c40, #2d2923)", border = "1px solid #74634c" }, kids, function(inside) setHover(inside and i or 0) end, "linear-gradient(90deg, #766a54, #463f34)")
 		end
 		store[#store + 1] = e("scroll", { key = "storeProducts", id = "storeProducts", style = style(0, 184, storeW, h - 184, { overflow = "scroll" }) }, table.unpack(products))
 		local children = {
@@ -204,19 +241,7 @@ return function()
 			rail("leftRail", leftW, 30, 12, h), box("centerColumn", centerX, 30, centerW, h, nil, center),
 			rail("rightRail", centerX + centerW, 30, 12, h), box("storeColumn", storeX, 30, storeW, h, nil, store),
 		}
-		if hover ~= 0 then
-			local name, description, cost
-			if hover > 0 then
-				local b = Model.Buildings[hover]
-				name, description, cost = b.name, "Each " .. b.name:lower() .. " produces " .. number(b.cps * Model.multiplier(state, hover), true) .. " cookies per second.\nOwned: " .. state.buildings[hover], Model.price(state, hover, bulk, sell)
-			else
-				local u = upgrades[-hover]
-				if u then name, description, cost = u.name, u.description, u.price end
-			end
-			if name then children[#children + 1] = box("tooltip", 666, 233, 410, 175, "#1d1914", {
-				label("tooltipTitle", name, 16, 10, 378, 42, 25, "#f8ead2"), label("tooltipCost", "● " .. number(cost), 16, 54, 378, 26, 19, state.cookies >= cost and "#9cda78" or "#d68f78"), label("tooltipDescription", description, 16, 92, 378, 68, 17, "#c3b8a8"),
-			}, { border = "3px solid #9c8159", ["z-index"] = "40" }) end
-		end
+		children[#children + 1] = e(Tooltip, {key="tooltip",state=state,bulk=bulk,sell=sell})
 		return e("div", { id = "cookieClicker", style = style(0, 0, displayWidth, displayHeight, { background = "#171510" }) }, table.unpack(children))
 	end
 	local playerGui = Players.LocalPlayer:WaitForChild("PlayerGui")

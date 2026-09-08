@@ -103,19 +103,19 @@ function strEndsWith(s: string, suffix: string): boolean {
 // env that installs those globals). Behavior matches the spike RT shims.
 
 function jsParseFloat(s: string): number {
-	const m = string.match(tostring(s), "^%s*(-?%d+%.?%d*)");
-	if (m === undefined) return 0;
-	return tonumber((m[0] as unknown) as string) as unknown as number;
+	const m = strMatch(tostring(s), "^%s*([%+%-]?%d*%.?%d+[eE][%+%-]?%d+)") ?? strMatch(tostring(s), "^%s*([%+%-]?%d*%.?%d+)");
+	const n = m !== undefined ? tonumber(m) : undefined;
+	return n !== undefined ? n : math.huge - math.huge;
 }
 
 function jsParseInt(s: string, radix?: number): number {
 	if (radix === 16) {
 		const n = tonumber(strTrim(s), 16);
-		return n === undefined ? 0 : n;
+		return n === undefined ? math.huge - math.huge : n;
 	}
-	const m = string.match(tostring(s), "^%s*(-?%d+)");
-	if (m === undefined) return 0;
-	return math.floor(tonumber((m[0] as unknown) as string) as unknown as number);
+	const m = strMatch(tostring(s), "^%s*([%+%-]?%d+)");
+	const n = m !== undefined ? tonumber(m) : undefined;
+	return n !== undefined ? n : math.huge - math.huge;
 }
 
 function jsIsNaN(n: number): boolean {
@@ -936,13 +936,7 @@ function parseAnimation(value: string): Array<AnimationSpec> {
 			}
 			const n = jsParseFloat(t);
 			if (!jsIsNaN(n) && tostring(n) === t) {
-				if (duration === 0) {
-					duration = n;
-				} else if (delay === 0) {
-					delay = n;
-				} else {
-					iterationCount = n;
-				}
+				iterationCount = n;
 				continue;
 			}
 			if (name.size() === 0) {

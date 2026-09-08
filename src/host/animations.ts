@@ -15,7 +15,7 @@ import type {
 	TransitionSpec,
 } from "./engine-types";
 import type { HostEnv, HostNode } from "./roblox-host";
-import { applyStyle, parseColor, parseLength, computePlacement } from "./roblox-host";
+import { applyStyle, applyAnimatedStyle } from "./roblox-host";
 import { interpolateValue } from "../css/engine";
 
 /**
@@ -327,18 +327,7 @@ function applyAnimatedValues(
 	values: Record<string, string>,
 	env: HostEnv
 ): void {
-	// Merge into computed style
-	const entries = keysOf(values);
-	for (let ki = 0; ki < entries.size(); ki++) {
-		const key = entries[ki];
-		node.computed[key] = values[key];
-	}
-	// Re-apply the full style with the guard lifted: the driver is the writer
-	// of the animated properties, so applyStyle must not skip them here.
-	const saved = node.styleState["animatedProps"];
-	node.styleState["animatedProps"] = undefined;
-	applyStyle(node, node.computed, env);
-	node.styleState["animatedProps"] = saved;
+	applyAnimatedStyle(node, values, env);
 }
 
 /** Restore a node to the style it had before an animation started. */
@@ -360,10 +349,7 @@ function applyTransitionValue(
 	value: string,
 	env: HostEnv
 ): void {
-	// Merge into computed style
-	node.computed[property] = value;
-	// Re-apply the full style
-	applyStyle(node, node.computed, env);
+	applyAnimatedStyle(node, { [property]: value }, env);
 }
 
 /**

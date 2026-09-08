@@ -169,6 +169,15 @@ describe("css engine", function()
 			expect(specs[1].duration).toBe(1.0)
 			expect(specs[1].timingFunction).toBe("ease-in-out")
 		end)
+		it("does not parse animation keywords ending in s as times", function()
+			local e2=kfEngine()
+			for _,fill in {"forwards","backwards","both"} do
+				local spec=e2.parseAnimation("grow 1s ease-out "..fill)[1]
+				assert(spec.delay==0 and spec.duration==1 and spec.fillMode==fill)
+			end
+			local spec=e2.parseAnimation("grow .5s linear -0.25s 2 forwards")[1]
+			assert(spec.duration==.5 and spec.delay==-.25 and spec.iterationCount==2)
+		end)
 		it("keyframes returns the frame set", function()
 			local e2 = kfEngine()
 			local kf = e2.keyframes("grow")

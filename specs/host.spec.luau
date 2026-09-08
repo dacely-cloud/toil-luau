@@ -132,15 +132,50 @@ describe('roblox host', function ()
 	it('transitions a mounted React component after setState', function ()
 		local React = findReact()
 		local update
-		local ref = React.createRef()
+		local ref = {}
 		local function App()
 			local state = React.useState(false); update = state[2]
-			return React.createElement("div", {ref=ref,style={rotation=state[1] and "100" or "0",transition="rotation 2s linear"}})
+			return React.createElement("div", {ref=function(value) ref.current=value end,style={rotation=state[1] and "100" or "0",transition="rotation 2s linear"}})
 		end
 		local handle=hostModule.mountReactRoot(nil,{},React.createElement(App),nil,hostEnv.env)
 		update(true); polyfills.drainTasks(); handle.tick(1)
 		assert(ref.current.Rotation > 40 and ref.current.Rotation < 60, tostring(ref.current.Rotation))
 		handle.unmount()
+		assert(ref.current == nil, "unmount did not release the React ref")
+	end)
+	it('animates motion without rebuilding gradient resources each frame', function ()
+		local colors=0
+		local env=table.clone(hostEnv.env)
+		env.newColorSequence=function(v) colors+=1; return table.clone(v) end
+		local config=hostModule.buildHostConfig(env,{resolve=function(n)return n.pendingProps.style end})
+		local node=config.createInstance("div",{},nil,nil,nil)
+		config.finalizeInitialChildren(node,"div",{style={width="100px",height="100px",["background-image"]="linear-gradient(90deg, #ff0000, #0000ff)",rotation="0"}})
+		local initial=colors
+		local clock=animationModule.makeFakeClock(0)
+		local engine=hostModule.makeDefaultEngine({})
+		local driver=animationModule.createDriver(clock,engine,env)
+		animationModule.startTransition(driver,node,"rotation","0","360",{property="rotation",duration=2,delay=0,timingFunction="linear"})
+		for i=1,60 do clock.advance(1/60); animationModule.tick(driver) end
+		assert(math.abs(node.inst.Rotation-180)<1)
+		assert(initial>0 and colors==initial,"animation rebuilt gradient sequences")
+	end)
+	it('keeps local hover updates out of the parent render and releases removed views', function ()
+		local React = findReact()
+		local parentRenders, destroyed, update = 0, 0, nil
+		local env = table.clone(hostEnv.env)
+		env.destroy = function(inst) destroyed += 1; hostEnv.env.destroy(inst) end
+		local function Child()
+			local state = React.useState(false); update = state[2]
+			return React.createElement("div", {style={background=state[1] and "#fff" or "#000"}},
+				state[1] and React.createElement("span", {key="tip"}, "tooltip") or nil)
+		end
+		local function Parent() parentRenders += 1; return React.createElement(Child) end
+		local handle=hostModule.mountReactRoot(nil,{},React.createElement(Parent),nil,env)
+		local initial = parentRenders
+		for i=1,20 do update(i%2==1); polyfills.drainTasks() end
+		assert(parentRenders==initial, "local updates rerendered the parent")
+		assert(destroyed>=10, "deleted views were detached without destruction")
+		handle.unmount(); handle.unmount()
 	end)
 	it('removes replaced keyed siblings rather than leaving duplicate instances', function ()
 		assert(hostModule ~= nil, tostring(hostModuleErr))

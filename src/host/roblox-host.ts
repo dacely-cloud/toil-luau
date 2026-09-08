@@ -852,6 +852,51 @@ function applyPath2D(node: HostNode, style: Record<string, string>, env: HostEnv
 	}
 }
 
+/** Per-frame motion must not rebuild gradients, borders, text layout or constraints. */
+export function applyAnimatedStyle(node: HostNode, values: Record<string, string>, env: HostEnv): void {
+	const inst = node.inst;
+	if (inst === undefined) return;
+	let fast = inst.ClassName !== "Path2D";
+	for (const [key, value] of pairs(values)) {
+		const k = key as string;
+		node.computed[k] = value;
+		if (k !== "rotation" && k !== "transform" && k !== "left" && k !== "top" && k !== "opacity") fast = false;
+	}
+	if (!fast) {
+		const saved = node.styleState["animatedProps"];
+		node.styleState["animatedProps"] = undefined;
+		applyStyle(node, node.computed, env);
+		node.styleState["animatedProps"] = saved;
+		return;
+	}
+	const style = node.computed;
+	if (values["rotation"] !== undefined || values["transform"] !== undefined || values["left"] !== undefined || values["top"] !== undefined) {
+		const tf = parseTransform(style);
+		const placement = computePlacement(style, [100, 100]);
+		inst["AnchorPoint"] = env.newVector2(tf.rotation !== undefined ? 0.5 : placement.anchorX, tf.rotation !== undefined ? 0.5 : placement.anchorY);
+		inst["Position"] = env.newUDim2(placement.posScaleX, placement.posOffsetX + tf.translateX, placement.posScaleY, placement.posOffsetY + tf.translateY);
+		inst["Rotation"] = tf.rotation ?? 0;
+		if (tf.scale !== undefined) {
+			ensureHelperChild(node, "ToilScale", "UIScale", env);
+			const sc = findHelper(node, "ToilScale");
+			if (sc !== undefined) sc["Scale"] = tf.scale;
+		} else {
+			const sc = findHelper(node, "ToilScale");
+			if (sc !== undefined) sc["Scale"] = 1;
+		}
+	}
+	if (values["opacity"] !== undefined) {
+		const opacity = clamp01(_parseFloat(values["opacity"]));
+		const bg = parseColor(style["background-color"]);
+		const alpha = findHelper(node, "ToilGradient") !== undefined ? 1 : bg !== undefined ? bg.a : 0;
+		inst["BackgroundTransparency"] = 1 - alpha * opacity;
+		if (isTextInstance(inst)) inst["TextTransparency"] = 1 - opacity;
+		if (isImageInstance(inst)) inst["ImageTransparency"] = 1 - opacity;
+	}
+	const applied = node.styleState["lastAppliedStyle"] as Record<string, string> | undefined;
+	if (applied !== undefined) for (const [key, value] of pairs(values)) applied[key as string] = value;
+}
+
 export function applyStyle(node: HostNode, style: Record<string, string>, env: HostEnv): void {
 	const inst = node.inst;
 	if (inst === undefined) return;
@@ -986,6 +1031,7 @@ export function applyStyle(node: HostNode, style: Record<string, string>, env: H
 	if (isTextInstance(inst) && !animOpacity) {
 		(inst as Record<string, unknown>)["TextTransparency"] = 1 - opacity;
 	}
+	if (isImageInstance(inst) && !animOpacity) inst["ImageTransparency"] = 1 - opacity;
 
 	// --- Gradient background (UIGradient) ---
 	// linear-gradient(<angle>, c1, c2, ...) -> a UIGradient child whose Color is
@@ -1288,6 +1334,9 @@ export function applyStyle(node: HostNode, style: Record<string, string>, env: H
 			ensureHelperChild(node, "ToilScale", "UIScale", env);
 			const sc = findHelper(node, "ToilScale");
 			if (sc !== undefined) (sc as Record<string, unknown>)["Scale"] = tf.scale;
+		} else {
+			const sc = findHelper(node, "ToilScale");
+			if (sc !== undefined) sc["Scale"] = 1;
 		}
 	}
 
@@ -1955,8 +2004,7 @@ export function buildHostConfig(
 
 	function clearContainer(container: HostNode): void {
 		for (let i = container.children.size() - 1; i >= 0; i--) {
-			if (resolver.removed !== undefined) resolver.removed(container.children[i]);
-			detachChild(container.children[i]);
+			removeChildFromContainer(container, container.children[i]);
 		}
 	}
 

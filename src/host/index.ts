@@ -194,6 +194,8 @@ export function mountReactRoot(
 ): MountHandle {
 	const e = envOverride ?? makeEngineEnv();
 	const eng = engine ?? makeDefaultEngine(rules);
+	let inlineOnly = engine === undefined;
+	for (let i = 0; i < rules.size(); i++) if (rules[i].keyframes === undefined) inlineOnly = false;
 
 	// The animation clock counts seconds since mount, so handle.tick(now) can
 	// pin it to an absolute time (tests drive animations deterministically);
@@ -248,6 +250,27 @@ export function mountReactRoot(
 		beforeStyle: (node: HostNode, style: Record<string, string>): void => syncAnimations(driver, node, style),
 		removed: (node: HostNode): void => stopAnimations(driver, node),
 		resolve: (node: HostNode): Record<string, string> => {
+			// Inline-only trees have no selector dependencies. Reuse normalization
+			// when a React render recreates an equivalent style object.
+			if (inlineOnly) {
+				const input = (node.pendingProps["style"] ?? {}) as Record<string, string>;
+				const old = node.styleState["inlineInput"] as Record<string, string> | undefined;
+				let equal = old !== undefined;
+				if (old !== undefined) {
+					for (const [k, v] of pairs(input)) if (old[k as string] !== v) equal = false;
+					for (const [k, v] of pairs(old)) if (input[k as string] !== v) equal = false;
+				}
+				if (!equal) {
+					const snapshot: Record<string, string> = {};
+					for (const [k, v] of pairs(input)) snapshot[k as string] = v;
+					node.styleState["inlineInput"] = snapshot;
+					node.styleState["inlineResolved"] = eng.computedStyle(node.identity, [], 0, 0, input);
+				}
+				const result: Record<string, string> = {};
+				const cached = node.styleState["inlineResolved"] as Record<string, string>;
+				for (const [k, v] of pairs(cached)) result[k as string] = v;
+				return result;
+			}
 			// Keep the identity fresh from the node's last props, so selectors
 			// re-match even when commitUpdate does not fire.
 			node.identity = identityFromProps(node, node.pendingProps);
@@ -340,17 +363,19 @@ export function mountReactRoot(
 	}
 
 	// Build the handle
+	let unmounted = false;
 	function doUnmount(): void {
+		if (unmounted) return;
+		unmounted = true;
 		if (heartbeatConnection !== undefined) {
 			heartbeatConnection.Disconnect();
 		}
-		// Clear the container
-		for (let i = guiNode.children.size() - 1; i >= 0; i--) {
-			const child = guiNode.children[i];
-			if (child.inst !== undefined) {
-				e.destroy(child.inst);
-			}
-		}
+		// Let React release hooks and refs before destroying the root GUI.
+		// Keep the payload's element field present in Luau (a nil field is
+		// omitted from the JS object merge performed by the reconciler).
+		reconciler.updateContainer(React.createElement(React.Fragment, undefined), root, undefined, undefined);
+		drainTasks();
+		stopAnimations(driver, guiNode);
 		e.destroy(gui);
 	}
 

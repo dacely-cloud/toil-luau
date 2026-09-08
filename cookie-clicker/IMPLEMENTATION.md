@@ -1,61 +1,54 @@
-# Requested multiplayer bakery expansion
+# Bakery expansion implementation and verification
 
-Source of requirements: the user's attached pasted-text-1.txt. This checklist tracks the full request; a checked implementation still needs end-to-end verification where noted.
+The scope is the complete attached `pasted-text-1.txt`, plus subsequent UI and artwork instructions. This is a current audit, not a claim that the full goal is complete.
 
-## Implemented, with remaining verification
+## Requirement audit
 
-- Expanded upgrades and achievements, golden cookies and temporary bonuses.
-- Sound, purchase feedback, achievement notices, bakery renaming and movement/sound settings.
-- Native building illustrations and shared cookie artwork for currency icons.
-- Responsive mobile orientation and desktop zoom. Thirteen layout dimensions pass automated checks; physical mobile/controller verification remains open.
-- Offline income capped at eight hours and session-locked saves. Published-game save verification remains open.
-- Simplified ascension, heavenly boosts, cookie buddies, sugar lumps, garden, market, helpers, spells and seasons. These do not establish full original-game parity.
-- Server-owned jobs: energy, level requirements, instant cookie/XP rewards, server-only item rolls.
-- Properties: escalating purchase costs and passive income, including capped offline income.
-- Item shop with explicit rarity and prices, inventory, one-copy collection deposits and reward multipliers.
-- Cookie jar deposits/withdrawals with conservation of currency and no inflation of lifetime earnings.
-- Work menu deployed to Studio with Jobs, Properties, Items, Collection and Jar. Job controls and energy/XP updates observed live; all item/property actions still need live verification.
+| Requirement | Current implementation | Evidence and remaining work |
+| --- | --- | --- |
+| More upgrades and achievements | All 20 buildings have multiple upgrade tiers; achievement progression | Model.spec passes. Full visual catalog review remains. |
+| Golden cookies and temporary bonuses | Small falling golden cookie, server-owned expiry/claim and variable duration; temporary double baking | Model.spec verifies one-time claims and exact bonus expiry. Falling motion was observed in Studio; physical golden-cookie tap still needs verification. |
+| Sounds, purchase feedback, achievement popups | Reusable sound pool, notices and achievement events | Present in Audio/App/Server; purchase counters and notices observed. Sound mix remains a subjective review item. |
+| Artwork | Named lookups from ReplicatedStorage.ImageConfig for buildings, jobs, properties, items, badges, cookies and currency | Live ImageLabels verified. New cursor in shop/middle; old cursor around cookie, per user. Image mappings and all building render branches pass regression. |
+| Mobile, PC and controller | Responsive portrait/landscape, native mobile pixels, desktop zoom, CoreGui safe-area sizing, gamepad bake action and initial selection | Layout.spec covers 13 sizes. Portrait safe area observed at 401x719 inside a 401x777 viewport. Physical touch/controller navigation and all pages still need coverage. |
+| Save/rejoin and offline income | Session-locked UpdateAsync saves, retries, eight-hour offline cap, property income included | Persistence.spec: 8 pass, including stored lease expiry after retries. Published-server save verification is still outstanding. |
+| Rename and fuller settings | Filtered bakery name; sound and reduced-motion toggles | Code and save restoration tested. Settings remain limited to these controls. |
+| Late-game systems | Ascension, three heavenly boosts, permanent slot, sugar lumps/levels, garden, market, helpers, spells and seasons; cookie buddies stand in for wrinklers | Model.spec covers the simplified rules. Full requested late-game UX and wrinkler interaction remain incomplete; this is not full original-game parity. |
+| Jobs | Energy, level gates, instant cookies/XP, server-generated item roll | Economy.spec and MultiplayerFlow.spec pass; job remote actions and resource updates observed live. |
+| Properties | Stand/store/market purchases, escalating price and passive income | Economy.spec and integrated save/rejoin test pass. Bakery CPS now includes property income. |
+| Inventory, collection and rarity shop | Items with fixed prices/rarity; one-copy collection deposits grant multipliers | Economy.spec and three-player flow verify purchase, inventory and deposit conservation. Complete interactive page coverage remains. |
+| Cookie jar | Deposits and withdrawals preserve total cookies without inflating earned cookies | Economy.spec and integrated fundraiser funding pass. |
+| Charity and stealing | Four timed tiers, jar funding, helper cookies/XP, stamina costs, theft cap/insurance and one-time payout | Social/CharityService/MultiplayerFlow tests pass. Real simultaneous clients and published shared records remain unverified. |
+| Empires | Filtered name, configured picture choices, membership, stamina donations, leader upgrades and economy/insurance perks | EmpireStore/EmpireService tests and integrated three-player flow pass. Real multiplayer UI and cross-server membership need verification. |
+| Cheat resistance and recovery | Server-owned amounts/costs, action and sync limits, validated saves, shared operation receipts, saved debit-before-credit outboxes | Tests cover invalid inputs, repeat claims, lost responses, crash recovery, final-save failure and callback retries. This does not prove absence of all exploits. |
+| Monetization plan | Proposed developer products/passes, receipt persistence, ownership checks, launch gates | MONETIZATION.md complete as a plan. Paid offers are not implemented or enabled. |
+| Performance and end-to-end behavior | Bounded animation pools; counter components; structural render signatures; rate-limited sync | Limited Studio sample below. Full page, device and multiplayer profiling remains open. |
 
-## Remaining implementation
+## Recent defects fixed
 
-- Timed charity fundraisers (30 minutes, 1, 4 and 8 hours), jar funding, helper rewards and participant lists.
-- Player list for stamina-based stealing from charity, cooldowns and insurance limits.
-- Persistent empires: create with filtered name and picture, join/leave, donate stamina, cookie/stealing/insurance perks and level upgrades affecting jobs/properties.
-- Durable social transaction recovery, replay protection and simultaneous-player tests.
-- Developer product and gamepass integration plan (IDs and purchasable offers are not supplied).
-
-## Remaining gates
-
-- Published-server save/rejoin/offline and multiplayer verification.
-- End-to-end UI coverage for every added action, including failures and capacity limits.
-- Performance profiling while clicking, navigating and scrolling with the full expansion loaded.
-- Physical touch and controller behavior, including focus/navigation.
-- Refresh standalone place artifact after all modules are integrated.
+- First purchase and closing menus hit a deleted `icon()` helper in the owned-buildings view. It now uses configured images; a regression executes that actual render branch for empty, first and bulk purchases across all 20 buildings.
+- A labeled-break translation error allowed suspended work to reach commit with a number as the finished fiber. Translator regressions cover nested switch/loop exits. Earlier resumed-child bailout handling is also covered by a dedicated regression.
+- Stale empire membership now loses perks on a successful confirming read. Failed reads preserve the cache. Rejoining recovers the last donation sequence.
+- Save retries no longer extend the local lease beyond the expiry actually persisted.
+- Full-screen layout now respects Roblox CoreGui safe insets. News and the compact bottom resource strip are retained.
+- One Studio run lacked client PlayerGui while both the game and Roblox chat waited. A fresh run mounted normally. The original startup failure has not been explained; do not count it as resolved by a restart.
 
 ## Current checks
 
-Native Model suite: 20 pass. Persistence suite: 7 pass. Layout: 13 sizes pass.
-Economy checks cover job costs/rewards, invalid rolls, level gates, collection replay denial, property costs/income, energy refill, jar conservation, malformed input and save restoration.
-App, Model, Economy, LateGame, Persistence and Server compile successfully.
-Studio Work menu mounts without console errors; energy depletion and XP/level progression observed through job controls.
+On 2026-09-08, all native Model, Economy, Social, Persistence, CharityService, EmpireStore, EmpireService, MultiplayerFlow and Layout suites passed, together with `node scripts/test-cookie-building-view.mjs`.
 
-## Current UI and runtime pass
+MultiplayerFlow.spec exercises three independent player sessions with the real services: jobs, item purchase and collection, property, jar, empire joins/donations/upgrade, help/theft, persisted shutdown, fresh-service rejoin, offline income and one-time charity claim. Its datastore is a deterministic adapter, not Roblox's live DataStoreService.
 
-Restored the previous building icon set at the user's request; removed Info.
-Desktop zoom restored separately from mobile native sizing. Prices enlarged and currency uses shared main-cookie artwork.
-Work jobs/properties now use picture cards and energy/stamina bars. Shop/Bag/Collection picture cards are being integrated. Full social/empire UX remains unfinished.
-Golden cookies use a small cookie drawing and a 44px tap area; fall is confined to the bakery above the milk, with server-owned varied duration and one-time claims.
-Reconciler resumed bailout now restarts cloned children from committed fibers instead of throwing. Targeted helper regression retains queues/lanes/sibling links; host integration suite passes 13 tests, including simultaneous parent/cached-child updates. Studio monitoring after patch has shown no render errors so far.
-Fundraiser rules/UI added with native tests for timing, help rewards, stamina, stealing conservation/cap, saved visitor IDs and repeated claim denial. Durable two-player persistence and real multiplayer verification remain open.
+A limited Studio client sample sent 60 click requests over 4.17 seconds: 965 rendered frames, p95 frame duration 5.45 ms, maximum 36.73 ms, 18 snapshots, ready state preserved. This measures remote click processing and counter updates in that session. It does not exercise physical click particle creation, every menu, or mobile hardware performance.
 
-## Follow-up runtime and navigation fix
+## Open completion gates
 
-Fixed labeled-break unwinding through switch statements in the vendor translator. Missing checks allowed a suspended-render branch to continue into commitRootWhenReady with a numeric lane value as finishedWork. Four control-flow regressions cover labeled break/continue through nested switches and loops. Full rebuild and all 13 host tests pass. Updated six affected reconciler functions in Studio; initial live checks report no errors.
-Work resource bars moved into the existing center header. Category navigation is a single scrolling row outside the content panel; job cards start immediately inside the panel.
-EmpireStore now has tested shared-record operations for membership, name/badge, sequence-protected stamina donations, leader upgrades and perks. It is not yet connected to player outbox persistence or the UI.
+1. Published-server save, rejoin, offline and shared-record verification.
+2. Real simultaneous-player charity/empire interactions, including disconnect/retry paths.
+3. Full UI action coverage on desktop, portrait, landscape and controller, including failure messages and scrolling.
+4. Finish the late-game interactive experience and fuller settings; review the Work social screens for the requested visual, kid-friendly presentation.
+5. Profile physical clicking, animations, scrolling and periodic updates with the expanded UI on representative devices.
+6. Investigate the intermittent missing PlayerGui startup if reproduced.
+7. Refresh and verify the standalone place artifact with the final runtime, game modules and ImageConfig.
 
-## Empire integration
-
-EmpireStore and EmpireService are connected to the server. Filtered names, six selectable picture badges, joining, leaving, leader upgrades and stamina donations are implemented. Perks affect clicking, baking, jobs, properties, theft and insurance. Donation outbox saves the debit before shared credit; retries preserve the sequence and do not charge again. Native tests cover response loss, save failure and replay after restoring a pending donation.
-Live Studio remote test: created Cookie Friends with a cookie badge, donated 25 stamina, observed 25 team points, no pending save, and clickPower 1.01. Full interactive empire-screen and multi-client verification remain open.
-Restored the news per user instruction; resources now occupy the existing bottom status strip. Horizontal overflow support was added to the host and verified live (X axis with a nonzero horizontal CanvasPosition). Host suite now passes 14 tests.
+The goal remains active until these requirements are implemented and verified at their intended scope.

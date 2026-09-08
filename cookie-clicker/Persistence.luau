@@ -24,6 +24,7 @@ function Persistence.new(Model, store, options)
 		Model.restoreEconomy(state,data)
 		Model.restoreSocial(state,data)
 		state.soundEnabled = data.soundEnabled ~= false
+		Model.setVolume(state,data.soundVolume)
 		state.reducedMotion = data.reducedMotion == true
 		if type(data.customName)=="string" and #data.customName<=96 then state.customName=data.customName end
 		return state

@@ -156,11 +156,19 @@ return function()
 	local refresh
 	local refreshCounters
 	local currentTab = "Buildings"
+	local currentPage="Bake"
+	local navigateBack=function()return false end
 	-- Reflow panels to the actual viewport; text stays at native pixel sizes.
 	local displayWidth, displayHeight, uiScale, mobile, contentHeight, landscape
+	local guiService=game:GetService("GuiService")
+	local safeArea
 	local function measureViewport()
 		local viewport = workspace.CurrentCamera.ViewportSize
-		local layout = Layout.measure(viewport.X,viewport.Y)
+		local topLeft,bottomRight=guiService:GetGuiInset()
+		local size=safeArea and safeArea.AbsoluteSize
+		local width,height=viewport.X-topLeft.X-bottomRight.X,viewport.Y-topLeft.Y-bottomRight.Y
+		if size and size.X>0 and size.Y>0 then width,height=size.X,size.Y end
+		local layout = Layout.measure(width,height)
 		uiScale, displayWidth, displayHeight, mobile, contentHeight = layout.scale, layout.width, layout.height, layout.mobile, layout.contentHeight
 		landscape=layout.landscape
 		uiFont=mobile and "Arial" or "Georgia"
@@ -253,10 +261,10 @@ return function()
 			serial.current+=1
 			local n=serial.current
 			local slot=(n-1)%12
-			local mouse=game:GetService("UserInputService"):GetMouseLocation()
+			local mouse=game:GetService("UserInputService"):GetMouseLocation()-guiService:GetGuiInset()
 			local scale=uiScale
 			local leftWidth = columnWidths()
-			local x,y=mouse.X/scale-(leftWidth-420)/2,mouse.Y/scale-30
+			local x,y=mouse.X/scale-(leftWidth-420)/2,mouse.Y/scale
 			if mobile or x<75 or x>345 then x=landscape and displayWidth*.7 or 210; y=landscape and (contentHeight-50)/2+20 or 138+(contentHeight-178)/2 end
 			local elements=table.clone(slots[1])
 			local variant=math.floor((n-1)/12)%2==0 and "A" or "B"
@@ -283,6 +291,7 @@ return function()
 		refresh = renderState[2]
 		local pageState = React.useState("Bake")
 		local page,setPage=pageState[1],pageState[2]
+		currentPage=page
 		local tabState = React.useState("Buildings")
 		local tab, setTab = tabState[1], tabState[2]
 		currentTab = tab
@@ -298,6 +307,19 @@ return function()
         local empireNameDraft=React.useRef("")
         local empireBadge=React.useState("cookie")
         local empireEdit=React.useState(false)
+		navigateBack=function()
+			if mobile and page~="More" then
+				if page=="Bake" then return false end
+				setPage("Bake");return true
+			end
+			if confirmFresh[1] then confirmFresh[2](false)
+			elseif empireEdit[1] and tab=="Work" then empireEdit[2](false)
+			elseif tab=="Work" and workPage[1]~="Jobs" then workPage[2]("Jobs")
+			elseif tab~="Buildings" then setTab("Buildings")
+			elseif mobile and page=="More" then setPage("Bake")
+			else return false end
+			setHover(0);return true
+		end
 		local h = contentHeight
 		local leftW, centerW, storeW = columnWidths()
 		local centerX, storeX = mobile and 0 or leftW + 12, mobile and 0 or displayWidth - storeW
@@ -394,10 +416,19 @@ return function()
 					audio.setEnabled(enabled)
 					send("sound",enabled)
 				end)
-				pane[#pane+1] = button("motionToggle",state.reducedMotion and "Movement: less" or "Movement: full",24,310,220,48,function()send("motion",not snapshot.reducedMotion)end)
-				pane[#pane+1] = label("renameLabel","Name your bakery",24,375,centerW-48,30,21)
-				pane[#pane+1] = e("input",{key="bakeryInput",id="bakeryInput",style=style(24,415,centerW-48,48,{background="#eee5d2",color="#211d19",["font-size"]="20px"}),onChange=function(event)nameDraft.current=event.value end})
-				pane[#pane+1] = button("renameBakery","Use this name",24,478,220,48,function()send("rename",nameDraft.current)end)
+				local volume=state.soundVolume or 100
+				local function changeVolume(delta)
+					local nextVolume=math.clamp((snapshot.soundVolume or 100)+delta,0,100)
+					audio.setVolume(nextVolume);send("volume",nextVolume)
+					if snapshot.soundEnabled~=false then audio.play("success") end
+				end
+				pane[#pane+1]=button("volumeDown","−",24,310,48,48,function()changeVolume(-10)end,{["font-size"]="26px"})
+				pane[#pane+1]=label("volumeValue","Volume "..volume.."%",80,318,centerW-160,34,20,"#fff4df",{["text-align"]="center"})
+				pane[#pane+1]=button("volumeUp","+",centerW-72,310,48,48,function()changeVolume(10)end,{["font-size"]="26px"})
+				pane[#pane+1] = button("motionToggle",state.reducedMotion and "Movement: less" or "Movement: full",24,370,220,48,function()send("motion",not snapshot.reducedMotion)end)
+				pane[#pane+1] = label("renameLabel","Name your bakery",24,435,centerW-48,30,21)
+				pane[#pane+1] = e("input",{key="bakeryInput",id="bakeryInput",style=style(24,475,centerW-48,48,{background="#eee5d2",color="#211d19",["font-size"]="20px"}),onChange=function(event)nameDraft.current=event.value end})
+				pane[#pane+1] = button("renameBakery","Use this name",24,538,220,48,function()send("rename",nameDraft.current)end)
             elseif tab == "Work" then
                 local economy=state.economy
                 local y,w=8,centerW-48
@@ -649,10 +680,9 @@ return function()
 		end
 		store[#store + 1] = e("scroll", { key = "storeProducts", id = "storeProducts", style = style(productX, landscape and 78 or mobile and 275 or 258, productW, math.max(40,h - (landscape and 78 or mobile and 275 or 258)), { overflow = "scroll" }) }, table.unpack(products))
 		local children = {
-			box("topBar", 0, 0, displayWidth, 30, "#111111", { label("brand", "Cookie Clicker", 12, 1, 180, 27, 18, "#e2d1b6"), label("edition", mobile and "v1" or "Roblox edition", displayWidth - 205, 2, 190, 25, 14, "#a89e90", { ["text-align"] = "right" }) }),
-			box("bakeryColumn", 0, 30, leftW, h, nil, {stripes("blueStripes",leftW,h,"#173346","#1a3b51"), e(Rain,{key="rain",w=leftW,h=h,cps=state.cps,reducedMotion=state.reducedMotion}), box("bakeryContent",bakeryOffset,0,landscape and leftW or 420,h,nil,left)}, { overflow = "hidden",display=(not mobile or page=="Bake") and "block" or "none" }),
-			rail("leftRail", leftW, 30, mobile and 0 or 12, h), box("centerColumn", centerX, 30, centerW, h, nil, center,{display=(not mobile or page=="More") and "block" or "none",overflow="hidden"}),
-			rail("rightRail", centerX + centerW, 30, mobile and 0 or 12, h), box("storeColumn", storeX, 30, storeW, h, nil, store,{display=(not mobile or page=="Shop") and "block" or "none"}),
+			box("bakeryColumn", 0, 0, leftW, h, nil, {stripes("blueStripes",leftW,h,"#173346","#1a3b51"), e(Rain,{key="rain",w=leftW,h=h,cps=state.cps,reducedMotion=state.reducedMotion}), box("bakeryContent",bakeryOffset,0,landscape and leftW or 420,h,nil,left)}, { overflow = "hidden",display=(not mobile or page=="Bake") and "block" or "none" }),
+			rail("leftRail", leftW, 0, mobile and 0 or 12, h), box("centerColumn", centerX, 0, centerW, h, nil, center,{display=(not mobile or page=="More") and "block" or "none",overflow="hidden"}),
+			rail("rightRail", centerX + centerW, 0, mobile and 0 or 12, h), box("storeColumn", storeX, 0, storeW, h, nil, store,{display=(not mobile or page=="Shop") and "block" or "none"}),
 		}
 		if mobile then
 			local nav={}
@@ -672,11 +702,11 @@ return function()
                 background="transparent",border="0px solid transparent",
                 animation="goldenFall "..duration.."s linear -"..elapsed.."s forwards",
             },{picture("goldenArtwork","GoldenCookie",inset,inset,artworkSize,artworkSize)})
-            children[#children+1]=e("div",{key="goldenDrop"..state.goldenId,id="goldenDrop",style=style(0,30,leftW,h-milkHeight,{overflow="hidden",["z-index"]="70",display=(not mobile or page=="Bake") and "block" or "none"})},falling)
+            children[#children+1]=e("div",{key="goldenDrop"..state.goldenId,id="goldenDrop",style=style(0,0,leftW,h-milkHeight,{overflow="hidden",["z-index"]="70",display=(not mobile or page=="Bake") and "block" or "none"})},falling)
         end
 		children[#children+1]=e(Feedback,{key="feedback"})
 		if not state.ready then
-			children[#children+1]=box("loadingBakery",0,30,displayWidth,displayHeight-30,"#211d19",{
+			children[#children+1]=box("loadingBakery",0,0,displayWidth,displayHeight,"#211d19",{
 				label("loadingMessage",state.saveStatus or "Opening your bakery...",20,60,displayWidth-40,120,24,"#fff2dd",titleStyle)
 			},{["z-index"]="90"})
 		end
@@ -689,7 +719,14 @@ return function()
 	if old then old:Destroy() end
 	local handle = toil.mountReactRoot(playerGui, animationRules, e(App), nil, nil)
 	handle.gui.Name = "CookieClickerGui"
-	handle.gui.IgnoreGuiInset = true
+	handle.gui.IgnoreGuiInset = false
+	handle.gui.ScreenInsets = Enum.ScreenInsets.CoreUISafeInsets
+	handle.gui.SafeAreaCompatibility = Enum.SafeAreaCompatibility.None
+	safeArea=Instance.new("Frame")
+	safeArea.Name="SafeAreaBounds"
+	safeArea.BackgroundTransparency=1
+	safeArea.Size=UDim2.fromScale(1,1)
+	safeArea.Parent=handle.gui
 	handle.gui.ResetOnSpawn = false
 	handle.gui.DisplayOrder = 20
 	local viewportScale=Instance.new("UIScale")
@@ -705,7 +742,7 @@ return function()
 	local lastAdventureSecond=-1
 	local priceCache = {}
 	local function pageSignature()
-		local parts = {snapshot.bakery, snapshot.saveStatus or "", tostring(snapshot.cps), tostring(snapshot.clickPower), tostring(snapshot.soundEnabled), tostring(snapshot.reducedMotion), tostring(snapshot.goldenId), tostring((snapshot.goldenUntil or 0)>snapshot.played), tostring(snapshot.ready), tostring(snapshot.earned < 50), tostring(snapshot.earned < 1000)}
+		local parts = {snapshot.bakery, snapshot.saveStatus or "", tostring(snapshot.cps), tostring(snapshot.clickPower), tostring(snapshot.soundEnabled), tostring(snapshot.soundVolume), tostring(snapshot.reducedMotion), tostring(snapshot.goldenId), tostring((snapshot.goldenUntil or 0)>snapshot.played), tostring(snapshot.ready), tostring(snapshot.earned < 50), tostring(snapshot.earned < 1000)}
 		for i, b in Model.Buildings do
 			parts[#parts+1] = tostring(snapshot.buildings[i])
 			parts[#parts+1] = tostring(snapshot.earned >= b.price)
@@ -738,6 +775,7 @@ return function()
 		snapshot = nextState
         refreshResources(nextState)
 		audio.setEnabled(snapshot.soundEnabled~=false)
+		audio.setVolume(snapshot.soundVolume or 100)
 		for _,event in snapshot.events or {} do
 			if event.id>lastEventId then lastEventId=event.id;notify(event.text,event.kind) end
 		end
@@ -748,7 +786,11 @@ return function()
 		viewportScale.Scale=uiScale
 		update(true)
 	end)
-	script.Destroying:Connect(function() alive=false;connection:Disconnect(); resize:Disconnect(); audio.destroy();handle.unmount() end)
+	local safeResize=safeArea:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+		measureViewport();viewportScale.Scale=uiScale;update(true)
+	end)
+	measureViewport();viewportScale.Scale=uiScale;update(true)
+	script.Destroying:Connect(function() alive=false;connection:Disconnect(); resize:Disconnect();safeResize:Disconnect(); audio.destroy();handle.unmount() end)
 	local input=game:GetService("UserInputService")
 	local actions=game:GetService("ContextActionService")
 	actions:BindAction("CookieClickerBake",function(_,state)
@@ -756,13 +798,40 @@ return function()
 		if state==Enum.UserInputState.Begin then send("click");emitClick() end
 		return Enum.ContextActionResult.Sink
 	end,false,Enum.KeyCode.ButtonR2)
-	local selection=input.LastInputTypeChanged:Connect(function(kind)
-		if kind.Name:find("Gamepad",1,true) then
-			local guiService=game:GetService("GuiService")
-			if not guiService.SelectedObject then guiService.SelectedObject=handle.gui:FindFirstChild("bigCookie",true) end
+	local usingController=input:GetLastInputType().Name:find("Gamepad",1,true)~=nil
+	actions:BindAction("CookieClickerBack",function(_,state)
+		if input:GetFocusedTextBox() or guiService.MenuIsOpen then return Enum.ContextActionResult.Pass end
+		if state==Enum.UserInputState.Begin and navigateBack() then
+			usingController=true
+			guiService.SelectedObject=nil
+			return Enum.ContextActionResult.Sink
 		end
+		return Enum.ContextActionResult.Pass
+	end,false,Enum.KeyCode.ButtonB)
+	local selection=input.LastInputTypeChanged:Connect(function(kind)
+		usingController=kind.Name:find("Gamepad",1,true)~=nil
 	end)
-	script.Destroying:Connect(function()selection:Disconnect();actions:UnbindAction("CookieClickerBake")end)
+	local function visibleSelection(object)
+		if not object or not object:IsDescendantOf(handle.gui) then return false end
+		local node=object
+		while node and node~=handle.gui do
+			if node:IsA("GuiObject") and (not node.Visible or node.AbsoluteSize.X<=0 or node.AbsoluteSize.Y<=0) then return false end
+			node=node.Parent
+		end
+		return true
+	end
+	local focusElapsed=0
+	local focus=game:GetService("RunService").Heartbeat:Connect(function(dt)
+		if not usingController or guiService.MenuIsOpen or input:GetFocusedTextBox() then return end
+		focusElapsed+=dt;if focusElapsed<.15 then return end;focusElapsed=0
+		local selected=guiService.SelectedObject
+		if selected and not selected:IsDescendantOf(handle.gui) then return end
+		if visibleSelection(selected) then return end
+		local name=mobile and ("nav"..currentPage) or (currentTab~="Buildings" and "tab"..currentTab or "bigCookie")
+		local target=handle.gui:FindFirstChild(name,true)
+		if visibleSelection(target) then guiService.SelectedObject=target end
+	end)
+	script.Destroying:Connect(function()selection:Disconnect();focus:Disconnect();actions:UnbindAction("CookieClickerBake");actions:UnbindAction("CookieClickerBack")end)
 	send("sync")
 	print("[CookieClicker] Mounted with toil-luau React")
 	return handle

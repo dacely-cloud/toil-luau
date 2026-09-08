@@ -2,6 +2,7 @@
 return function()
 	local sounds = {}
 	local enabled, cursor, lastClick = true, 0, 0
+	local volume=1
 	for i=1,6 do
 		local sound=Instance.new("Sound")
 		sound.Name="CookieCue"..i
@@ -11,6 +12,10 @@ return function()
 		sounds[i]=sound
 	end
 	local api={}
+	function api.setVolume(percent)
+		volume=math.clamp(percent,0,100)/100
+		if volume==0 then for _,sound in sounds do sound:Stop() end end
+	end
 	function api.setEnabled(value)
 		enabled=value
 		if not enabled then for _, sound in sounds do sound:Stop() end end
@@ -25,7 +30,7 @@ return function()
 		local sound=sounds[cursor]
 		sound:Stop()
 		sound.PlaybackSpeed=kind=="error" and .7 or kind=="achievement" and 1.8 or kind=="success" and 1.4 or 1.1
-		sound.Volume=kind=="click" and .28 or .5
+		sound.Volume=(kind=="click" and .28 or .5)*volume
 		sound:Play()
 	end
 	function api.destroy() for _,sound in sounds do sound:Destroy() end end

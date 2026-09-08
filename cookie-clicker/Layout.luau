@@ -7,6 +7,6 @@ function Layout.measure(width,height)
 	-- Mobile remains at native pixels; neither mode imposes an aspect ratio.
 	local zoom=mobile and 1 or math.clamp(width/1440,1,2)
 	return {mobile=mobile,landscape=landscape,scale=zoom,width=width/zoom,height=height/zoom,
-		contentHeight=math.max(0,height/zoom-30-(mobile and 60 or 0))}
+		contentHeight=math.max(0,height/zoom-(mobile and 60 or 0))}
 end
 return Layout

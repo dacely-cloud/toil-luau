@@ -203,6 +203,8 @@ remote.OnServerEvent:Connect(function(player, action, index, quantity, sell)
 		state.reducedMotion=index
 	elseif action=="sound" and type(index)=="boolean" then
 		state.soundEnabled=index
+	elseif action=="volume" then
+		if not Model.setVolume(state,index) then return end
 	elseif action=="save" then
 		if not session.lastManualSave or os.clock()-session.lastManualSave>=15 then
 			session.lastManualSave=os.clock()

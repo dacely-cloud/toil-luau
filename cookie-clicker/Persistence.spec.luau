@@ -50,3 +50,15 @@ test("failed saves retain previously stored progress",function()
 	local p,d,advance,fail=fixture();local s=assert(p.load("a","first"));s.state.cookies=10;assert(p.save(s,false));s.state.cookies=20;fail(3);assert(not p.save(s,false));assert(d.a.cookies==10);assert(p.save(s,true));assert(d.a.cookies==20)
 end)
 print(passed.." persistence tests passed")
+test("volume saves, restores and rejects malformed requests",function()
+	local p,d=fixture();local s=assert(p.load("volume","first"))
+	assert(s.state.soundVolume==100)
+	assert(Model.setVolume(s.state,30));assert(p.save(s,true))
+	local next=assert(p.load("volume","second"));assert(next.state.soundVolume==30)
+	for _,bad in {-1,101,1.5,math.huge,0/0,"50",{}} do
+		assert(not Model.setVolume(next.state,bad) and next.state.soundVolume==30)
+	end
+	assert(Model.setVolume(next.state,0) and next.state.soundVolume==0)
+	d.legacy={version=1,soundVolume=math.huge}
+	assert(p.load("legacy","legacy").state.soundVolume==100)
+end)

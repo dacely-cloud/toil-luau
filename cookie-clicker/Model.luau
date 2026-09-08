@@ -57,7 +57,7 @@ end
 for _,count in {100,10000,100000} do achievements[#achievements+1]={"Cookie tapper "..count,"Click "..count.." times.","clicks",count} end
 Model.Achievements = achievements
 function Model.new()
-	local state = { version = 1, cookies = 0, earned = 0, handmade = 0, clicks = 0, buildings = table.create(#Model.Buildings, 0), upgrades = {}, achievements = {}, played = 0, bakery = "Your bakery", goldenClicks = 0, goldenAt = 75, goldenId = 0, goldenUntil = 0, frenzyUntil = 0, soundEnabled = true }
+	local state = { version = 1, cookies = 0, earned = 0, handmade = 0, clicks = 0, buildings = table.create(#Model.Buildings, 0), upgrades = {}, achievements = {}, played = 0, bakery = "Your bakery", goldenClicks = 0, goldenAt = 75, goldenId = 0, goldenUntil = 0, frenzyUntil = 0, soundEnabled = true, soundVolume = 100 }
 	if Model.initAdvanced then Model.initAdvanced(state) end
 	if Model.initEconomy then Model.initEconomy(state) end
 	return state
@@ -73,6 +73,11 @@ function Model.cps(state)
 	local value = 0
 	for i, b in Model.Buildings do value += b.cps * state.buildings[i] * Model.multiplier(state, i) end
 	return value * Model.productionFactor(state) * ((state.frenzyUntil or 0)>state.played and 2 or 1) * ((state.gardenBoostUntil or 0)>state.played and 1.05 or 1) + Model.propertyIncome(state)
+end
+function Model.setVolume(state,percent)
+	if type(percent)~="number" or percent~=percent or percent<0 or percent>100 or percent%1~=0 then return false end
+	state.soundVolume=percent
+	return true
 end
 function Model.clickPower(state)
 	local value = 1

@@ -30,3 +30,23 @@ assert(Model.clickPower(resumed.state)==1.01)
 resumed.state.economy.properties.stand=1
 assert(math.abs(Model.propertyIncome(resumed.state)-1.0201)<.00001)
 print("PASS empire donation debit-before-credit, save failures, ambiguous responses, crash replay and live economy bonuses")
+do
+    local member={state=Model.new(),ready=true}
+    assert(service.action(member,2,"join",1))
+    assert(service.action(member,2,"donate",10))
+    assert(empires.leave(1,2))
+    service.refresh(member,2)
+    assert(member.state.economy.empireId==nil and Model.clickPower(member.state)==1)
+    -- Rejoining with an older player save must not reuse an already-receipted sequence.
+    member.state.economy.empireSequence=0
+    assert(service.action(member,2,"join",1))
+    assert(member.state.economy.empireSequence==1)
+    local before=empires.read(1).points
+    assert(service.action(member,2,"donate",10))
+    assert(empires.read(1).points==before+10)
+    failWrite=true
+    service.refresh(member,2)
+    assert(member.state.economy.empireId==1 and Model.clickPower(member.state)==1.01)
+    failWrite=false
+end
+print("PASS stale membership removes perks, read failures preserve membership, and rejoining advances donation sequences")

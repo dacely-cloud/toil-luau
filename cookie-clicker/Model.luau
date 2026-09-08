@@ -72,7 +72,7 @@ end
 function Model.cps(state)
 	local value = 0
 	for i, b in Model.Buildings do value += b.cps * state.buildings[i] * Model.multiplier(state, i) end
-	return value * Model.productionFactor(state) * ((state.frenzyUntil or 0)>state.played and 2 or 1) * ((state.gardenBoostUntil or 0)>state.played and 1.05 or 1)
+	return value * Model.productionFactor(state) * ((state.frenzyUntil or 0)>state.played and 2 or 1) * ((state.gardenBoostUntil or 0)>state.played and 1.05 or 1) + Model.propertyIncome(state)
 end
 function Model.clickPower(state)
 	local value = 1

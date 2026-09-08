@@ -11,8 +11,16 @@ assert(s.economy.inventory.spatula==0 and Model.collectionBonus(s)==1.01)
 s.cookies=10000
 assert(Model.economyAction(s,"property","stand"))
 assert(s.cookies==9500 and Model.propertyPrice(s,"stand")==625)
+assert(math.abs(Model.snapshot(s).cps-1.01)<.00001, "property income appears in the bakery counter")
 Model.tick(s,150)
 assert(s.economy.energy==100 and math.abs(s.cookies-9651.5)<.001)
+local combined=Model.new()
+combined.buildings[2]=1;combined.economy.properties.store=1
+combined.frenzyUntil=100
+local rate=Model.cps(combined)
+local before=combined.cookies
+Model.tick(combined,1)
+assert(rate==14 and math.abs(combined.cookies-before-rate)<.00001, "displayed combined income matches actual awards")
 local earned=s.earned
 assert(Model.economyAction(s,"deposit",100))
 assert(Model.economyAction(s,"withdraw",100))

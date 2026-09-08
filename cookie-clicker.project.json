@@ -7,7 +7,8 @@
       "node_modules": { "$path": ".studio-stage/node_modules" },
       "TS": { "$path": ".studio-stage/TS" },
       "ToilRuntime": { "$path": ".studio-stage/ToilRuntime.luau" },
-      "CookieClicker": { "$path": ".studio-stage/CookieClicker" }
+      "CookieClicker": { "$path": ".studio-stage/CookieClicker" },
+      "ImageConfig": { "$path": ".studio-stage/ImageConfig.luau" }
     },
     "ServerScriptService": { "$className": "ServerScriptService", "$path": ".studio-stage/ServerScriptService" },
     "StarterPlayer": {

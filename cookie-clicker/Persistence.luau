@@ -79,7 +79,8 @@ function Persistence.new(Model, store, options)
 		end)
 		session.saving=false
 		if ok and result then
-			session.leaseUntil=now()+leaseSeconds
+			-- Retries consume time; the server must honor the expiry actually saved.
+			session.leaseUntil=not release and snapshot.session.expires or now()
 			session.closed=release==true
 			return true
 		end

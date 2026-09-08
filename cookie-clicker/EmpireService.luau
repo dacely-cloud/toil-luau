@@ -7,10 +7,22 @@ function EmpireService.new(empireStore,persistence)
         session.state.economy.empireLevel=record and record.level or 0
     end
     function service.refresh(session,userId)
-        local id=session.state.economy.empireId
+        local e=session.state.economy
+        local id=e.empireId
         if not id then apply(session,nil);return end
         local r=empireStore.read(id)
-        if r and r.members[tostring(userId)] and r.members[tostring(userId)].active then apply(session,r) end
+        if session.closing or e.empireId~=id then return end
+        if r then
+            local member=r.members[tostring(userId)]
+            if member and member.active then
+                apply(session,r)
+                e.empireSequence=math.max(e.empireSequence or 0,member.lastSequence or 0)
+            elseif not e.empireDonation then
+                -- A successful read can prove that a saved membership is stale.
+                -- A failed read cannot: preserve the cache until the next retry.
+                e.empireId=nil;apply(session,nil)
+            end
+        end
         return r
     end
     function service.resume(session,userId)
@@ -65,6 +77,8 @@ function EmpireService.new(empireStore,persistence)
         else return false,"Unknown empire action." end
         if not record then return false,message end
         apply(session,record)
+        local member=record.members[tostring(userId)]
+        if member then e.empireSequence=math.max(e.empireSequence or 0,member.lastSequence or 0) end
         persistence.save(session,false)
         return true,action=="upgrade" and "Empire leveled up!" or "Your empire is ready!"
     end

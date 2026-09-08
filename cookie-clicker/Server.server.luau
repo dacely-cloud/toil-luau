@@ -83,7 +83,7 @@ local function achievements(session)
 end
 local function load(player)
 	if sessions[player] or shuttingDown then return end
-	local pending={state=Model.new(),ready=false,saveStatus="Opening your bakery..."}
+	local pending={state=Model.new(),ready=false,tokens=40,saveStatus="Opening your bakery..."}
 	sessions[player]=pending
 	local token=HttpService:GenerateGUID(false)
 	while player.Parent and sessions[player]==pending and not shuttingDown do
@@ -128,12 +128,16 @@ end)
 remote.OnServerEvent:Connect(function(player, action, index, quantity, sell)
 	local session=sessions[player]
 	if not session then return end
-	if action=="sync" then send(player,session); return end
+	if session.tokens<1 then return end
+	session.tokens-=1
+	if action=="sync" then
+		local now=os.clock()
+		if session.lastSync and now-session.lastSync<1 then return end
+		session.lastSync=now;send(player,session);return
+	end
 	if not session.ready or session.closing then
 		notice(session,"error","Please wait while we open your saved bakery."); send(player,session); return
 	end
-	if session.tokens<1 then return end
-	session.tokens-=1
 	local state=session.state
 	if action=="empire" then
         if session.empireBusy or (session.lastEmpireAction and os.clock()-session.lastEmpireAction<1) then return end

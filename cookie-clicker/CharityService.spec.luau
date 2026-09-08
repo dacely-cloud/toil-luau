@@ -44,3 +44,43 @@ assert(resumedOwner.state.cookies==825 and resumedOwner.state.earned==325)
 assert(not service.action(resumedOwner,1,"claim"))
 assert(shared.read(1,ref.sequence).claimed)
 print("PASS fundraiser debit-before-credit, failed saves, response loss, crash recovery, repeated visits, theft conservation and one-time payout")
+
+-- Shared credit may succeed while the final player save fails. Both an in-session
+-- retry and a new session restoring the debit must deliver exactly one reward.
+do
+    local records,playerSaves={},{}
+    local writes=0
+    local shared=CharityStore.new(Model,{UpdateAsync=function(_,key,fn)
+        -- Datastore contention may invoke a callback repeatedly before commit.
+        fn(records[key])
+        local value=fn(records[key]);if value then records[key]=value end;return value
+    end})
+    assert(shared.create(10,1,1,100,0))
+    local clock=100
+    local persistence={save=function(session)
+        writes+=1
+        if writes==2 then return false end
+        playerSaves[session.id]=Model.snapshot(session.state);return true
+    end}
+    local service=CharityService.new(Model,shared,persistence,function()return clock end)
+    for _,crash in {false,true} do
+        writes=0
+        local id=crash and 12 or 11
+        local helper={id=id,state=Model.new(),ready=true}
+        assert(not service.action(helper,id,"help",10,{sequence=1}))
+        assert(helper.charityFinalizing and helper.state.cookies==50)
+        assert(playerSaves[id].cookies==0 and playerSaves[id].economy.charityPending)
+        if crash then
+            helper={id=id,state=Model.new(),ready=true}
+            Model.restoreEconomy(helper.state,playerSaves[id])
+            clock=2000 -- Existing receipts must remain recoverable after expiry.
+        end
+        assert(service.resume(helper,id))
+        assert(helper.state.cookies==50 and helper.state.economy.xp==20)
+        assert(helper.state.economy.stamina==95 and not helper.charityFinalizing)
+        assert(not playerSaves[id].economy.charityPending)
+        assert(service.resume(helper,id) and helper.state.cookies==50)
+    end
+    assert(shared.read(10,1).pot==950 and shared.read(10,1).visits==2)
+end
+print("PASS final-save failure, session retry, crash after credit, expired receipt recovery and repeated datastore callbacks")

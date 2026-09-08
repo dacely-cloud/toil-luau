@@ -8,6 +8,8 @@ local e = React.createElement
 local Model = require(script.Parent.Model)
 local Layout = require(script.Parent.Layout)
 local makeAudio = require(script.Parent.Audio)
+local ImageConfig = require(RS:WaitForChild("ImageConfig"))
+local ImageNames = require(script.Parent.ImageNames)
 local uiFont = "Georgia"
 local suffixes = { "million", "billion", "trillion", "quadrillion", "quintillion", "sextillion", "septillion", "octillion", "nonillion", "decillion" }
 local function number(n, decimals)
@@ -56,6 +58,14 @@ end
 local function rail(id, x, y, w, h)
 	return box(id, x, y, w, h, "linear-gradient(90deg, #21160e, #9e7650, #5d3c24, #b28c5c, #291e14)", {}, { border = "1px solid #1b120c" })
 end
+local function picture(id,name,x,y,w,h,more)
+    local s=style(x,y,w,h,{background="transparent",["background-image"]="url("..ImageConfig.get(name)..")",["object-fit"]="contain"})
+    if more then for k,v in more do s[k]=v end end
+    return e("img",{key=id,id=id,style=s})
+end
+local function buildingPicture(id,index,x,y,w,h,more)
+    return picture(id,ImageNames.buildings[index],x,y,w,h,more)
+end
 local stripeCache = {}
 local function stripes(id, w, h, dark, light)
 	local cached = stripeCache[id]
@@ -68,27 +78,8 @@ local function stripes(id, w, h, dark, light)
 	stripeCache[id] = { w = w, h = h, dark = dark, light = light, element = element }
 	return element
 end
-local cookieFill="linear-gradient(125deg, #ecc48a, #ce9b58, #b47935)"
-local crumbCache={}
-local function cookieArtwork(size)
-    if crumbCache[size] then return crumbCache[size] end
-    local crumbs={}
-    local scale=size/270
-    for i=1,80 do
-        -- Tiny highlights fall below one pixel in currency icons.
-        if size>=100 or i%4==0 then
-            local a,r=i*2.39996,math.sqrt(i/80)*118
-            local diameter=i%4==0 and 18 or 5
-            local color=i%4==0 and "#4e2916" or (i%3==0 and "#f2c27c" or "#b27b38")
-            crumbs[#crumbs+1]=box("crumb"..i,(135+math.cos(a)*r-diameter/2)*scale,(135+math.sin(a)*r-diameter/2)*scale,diameter*scale,diameter*scale,color,{}, {["border-radius"]=math.max(1,6*scale).."px",rotation=tostring(i*29)})
-        end
-    end
-    crumbCache[size]=crumbs
-    return crumbs
-end
-local cookieCrumbs=cookieArtwork(270)
 local function cookieCurrency(id,x,y)
-    return box(id,x,y,24,24,cookieFill,cookieArtwork(24),{["border-radius"]="12px",border="1px solid #8f5c2b",overflow="hidden"})
+    return picture(id,"Cookie",x,y,24,24)
 end
 local upgradeNames = {
 	fingers="Stronger clicks", cream="Even stronger clicks", ambidextrous="Super clicks",
@@ -121,13 +112,13 @@ local function Cookie(props)
 	local hover = React.useState(false)
 	local pressed, setPressed = state[1], state[2]
 	return e("button", {id="bigCookie",style=style(210,props.y+135,270,270,{
-		background=cookieFill, ["border-radius"]="135px",
-		border="7px solid #8f5c2b",overflow="hidden",rotation="0",transform="scale(" .. (pressed and "0.94" or hover[1] and "1.04" or "1") .. ")",transition="transform 0.09s ease-out"}),
+		background="transparent",
+		rotation="0",transform="scale(" .. (pressed and "0.94" or hover[1] and "1.04" or "1") .. ")",transition="transform 0.09s ease-out"}),
 		onMouseEnter=function() hover[2](true) end,
 		onMouseLeave=function() hover[2](false); setPressed(false) end,
 		onMouseDown=function() setPressed(true) end,
 		onMouseUp=function() setPressed(false) end,
-		onClick=function() props.send("click"); props.emit() end},table.unpack(cookieCrumbs))
+		onClick=function() props.send("click"); props.emit() end},picture("cookieArtwork","Cookie",0,0,270,270))
 end
 local shineRays = {}
 for i=1,12 do
@@ -139,7 +130,7 @@ end
 local function Rain(props)
 	local kids={}
 	for i=1,12 do
-		kids[#kids+1]=box("rainCookie"..i,(i*137)%math.max(1,props.w-26),0,18+(i%3)*4,18+(i%3)*4,"#b78042",{},
+		kids[#kids+1]=picture("rainCookie"..i,"Cookie",(i*137)%math.max(1,props.w-26),0,18+(i%3)*4,18+(i%3)*4,
 			{["border-radius"]="12px",opacity="0",animation=props.cps>0 and not props.reducedMotion and ("rain "..(5+i%4).."s linear -"..(i*.43).."s infinite") or ""})
 	end
 	return e("div",{id="cookieRain",style=style(0,0,props.w,props.h,{overflow="hidden"})},table.unpack(kids))
@@ -271,7 +262,7 @@ return function()
 			local variant=math.floor((n-1)/12)%2==0 and "A" or "B"
 			elements[slot*3+1]=label("clickNumber"..slot,"+"..number(snapshot.clickPower,true),x,y-15,130,32,24,"#ffffff",{
 				rotation="0",["text-align"]="center",["z-index"]="15",opacity="0",animation="popup"..variant.." 1s ease-out forwards"})
-			for j=1,2 do elements[slot*3+1+j]=box("clickCrumb"..slot.."_"..j,x+(j==1 and -12 or 12),y,12,12,j==1 and "#d8a15c" or "#59311c",{},
+			for j=1,2 do elements[slot*3+1+j]=picture("clickCrumb"..slot.."_"..j,"Cookie",x+(j==1 and -12 or 12),y,12,12,
 				{rotation="0",["border-radius"]="5px",["z-index"]="14",opacity="0",animation="crumb"..(j==1 and variant or (variant=="A" and "B" or "A")).." 0.9s linear forwards"}) end
 			slots[2](elements)
 		end
@@ -332,7 +323,6 @@ return function()
 		local cookieY = 0
 		local cookieScale = math.min(1, math.max(0.25, (h - (landscape and 70 or 190)) / 380))
 		local scene = {}
-		-- The cookie uses native vector-like geometry until the artwork pass.
 		scene[#scene + 1] = box("cookieShine",210,cookieY+135,380,380,nil,shineRays,{rotation="0",animation=not state.reducedMotion and "shine 60s linear infinite" or ""})
 		scene[#scene + 1] = box("cookieHalo", 55, cookieY - 20, 310, 310, "rgba(180,224,255,0.08)", {}, { ["border-radius"] = "155px" })
 		scene[#scene + 1] = box("cookieHaloInner", 67, cookieY - 8, 286, 286, "rgba(165,218,255,0.09)", {}, { ["border-radius"] = "143px" })
@@ -368,7 +358,7 @@ return function()
 						label("ownedCount" .. i, tostring(state.buildings[i]), centerW - 110, 6, 72, 48, 40, "#e2d7c5", { ["text-align"] = "right" }),
 					}
 					for k = 1, math.min(state.buildings[i], 14) do
-						children[#children + 1] = label("sprite" .. i .. "_" .. k,b.icon,16+(k-1)*41,62,38,48,32,b.color,titleStyle)
+						children[#children + 1] = buildingPicture("sprite" .. i .. "_" .. k,i,16+(k-1)*41,62,38,48)
 					end
 					children[#children + 1] = rail("rowRail" .. i, 0, 117, centerW - 12, 7)
 					rows[#rows + 1] = box("buildingScene" .. i, 0, row * 124, centerW - 12, 124, row % 2 == 0 and "#37352d" or "#302d27", children)
@@ -429,9 +419,7 @@ return function()
                         local ready=not locked and economy.energy>=job.energy
                         local reward=math.floor(job.cookies*Model.collectionBonus(state)*(1+Model.empireBonus(state))^2)
                         local card={
-                            box("jobPicture",12,14,52,52,"#d4a35f",{
-                                box("tray",5,18,42,28,"#706d75",{cookieCurrency("trayCookie",9,1)},{["border-radius"]="5px"}),
-                            },{["border-radius"]="12px"}),
+                            picture("jobPicture",ImageNames.jobs[job.id],12,14,52,52),
                             label("jobTitle",job.name,76,10,w-88,30,21,"#fff4df"),
                             label("jobRewards",number(reward).." cookies  |  +"..job.xp.." XP",76,44,w-88,28,19,"#ffe3a3"),
                             label("jobDrop",math.floor(job.chance*100).."% item chance",14,80,w-150,28,16,"#ddd2ff"),
@@ -444,10 +432,7 @@ return function()
                     text("propertyIncome","Your places: +"..number(Model.propertyIncome(state),true).." cookies / sec",38)
                     for _,property in Model.Properties do
                         local card={
-                            box("propertyArt",12,18,56,56,"#cf974e",{
-                                box("roof",0,0,56,15,"#e97760"),box("door",22,28,14,28,"#624736"),
-                                box("window",6,23,12,12,"#b4dfed"),
-                            },{["border-radius"]="5px"}),
+                            picture("propertyArt",ImageNames.properties[property.id],12,18,56,56),
                             label("propertyName",property.name,80,10,w-92,28,22,"#fff4df"),
                             label("propertyCount","Own "..(economy.properties[property.id] or 0).."  |  +"..number(property.income*Model.collectionBonus(state)*(1+Model.empireBonus(state))^2,true).." / sec each",80,44,w-92,40,18,"#b6e6bf"),
                             button("buyProperty"..property.id,"Buy: "..number(Model.propertyPrice(state,property.id)),12,94,w-24,48,function()send("economy","property",property.id)end,{background="#276849",["font-size"]="21px"}),
@@ -460,17 +445,7 @@ return function()
                     for _,item in Model.Items do
                         local owned=economy.inventory[item.id] or 0
                         local displayed=economy.collection[item.id]
-                        local art={}
-                        if item.id=="spatula" then
-                            art={box("handle",27,27,7,33,"#b97843"),box("blade",17,5,27,28,"#c2d9e0",{},{["border-radius"]="5px"})}
-                        elseif item.id=="apron" then
-                            art={box("neck",23,4,20,17,nil,{}, {border="4px solid #e98181",["border-radius"]="8px"}),box("cloth",12,18,43,42,"#e98181",{box("pocket",12,18,20,15,"#f5cbb6")},{["border-radius"]="8px"})}
-                        elseif item.id=="mixer" then
-                            art={box("stand",42,15,10,43,"#a0b8d4"),box("top",10,6,44,17,"#a0b8d4",{}, {["border-radius"]="8px"}),box("whisk",24,21,4,23,"#e3e4e8"),box("bowl",10,39,35,22,"#d2d7e2",{}, {["border-radius"]="10px"})}
-                        else
-                            art={box("band",8,33,48,22,"#edbf4f"),box("point1",8,13,12,27,"#edbf4f"),box("point2",26,6,12,34,"#edbf4f"),box("point3",44,13,12,27,"#edbf4f"),box("gem",28,37,10,11,"#ef826b")}
-                        end
-                        local card={box("itemArt",8,8,66,66,nil,art),
+                        local card={picture("itemArt",ImageNames.items[item.id],8,8,66,66),
                             label("itemName",item.name,84,8,w-96,28,22,"#fff4df"),
                             label("rarity",item.rarity.."  |  +"..math.floor(item.bonus*100).."%",84,40,w-96,26,18,rarityColors[item.rarity]),
                             label("owned",workPage[1]=="Collection" and (displayed and "Displayed!" or "Missing") or "In bag: "..owned,14,78,w-28,26,18,"#e9dcc6"),
@@ -488,14 +463,7 @@ return function()
                         pane[#pane+1]=button(id,title,24,y,w,48,function()send("empire",kind,arg,extra)end,{["font-size"]="20px",background="#544479"});y+=56
                     end
                     local function badgeArt(id,badge,x,py)
-                        local art={}
-                        if badge=="cookie" then art={box("cookie",8,8,48,48,cookieFill,cookieArtwork(48),{["border-radius"]="24px",border="2px solid #8f5c2b"})}
-                        elseif badge=="heart" then art={box("bottom",18,24,30,30,"#ee7896",{}, {rotation="45"}),box("left",9,12,30,30,"#ee7896",{}, {["border-radius"]="15px"}),box("right",29,12,30,30,"#ee7896",{}, {["border-radius"]="15px"})}
-                        elseif badge=="crown" then art={box("band",10,32,44,23,"#e9bd54"),box("left",10,14,10,25,"#e9bd54"),box("middle",27,7,10,32,"#e9bd54"),box("right",44,14,10,25,"#e9bd54")}
-                        elseif badge=="star" then art={box("star",15,15,34,34,"#e9bd54",{}, {rotation="45"}),box("spark",25,4,14,56,"#e9bd54"),box("spark2",4,25,56,14,"#e9bd54")}
-                        elseif badge=="shield" then art={box("shield",13,8,38,48,"#79b8df",{box("stripe",16,5,6,35,"#d9edf7")},{["border-radius"]="18px"})}
-                        else art={box("house",10,22,44,36,"#dfa961",{box("door",18,14,12,22,"#674831")}),box("roof",7,10,50,15,"#dd7266")} end
-                        return box(id,x,py,64,64,"#30283e",art,{["border-radius"]="12px"})
+                        return picture(id,ImageNames.badges[badge] or "CookieEmpire",x,py,64,64)
                     end
                     if empire then
                         pane[#pane+1]=badgeArt("myEmpireBadge",empire.badge,24,y)
@@ -670,7 +638,7 @@ return function()
 				continue
 			end
 			local kids = {
-				label("buildingIcon"..i,unlockedBuilding and b.icon or "?",10,4,58,61,43,unlockedBuilding and b.color or "#5a5147",titleStyle),
+				buildingPicture("buildingIcon"..i,i,10,4,58,61,{opacity=unlockedBuilding and "1" or "0.25"}),
 				label("buildingName" .. i, unlockedBuilding and b.name or "???", 77, 7, productW - 139, 31, 25, affordable and "#fff7e6" or "#a59a89"),
 				cookieCurrency("buildingCurrency"..i,79,40),
 				label("buildingPrice" .. i, number(price), 109, 38, productW-124, 30, 22, affordable and "#91cf74" or "#b07865"),
@@ -703,7 +671,7 @@ return function()
             local falling=button("goldenCookie","",x,-72,cookieSize,cookieSize,function()send("golden",snapshot.goldenId)end,{
                 background="transparent",border="0px solid transparent",
                 animation="goldenFall "..duration.."s linear -"..elapsed.."s forwards",
-            },{box("goldenArtwork",inset,inset,artworkSize,artworkSize,"linear-gradient(125deg, #fff3a6, #f4ca45, #d69717)",cookieArtwork(artworkSize),{border="2px solid #ffed87",["border-radius"]=artworkSize/2 .."px",overflow="hidden"})})
+            },{picture("goldenArtwork","GoldenCookie",inset,inset,artworkSize,artworkSize)})
             children[#children+1]=e("div",{key="goldenDrop"..state.goldenId,id="goldenDrop",style=style(0,30,leftW,h-milkHeight,{overflow="hidden",["z-index"]="70",display=(not mobile or page=="Bake") and "block" or "none"})},falling)
         end
 		children[#children+1]=e(Feedback,{key="feedback"})

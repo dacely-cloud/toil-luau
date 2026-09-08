@@ -219,18 +219,18 @@ return function()
             if signature~=previous.current then previous.current=signature;value[2](nextState) end
         end
         local state=value[1]
-        local centerW,h=props.width,props.height
-        local statusWidth=centerW-24
-        local meterWidth=(statusWidth-68)/2
-        local resourceStatus={label("workStatus","Lv "..Model.jobLevel(state),0,0,62,20,15,"#f5d58f")}
+        local width=props.width
+        local meterWidth=(width-12)/2
+        local resourceStatus={}
         for i,resource in {"energy","stamina"} do
-            local x=68+(i-1)*meterWidth
-            resourceStatus[#resourceStatus+1]=label(resource.."Amount",(resource=="energy" and "Energy " or "Stamina ")..math.floor(state.economy[resource]),x,0,meterWidth-8,19,15,resource=="energy" and "#a6ddeb" or "#dabbed")
-            resourceStatus[#resourceStatus+1]=box(resource.."Meter",x,20,meterWidth-8,3,"#393331",{
-                box("fill",0,0,(meterWidth-8)*state.economy[resource]/100,3,resource=="energy" and "#6abed5" or "#b18bcc"),
+            local x=(i-1)*(meterWidth+12)
+            resourceStatus[#resourceStatus+1]=label(resource.."Amount",(resource=="energy" and "Energy " or "Stamina ")..math.floor(state.economy[resource]).."/100",x,0,meterWidth,19,14,resource=="energy" and "#a6ddeb" or "#dabbed")
+            resourceStatus[#resourceStatus+1]=box(resource.."Meter",x,20,meterWidth,3,"#393331",{
+                box("fill",0,0,meterWidth*math.clamp(state.economy[resource]/100,0,1),3,resource=="energy" and "#6abed5" or "#b18bcc"),
             })
         end
-        return box("resourceStatus",12,h-25,statusWidth,23,nil,resourceStatus)
+        resourceStatus[#resourceStatus+1]=label("workStatus","Lv "..Model.jobLevel(state),width-64,-27,64,22,14,"#f5d58f",{["text-align"]="right"})
+        return box("resourceStatus",48,31,width,23,nil,resourceStatus)
     end
 	local function Tooltip(props)
 		local selection = React.useState(tooltipHover)
@@ -276,16 +276,15 @@ return function()
 		end
 		return e("div",{id="clickEffects",style=style(0,0,landscape and displayWidth or 420,contentHeight,{["z-index"]="12"})},table.unpack(slots[1]))
 	end
-	local function Counters()
-		local offset=mobile and not landscape and (displayWidth-420)/2 or 0
-		local width=mobile and (landscape and displayWidth*.45-20 or displayWidth-20) or 400
-		local state = React.useState(0)
-		refreshCounters = state[2]
-		return e(React.Fragment, nil,
-			label("cookieCount", number(snapshot.cookies) .. (math.floor(snapshot.cookies) == 1 and " cookie" or " cookies"), 10-offset, 47, width, 44, 31, "#ffffff", {["text-align"]="center"}),
-			label("cps", "per second: " .. number(snapshot.cps, true), 10-offset, 88, width, 28, 18, "#ffffff", {["text-align"]="center"}),
-			label("bonusTimer",(snapshot.frenzyUntil or 0)>snapshot.played and ("Double baking! "..math.ceil(snapshot.frenzyUntil-snapshot.played).."s left") or "",10-offset,117,width,24,17,"#f4d28a",{["text-align"]="center"}))
-	end
+	local function Counters(props)
+        local state = React.useState(0)
+        refreshCounters = state[2]
+        return e(React.Fragment, nil,
+            label("cookieCount", number(snapshot.cookies) .. (math.floor(snapshot.cookies) == 1 and " cookie" or " cookies"), 12, 56, props.width-24, 32, 31, "#ffffff", {["text-align"]="center"}),
+            label("cps", number(snapshot.cps, true).." cookies / second", 12, 88, props.width-24, 23, 19, "#ffffff", {["text-align"]="center"}),
+            label("bonusTimer",(snapshot.frenzyUntil or 0)>snapshot.played and ("Double baking! "..math.ceil(snapshot.frenzyUntil-snapshot.played).."s left") or "",12,116,props.width-24,22,16,"#f4d28a",{["text-align"]="center"}))
+    end
+
 	local function App()
 		local renderState = React.useState(0)
 		refresh = renderState[2]
@@ -318,6 +317,7 @@ return function()
 			elseif empireEdit[1] and tab=="Work" then empireEdit[2](false)
 			elseif tab=="Work" and workPage[1]~="Jobs" then workPage[2]("Jobs")
 			elseif tab=="Adventure" and adventurePage[1]~="Home" then adventurePage[2]("Home")
+			elseif tab=="Options" or tab=="Stats" then setTab("More")
 			elseif tab~="Buildings" then setTab("Buildings")
 			elseif mobile and page=="More" then setPage("Bake")
 			else return false end
@@ -342,9 +342,16 @@ return function()
 		end
 		local titleStyle = { ["text-align"] = "center" }
 		local left = {}
-		left[#left + 1] = box("bakeryShade", -bakeryOffset, 38, leftW, 100, "rgba(0,0,0,0.35)")
-		left[#left + 1] = label("bakeryName", state.bakery, 10-bakeryOffset, 8, mobile and (landscape and leftW*.45-20 or leftW-20) or 400, 32, 25, "#f4e9d9", titleStyle)
-		left[#left + 1] = e(Counters, {key="counters"})
+        local profileWidth=landscape and leftW*.45 or leftW
+        local avatar=e("img",{id="playerAvatar",style=style(8,6,34,34,{
+            background="transparent",["background-image"]="url(rbxthumb://type=AvatarHeadShot&id="..Players.LocalPlayer.UserId.."&w=150&h=150)",["object-fit"]="contain",
+        })})
+        left[#left+1]=box("playerProfile",-bakeryOffset,0,profileWidth,116,"rgba(0,0,0,0.35)",{
+            avatar,
+            label("bakeryName",state.bakery,48,4,profileWidth-124,24,18,"#f4e9d9"),
+            e(Counters,{key="counters",width=profileWidth}),
+            e(ResourceStatus,{key="resourceStatus",width=profileWidth-60}),
+        },{["z-index"]="5"})
 		local cookieY = 0
 		local cookieScale = math.min(1, math.max(0.25, (h - (landscape and 70 or 190)) / 380))
 		local scene = {}
@@ -379,7 +386,7 @@ return function()
         center[#center+1]=e("scroll",{key="workShortcuts",id="workShortcuts",style=style(8,4,centerW-16,88,{overflow="scroll",["overflow-x"]="scroll",["overflow-y"]="hidden"})},table.unpack(shortcuts))
         center[#center+1]=rail("shortcutsRail",0,92,centerW,10)
 
-		local tabs = { "Options", "Stats", "Adventure", "Work" }
+		local tabs = { "Adventure", "Work", "More" }
 		for i, name in tabs do
 			center[#center + 1] = button("tab" .. name, name, 8 + (i - 1) * ((centerW - 14) / #tabs), 110, (centerW - 14) / #tabs - 4, mobile and 44 or 31, function() setTab(tab == name and "Buildings" or name) end, { background = tab == name and "#726047" or "#322a22", ["font-size"] = math.min(18,(centerW-34)/#tabs/5.5).."px" })
 		end
@@ -406,10 +413,13 @@ return function()
 				rows[#rows + 1] = label("emptyHint", "Your cookie empire starts with a click.", 25, 62, centerW - 50, 35, 22, "#968675", titleStyle)
 				rows[#rows + 1] = label("emptySub", "Buy buildings in the store to start baking automatically.", 35, 103, centerW - 70, 48, 16, "#7d7165", titleStyle)
 			end
-			center[#center + 1] = e("scroll", { key = "buildingScenes", id = "buildingScenes", style = style(0, 160, centerW, math.max(30,h - 190), { overflow = "scroll" }) }, table.unpack(rows))
+			center[#center + 1] = e("scroll", { key = "buildingScenes", id = "buildingScenes", style = style(0, 160, centerW, math.max(30,h - 164), { overflow = "scroll" }) }, table.unpack(rows))
 		else
 			local pane = tab=="Work" and {} or { label("panelTitle", tab, 24, 12, centerW-48, 40, 32, "#fff0d8") }
-			if tab == "Stats" then
+			if tab == "More" then
+                pane[#pane+1]=button("openOptions","Options",24,68,centerW-48,52,function()setTab("Options")end)
+                pane[#pane+1]=button("openStats","Stats",24,132,centerW-48,52,function()setTab("Stats")end)
+            elseif tab == "Stats" then
 				local stats = {
 					{ "Cookies in bank", number(state.cookies) }, { "Cookies baked (all time)", number(state.earned) },
 					{ "Cookies per second", number(state.cps, true) }, { "Cookies per click", number(state.clickPower, true) },
@@ -723,9 +733,8 @@ return function()
                     end
                 end
 			end
-			center[#center + 1] = e("scroll", { key = "menuPanel"..tab..workPage[1]..adventurePage[1], id = "menuPanel", style = style(0, 160, centerW, math.max(30,h-190), { background = "#241f19", overflow = "scroll" }) }, table.unpack(pane))
+			center[#center + 1] = e("scroll", { key = "menuPanel"..tab..workPage[1]..adventurePage[1], id = "menuPanel", style = style(0, 160, centerW, math.max(30,h-164), { background = "#241f19", overflow = "scroll" }) }, table.unpack(pane))
 		end
-        center[#center+1]=e(ResourceStatus,{key="resourceStatus",width=centerW,height=h})
 		local store = { stripes("storeStripes", storeW, h, "#24221f", "#2a2723"), label("storeTitle", "Store", 10, 7, boostW - 20, 42, 36, "#fff2dd", titleStyle) }
 		local upgrades = {}
 		for _, u in Model.Upgrades do
@@ -815,6 +824,21 @@ return function()
 	local playerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
 	local old = playerGui:FindFirstChild("CookieClickerGui")
 	if old then old:Destroy() end
+    -- Only the backdrop extends behind Roblox controls; game controls use safe insets.
+    local oldBackdrop=playerGui:FindFirstChild("CookieClickerBackdrop")
+    if oldBackdrop then oldBackdrop:Destroy() end
+    local backdrop=Instance.new("ScreenGui")
+    backdrop.Name="CookieClickerBackdrop"
+    backdrop.ScreenInsets=Enum.ScreenInsets.None
+    backdrop.DisplayOrder=19
+    backdrop.ResetOnSpawn=false
+    local background=Instance.new("Frame")
+    background.Name="Background"
+    background.Size=UDim2.fromScale(1,1)
+    background.BackgroundColor3=Color3.fromRGB(23,21,16)
+    background.BorderSizePixel=0
+    background.Parent=backdrop
+    backdrop.Parent=playerGui
 	local handle = toil.mountReactRoot(playerGui, animationRules, e(App), nil, nil)
 	handle.gui.Name = "CookieClickerGui"
 	handle.gui.IgnoreGuiInset = false
@@ -888,7 +912,7 @@ return function()
 		measureViewport();viewportScale.Scale=uiScale;update(true)
 	end)
 	measureViewport();viewportScale.Scale=uiScale;update(true)
-	script.Destroying:Connect(function() alive=false;connection:Disconnect(); resize:Disconnect();safeResize:Disconnect(); audio.destroy();handle.unmount() end)
+	script.Destroying:Connect(function() alive=false;connection:Disconnect(); resize:Disconnect();safeResize:Disconnect(); audio.destroy();handle.unmount();backdrop:Destroy() end)
 	local input=game:GetService("UserInputService")
 	local actions=game:GetService("ContextActionService")
 	actions:BindAction("CookieClickerBake",function(_,state)
@@ -925,7 +949,8 @@ return function()
 		local selected=guiService.SelectedObject
 		if selected and not selected:IsDescendantOf(handle.gui) then return end
 		if visibleSelection(selected) then return end
-		local name=mobile and ("nav"..currentPage) or (currentTab~="Buildings" and "tab"..currentTab or "bigCookie")
+		local focusTab=(currentTab=="Options" or currentTab=="Stats") and "More" or currentTab
+		local name=mobile and ("nav"..currentPage) or (focusTab~="Buildings" and "tab"..focusTab or "bigCookie")
 		local target=handle.gui:FindFirstChild(name,true)
 		if visibleSelection(target) then guiService.SelectedObject=target end
 	end)

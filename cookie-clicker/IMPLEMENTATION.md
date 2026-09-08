@@ -11,7 +11,7 @@ The scope is the complete attached `pasted-text-1.txt`, plus subsequent UI and a
 | Sounds, purchase feedback, achievement popups | Reusable sound pool, notices and achievement events | Present in Audio/App/Server; purchase counters and notices observed. Sound mix remains a subjective review item. |
 | Artwork | Named lookups from ReplicatedStorage.ImageConfig for buildings, jobs, properties, items, badges, cookies and currency | Live ImageLabels verified. New cursor in shop/middle; old cursor around cookie, per user. Image mappings and all building render branches pass regression. |
 | Mobile, PC and controller | Responsive portrait/landscape, native mobile pixels, desktop zoom, CoreGui safe-area sizing, gamepad bake action and initial selection | Layout.spec covers 13 sizes. Portrait safe area observed at 401x719 inside a 401x777 viewport. Physical touch/controller navigation and all pages still need coverage. |
-| Save/rejoin and offline income | Session-locked UpdateAsync saves, retries, eight-hour offline cap, property income included | Persistence.spec: 8 pass, including stored lease expiry after retries. Published-server save verification is still outstanding. |
+| Save/rejoin and offline income | Session-locked UpdateAsync saves, retries, eight-hour offline cap, property income included | Persistence.spec: 9 pass, including stored lease expiry after retries. Published-server save verification is still outstanding. |
 | Rename and fuller settings | Filtered bakery name; sound, saved 0?100% volume and reduced-motion controls | Save restoration and malformed volume inputs tested. Live volume interaction still needs verification. |
 | Late-game systems | Ascension, three heavenly boosts, permanent slot, sugar lumps/levels, garden, market, helpers, spells and seasons; cookie buddies stand in for wrinklers | Model.spec covers the simplified rules. Full requested late-game UX and wrinkler interaction remain incomplete; this is not full original-game parity. |
 | Jobs | Energy, level gates, instant cookies/XP, server-generated item roll | Economy.spec and MultiplayerFlow.spec pass; job remote actions and resource updates observed live. |
@@ -30,7 +30,7 @@ The scope is the complete attached `pasted-text-1.txt`, plus subsequent UI and a
 - A labeled-break translation error allowed suspended work to reach commit with a number as the finished fiber. Translator regressions cover nested switch/loop exits. Earlier resumed-child bailout handling is also covered by a dedicated regression.
 - Stale empire membership now loses perks on a successful confirming read. Failed reads preserve the cache. Rejoining recovers the last donation sequence.
 - Save retries no longer extend the local lease beyond the expiry actually persisted.
-- Full-screen layout now respects Roblox CoreGui safe insets. News and the compact bottom resource strip are retained.
+- Full-screen layout now respects Roblox CoreGui safe insets. The announcement is removed. Avatar, bakery name, level, energy, stamina and large cookie counters share a compact 116px logical profile above the cookie. A separate full-screen backdrop covers the inset area while interactive content stays within CoreUISafeInsets.
 - One Studio run lacked client PlayerGui while both the game and Roblox chat waited. A fresh run mounted normally. The original startup failure has not been explained; do not count it as resolved by a restart.
 
 ## Current checks
@@ -62,3 +62,7 @@ Added B-button back navigation through confirmations, empire editing, Work secti
 The full `npm run cookie:build` pipeline passed after the UI changes. `python scripts/refresh-cookie-place.py` refreshed 33 runtime/game sources in `cookie-animation-test.rbxlx` and checked each serialized source against staging before replacing the artifact. This verifies packaging, not a fresh playtest of that standalone file.
 
 Jar UI now has the configured image on the left and amount/transfer controls on the right. Put in, Take out and Start a cookie party were all within the visible desktop panel. An input-tool test selected 500, deposited it, and opened the fundraiser choices, which displayed 500 available in the jar. Studio returned to Edit before the start action, so the updated start-party button still needs interactive verification. Locked shop icons now show ???; unlocked images remain configured assets.
+
+## Compact profile and More navigation
+
+Studio verified a 116 logical-pixel profile, 31px cookie count and 19px CPS text. The backdrop fills the 2497x1042 viewport while controls use the 2497x984 safe area. No uncaught render errors appeared in this run. Options and Stats live in More. Back returns from those pages to More; controller focus recovery targets the existing More button. The extracted navigation regression now covers those routes, Garden back navigation, and focus destinations. Physical controller verification remains open.

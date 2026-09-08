@@ -1813,11 +1813,13 @@ export function buildHostConfig(
 	function removeChild(_parent: HostNode, child: HostNode): void {
 		if (resolver.removed !== undefined) resolver.removed(child);
 		detachChild(child);
+		if (child.inst !== undefined) env.destroy(child.inst);
 	}
 
 	function removeChildFromContainer(_container: HostNode, child: HostNode): void {
 		if (resolver.removed !== undefined) resolver.removed(child);
 		detachChild(child);
+		if (child.inst !== undefined) env.destroy(child.inst);
 	}
 
 	function finalizeInitialChildren(instance: HostNode, _type: string, props: Record<string, unknown>): boolean {

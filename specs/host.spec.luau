@@ -65,6 +65,38 @@ local function findReact()
 end
 
 describe('roblox host', function ()
+	it('accepts Fragment children and still warns for invalid Fragment props', function ()
+		local React = findReact()
+		local reactEnv = getfenv(React.createElement)
+		local logger = reactEnv.console
+		-- The native harness supplies one-based Object.keys for the CSS engine;
+		-- vendor React in Studio uses the runtime's zero-based JS arrays.
+		local object = reactEnv.Object
+		local originalKeys = object.keys
+		object.keys = function(_, t)
+			local values = {}
+			for key in pairs(t) do values[#values+1] = tostring(key) end
+			return reactEnv.__arrNew(table.unpack(values))
+		end
+		local original = logger.error
+		local warnings = 0
+		logger.error = function(...)
+			for _, value in {...} do
+				if type(value) == "string" and value:find("Invalid prop", 1, true) then warnings += 1 end
+			end
+		end
+		local ok, err = pcall(function()
+			local valid = hostModule.mountReactRoot(nil, {}, React.createElement(React.Fragment, nil, React.createElement("span", nil, "one"), React.createElement("span", nil, "two")), nil, hostEnv.env)
+			valid.unmount()
+			assert(warnings == 0, "valid Fragment emitted an invalid-prop warning")
+			local invalid = hostModule.mountReactRoot(nil, {}, React.createElement(React.Fragment, {badProp=true}, React.createElement("span", nil, "one")), nil, hostEnv.env)
+			invalid.unmount()
+			assert(warnings > 0, "invalid Fragment props must still be validated")
+		end)
+		logger.error = original
+		object.keys = originalKeys
+		assert(ok, err)
+	end)
 	it('supports native Path2D props, updates, refs and change events without GuiObject writes', function ()
 		assert(hostModule and hostEnv)
 		local config = hostModule.buildHostConfig(hostEnv.env, { resolve = function(n) return n.pendingProps.style or {} end })

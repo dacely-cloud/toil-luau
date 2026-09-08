@@ -158,6 +158,11 @@ for (const f of walk(path.join(root, "out"))) {
 	// (dot, no self). Strip the self param from the dispatcher entries.
 	if (f.endsWith(path.join("vendor", "toil-react-reconciler", "cjs", "react-reconciler.development.luau"))) {
 		const before = s;
+		// Object.keys in the JS runtime returns a zero-based JS array. The
+		// inferred string[] type makes roblox-ts incorrectly shift this read.
+		// Keep Fragment validation enabled, reading the actual prop names.
+		s = s.replace("key = keys[i + 1]", "key = keys[i]");
+
 		s = s.replace(/(use[A-Za-z0-9_]+|readContext) = function\(self, /g, "$1 = function(");
 		// Hook tuple returns: TS-compiled app code reads hook results 1-based
 		// (roblox-ts shifts tuple indices), so useState returns plain 1-based

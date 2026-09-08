@@ -81,7 +81,7 @@ local animationRules = toil.cssToRules([[
 @keyframes popupB { from { transform: translate(0px,0px); opacity: 1; } to { transform: translate(0px,-90px); opacity: 0; } }
 @keyframes crumbA { 0% { transform: translate(0px,0px); opacity: 1; rotation: 0; } 25% { transform: translate(12px,-24px); opacity: 1; rotation: 45; } 100% { transform: translate(48px,180px); opacity: 0; rotation: 240; } }
 @keyframes crumbB { 0% { transform: translate(0px,0px); opacity: 1; rotation: 0; } 25% { transform: translate(-12px,-24px); opacity: 1; rotation: -45; } 100% { transform: translate(-48px,180px); opacity: 0; rotation: -240; } }
-@keyframes rain { 0% { transform: translate(0px,-120px); opacity: 0; } 10% { transform: translate(0px,2px); opacity: 0.55; } 85% { transform: translate(0px,917px); opacity: 0.55; } 100% { transform: translate(0px,1100px); opacity: 0; } }
+@keyframes rain { 0% { top: -10%; opacity: 0; } 10% { top: 2%; opacity: 0.55; } 85% { top: 92%; opacity: 0.55; } 100% { top: 110%; opacity: 0; } }
 ]])
 local function Cookie(props)
 	local state = React.useState(false)
@@ -99,17 +99,17 @@ end
 local shineRays = {}
 for i=1,12 do
 	local a=i*math.pi/6
-	shineRays[i]=e("path2d",{key="ray"..i,color="#39596b",thickness=16,controlPoints={
-		Path2DControlPoint.new(UDim2.fromOffset(190+math.cos(a)*110,190+math.sin(a)*110)),
-		Path2DControlPoint.new(UDim2.fromOffset(190+math.cos(a)*190,190+math.sin(a)*190))}})
+	shineRays[i]=e("path2d",{key="ray"..i,id="shineRay"..i,color="#39596b",thickness=16,controlPoints={
+		Path2DControlPoint.new(UDim2.fromScale(.5+math.cos(a)*110/380,.5+math.sin(a)*110/380)),
+		Path2DControlPoint.new(UDim2.fromScale(.5+math.cos(a)*.5,.5+math.sin(a)*.5))}})
 end
-local function Ambient(props)
-	local kids={box("cookieShine",210,props.y+135,380,380,nil,shineRays,{rotation="0",animation="shine 60s linear infinite"})}
+local function Rain(props)
+	local kids={}
 	for i=1,12 do
-		kids[#kids+1]=box("rainCookie"..i,(i*137)%420,0,18+(i%3)*4,18+(i%3)*4,"#b78042",{},
+		kids[#kids+1]=box("rainCookie"..i,(i*137)%math.max(1,props.w-26),0,18+(i%3)*4,18+(i%3)*4,"#b78042",{},
 			{["border-radius"]="12px",opacity="0",animation=props.cps>0 and ("rain "..(5+i%4).."s linear -"..(i*.43).."s infinite") or ""})
 	end
-	return e("div",{id="ambient",style=style(0,0,420,props.h,{overflow="hidden"})},table.unpack(kids))
+	return e("div",{id="cookieRain",style=style(0,0,props.w,props.h,{overflow="hidden"})},table.unpack(kids))
 end
 local function Cursors(props)
 	local kids={}
@@ -127,12 +127,12 @@ return function()
 	local refresh
 	local refreshCounters
 	local currentTab = "Buildings"
-	-- Fit controls to both viewport dimensions; share extra width across
-	-- all three columns without enlarging the cookie.
+	-- Preserve the original 1440px layout and readable text. Only the
+	-- cookie scene adapts to limited vertical space.
 	local displayWidth, displayHeight, uiScale
 	local function measureViewport()
 		local viewport = workspace.CurrentCamera.ViewportSize
-		uiScale = math.min(1, math.max(1, viewport.X) / 1440, math.max(1, viewport.Y) / 800)
+		uiScale = math.max(1, viewport.X) / 1440
 		displayWidth = math.max(1, viewport.X) / uiScale
 		displayHeight = math.max(1, viewport.Y) / uiScale
 	end
@@ -226,13 +226,16 @@ return function()
 		left[#left + 1] = box("bakeryShade", -(leftW-420)/2, 38, leftW, 100, "rgba(0,0,0,0.35)")
 		left[#left + 1] = label("bakeryName", state.bakery, 10, 8, 400, 32, 25, "#f4e9d9", titleStyle)
 		left[#left + 1] = e(Counters, {key="counters"})
-		local cookieY = math.floor(h * 0.32)
+		local cookieY = 0
+		local cookieScale = math.min(1, math.max(0.25, (h - 190) / 380))
+		local scene = {}
 		-- The cookie uses native vector-like geometry until the artwork pass.
-		left[#left + 1] = e(Ambient,{key="ambient",y=cookieY,h=h,cps=state.cps})
-		left[#left + 1] = box("cookieHalo", 55, cookieY - 20, 310, 310, "rgba(180,224,255,0.08)", {}, { ["border-radius"] = "155px" })
-		left[#left + 1] = box("cookieHaloInner", 67, cookieY - 8, 286, 286, "rgba(165,218,255,0.09)", {}, { ["border-radius"] = "143px" })
-		left[#left + 1] = e(Cookie, { key = "cookie", y = cookieY, send = send, emit=function() emitClick() end })
-		left[#left + 1] = e(Cursors,{key="cursors",count=state.buildings[1],y=cookieY})
+		scene[#scene + 1] = box("cookieShine",210,cookieY+135,380,380,nil,shineRays,{rotation="0",animation="shine 60s linear infinite"})
+		scene[#scene + 1] = box("cookieHalo", 55, cookieY - 20, 310, 310, "rgba(180,224,255,0.08)", {}, { ["border-radius"] = "155px" })
+		scene[#scene + 1] = box("cookieHaloInner", 67, cookieY - 8, 286, 286, "rgba(165,218,255,0.09)", {}, { ["border-radius"] = "143px" })
+		scene[#scene + 1] = e(Cookie, { key = "cookie", y = cookieY, send = send, emit=function() emitClick() end })
+		scene[#scene + 1] = e(Cursors,{key="cursors",count=state.buildings[1],y=cookieY})
+		left[#left+1] = box("cookieScene",210-210*cookieScale,138+(h-178)/2-135*cookieScale,420,math.max(380,h),nil,scene,{transform="scale("..cookieScale..")"})
 		left[#left + 1] = e(ClickEffects,{key="effects"})
 		local unlocked = 0
 		for _ in state.achievements do unlocked += 1 end
@@ -336,7 +339,7 @@ return function()
 		store[#store + 1] = e("scroll", { key = "storeProducts", id = "storeProducts", style = style(0, 184, storeW, h - 184, { overflow = "scroll" }) }, table.unpack(products))
 		local children = {
 			box("topBar", 0, 0, displayWidth, 30, "#111111", { label("brand", "Cookie Clicker", 12, 1, 180, 27, 18, "#e2d1b6"), label("attribution", "Original by Orteil & Opti • DashNet", 192, 2, 420, 25, 14, "#a89e90"), label("edition", "Roblox edition", displayWidth - 205, 2, 190, 25, 14, "#a89e90", { ["text-align"] = "right" }) }),
-			box("bakeryColumn", 0, 30, leftW, h, nil, {stripes("blueStripes",leftW,h,"#173346","#1a3b51"), box("bakeryContent",(leftW-420)/2,0,420,h,nil,left)}, { overflow = "hidden" }),
+			box("bakeryColumn", 0, 30, leftW, h, nil, {stripes("blueStripes",leftW,h,"#173346","#1a3b51"), e(Rain,{key="rain",w=leftW,h=h,cps=state.cps}), box("bakeryContent",(leftW-420)/2,0,420,h,nil,left)}, { overflow = "hidden" }),
 			rail("leftRail", leftW, 30, 12, h), box("centerColumn", centerX, 30, centerW, h, nil, center),
 			rail("rightRail", centerX + centerW, 30, 12, h), box("storeColumn", storeX, 30, storeW, h, nil, store),
 		}

@@ -1039,7 +1039,7 @@ function easeBezier(t: number): number {
 // ------------------------------------------------------------------ animation evaluation
 
 function parseValue(v: string): [number, string] | undefined {
-	const caps = strMatchAll(strTrim(v), "^([%-%d%.]+)(%a*)$");
+	const caps = strMatchAll(strTrim(v), "^([%-%d%.]+)([%a%%]*)$");
 	if (caps !== undefined) {
 		const n = jsParseFloat(caps[0]);
 		const unit = caps[1] ?? "";

@@ -30,6 +30,17 @@ end
 local function box(id, x, y, w, h, color, children, more)
 	local s = style(x, y, w, h, more)
 	if color then s.background = color end
+	local zone=s["--zone-background"]
+    if zone then
+        s["--zone-background"]=nil
+        s.overflow="hidden"
+        children={
+            e("div",{key="zoneInset",id="zoneInset",style=style(4,4,w-8,h-8,{overflow="hidden",["z-index"]="0"})},
+                e("img",{key="zoneImage",id="zoneImage",style=style(0,0,w-8,h-8,{["background-image"]="url("..ImageConfig.get("ZoneBackground/"..zone)..")",["object-fit"]="cover"})}),
+                e("div",{key="zoneShade",id="zoneShade",style=style(0,0,w-8,h-8,{background="rgba(17,13,10,0.66)",["z-index"]="1"})})),
+            e("div",{key="zoneContent",id="zoneContent",style=style(0,0,w,h,{["z-index"]="2"})},table.unpack(children or {})),
+        }
+    end
 	return e("div", { key = id, id = id, style = s }, table.unpack(children or {}))
 end
 local function label(id, text, x, y, w, h, size, color, more)
@@ -76,7 +87,7 @@ local function standBackground(width,height)
         for col=-2,2 do
             local sampleWeight=math.exp(-(row*row+col*col)/2)
             weight+=sampleWeight
-            layers[#layers+1]=picture("blurSample"..#layers,"CookieStandBackground",(width-imageW)/2+col*10,(height-imageH)/2+row*10,imageW,imageH,{
+                            layers[#layers+1]=picture("blurSample"..#layers,"ZoneBackground/BakingCookie",(width-imageW)/2+col*10,(height-imageH)/2+row*10,imageW,imageH,{
                 ["object-fit"]="cover",opacity=tostring(sampleWeight/weight),["z-index"]=tostring(#layers+1),
             })
         end
@@ -421,7 +432,7 @@ return function()
 						children[#children + 1] = buildingPicture("sprite" .. i .. "_" .. k,i,16+(k-1)*41,62,38,48)
 					end
 					children[#children + 1] = rail("rowRail" .. i, 0, 117, centerW - 12, 7)
-					rows[#rows + 1] = box("buildingScene" .. i, 0, row * 124, centerW - 12, 124, row % 2 == 0 and "#37352d" or "#302d27", children)
+					rows[#rows + 1] = box("buildingScene" .. i, 0, row * 124, centerW - 12, 124, row % 2 == 0 and "#37352d" or "#302d27", children,{["--zone-background"]=ImageNames.buildingBackgrounds[i]})
 					row += 1
 				end
 			end
@@ -492,7 +503,7 @@ return function()
                             button("doJob"..job.id,locked and "Level "..job.level or "Do it!",w-128,78,114,48,function()send("economy","job",job.id)end,{background=ready and "#276849" or "#51483d",["font-size"]="22px"}),
                             label("jobEnergy",job.energy.." energy",14,110,w-150,26,18,"#9fdcf6"),
                         }
-                        pane[#pane+1]=box("jobCard"..job.id,24,y,w,146,"#342d25",card,{border="1px solid #827052",["border-radius"]="12px"});y+=158
+                        pane[#pane+1]=box("jobCard"..job.id,24,y,w,146,"#342d25",card,{border="1px solid #827052",["border-radius"]="12px",["--zone-background"]=ImageNames.jobBackgrounds[job.id]});y+=158
                     end
                 elseif workPage[1]=="Properties" then
                     text("propertyIncome","Your places: +"..number(Model.propertyIncome(state),true).." cookies / sec",38)
@@ -506,7 +517,7 @@ return function()
                         if property.id=="stand" then
                             card={box("standBackgroundInset",4,4,w-8,146,nil,{standBackground(w-8,146)},{overflow="hidden",["z-index"]="0"}),box("propertyControls",0,0,w,154,nil,card,{["z-index"]="2"})}
                         end
-                        pane[#pane+1]=box("propertyCard"..property.id,24,y,w,154,"#342d25",card,{border="1px solid #827052",["border-radius"]="12px",overflow="hidden"});y+=166
+                        pane[#pane+1]=box("propertyCard"..property.id,24,y,w,154,"#342d25",card,{border="1px solid #827052",["border-radius"]="12px",overflow="hidden",["--zone-background"]=property.id~="stand" and ImageNames.propertyBackgrounds[property.id] or nil});y+=166
                     end
                 elseif workPage[1]=="Shop" or workPage[1]=="Bag" or workPage[1]=="Collection" then
                     text("collectionHelp","Collection boost: +"..math.floor((Model.collectionBonus(state)-1)*100+.5).."% cookies",38)
@@ -524,7 +535,7 @@ return function()
                         elseif not displayed then
                             card[#card+1]=button("displayItem"..item.id,"Display for +"..math.floor(item.bonus*100).."%",12,112,w-24,48,function()send("economy","collect",item.id)end,{background=owned>0 and "#605193" or "#51483d",["font-size"]="21px"})
                         else card[#card+1]=label("activeBoost","Boost is active",14,117,w-28,35,21,"#b6e6bf") end
-                        pane[#pane+1]=box("itemCard"..item.id,24,y,w,172,"#342d25",card,{border="1px solid "..rarityColors[item.rarity],["border-radius"]="12px"});y+=184
+                        pane[#pane+1]=box("itemCard"..item.id,24,y,w,172,"#342d25",card,{border="1px solid "..rarityColors[item.rarity],["border-radius"]="12px",["--zone-background"]=ImageNames.itemBackgrounds[item.id]});y+=184
                     end
                 elseif workPage[1]=="Empire" then
                     local empire=state.empire
@@ -613,7 +624,7 @@ return function()
                             label("partyTime",remaining>0 and math.ceil(remaining/60).." min left" or "Ready!",88,48,w-100,30,19,"#b6e6bf"),
                             box("partyTrack",14,92,w-28,8,"#51483d",{box("fill",0,0,(w-28)*progress,8,"#97ce8a")}),
                             button("claimCharity",ready and "Collect cookies" or "Growing...",12,122,w-24,50,function()if ready then send("fundraiser","claim") end end,{background=ready and "#276849" or "#51483d",["font-size"]="22px"}),
-                        },{["border-radius"]="12px"});y+=200
+                        },{["border-radius"]="12px",["--zone-background"]="CookieParty"});y+=200
                     else
                         pane[#pane+1]=box("partyJar",24,y,w,80,nil,{
                             picture("jarPicture","CookieJar",0,0,64,64),
@@ -627,7 +638,7 @@ return function()
                                 label("partyDuration",tier.name,80,10,w-92,28,23,"#fff4df"),
                                 label("partyReward",number(math.floor(tier.cost*tier.multiplier)).." cookies back",80,42,w-92,30,19,"#b6e6bf"),
                                 button("startCharity"..i,(ready and "Start: " or "Need: ")..number(tier.cost).." from jar",12,90,w-24,50,function()if ready then send("fundraiser","start",i) else workPage[2]("Jar") end end,{background=ready and "#276849" or "#51483d",["font-size"]="20px"}),
-                            },{["border-radius"]="12px"});y+=166
+                            },{["border-radius"]="12px",["--zone-background"]="CookieCharity"});y+=166
                         end
                         text("partyChanges","Friends can add cookies. Thieves can take some.",48)
                     end
@@ -646,7 +657,7 @@ return function()
                                 button("stealCharity"..other.id,"Steal",20+half,112,half,48,function()send("charity","steal",other.id)end,{background="#68402d",["font-size"]="22px"}),
                                 label("helpCost","5 stamina",12,164,half,26,17,"#a6ddeb",{["text-align"]="center"}),
                                 label("stealCost","10 stamina",20+half,164,half,26,17,"#a6ddeb",{["text-align"]="center"}),
-                            },{["border-radius"]="12px"});y+=216
+                            },{["border-radius"]="12px",["--zone-background"]="CookieCharity"});y+=216
                         end
                     end
                     if found then text("helpReward","Each help earns 50 cookies + 20 XP.",48)
@@ -658,7 +669,7 @@ return function()
                     pane[#pane+1]=box("jarCard",24,y,artW,224,nil,{
                         picture("jarPicture","CookieJar",0,16,artW,artW),
                         label("jarBalance",number(economy.jar).."\ncookies in jar",0,artW+24,artW,62,21,"#ffe3a3",{["text-align"]="center"}),
-                    })
+                    },{["--zone-background"]="CookieJar"})
                     local cell=(controlsW-8)/2
                     for i,amount in {100,500,1000,10000} do
                         pane[#pane+1]=button("jarAmount"..amount,number(amount),controlsX+((i-1)%2)*(cell+8),y+math.floor((i-1)/2)*52,cell,44,function()jarAmount[2](amount)end,{background=jarAmount[1]==amount and "#74603a" or "#30271f",["font-size"]="17px"})
@@ -680,9 +691,9 @@ return function()
 					pane[#pane+1]=button(id,title,24,y,w,48,function()send("advanced",kind,arg)end,{["font-size"]="18px"});y+=56
 				end
                 local activities={
-                    {"Stars","GoldenCookie"},{"Boosts","CookieCrown"},{"Levels","CookieTray"},
-                    {"Buddies","Grandma"},{"Garden","Farm"},{"Market","CookieMarket"},
-                    {"Helpers","CookieTemple"},{"Magic","CookieWizardTower"},{"Seasons","CookieFestival"},
+                    {"Stars","Stars"},{"Boosts","CookieBoost"},{"Levels","CookieLevels"},
+                    {"Buddies","CookieFriends"},{"Garden","CookieGarden"},{"Market","CookieMarket"},
+                    {"Helpers","CookieHelper"},{"Magic","CookieWizardTower"},{"Seasons","CookieFestival"},
                 }
                 if adventurePage[1]=="Home" then
                     local columns=w>=480 and 3 or 2
@@ -751,7 +762,7 @@ return function()
                     local canPlant=not planted and state.buildings[3]>0 and state.lumps>=1
                     local progress=planted and math.clamp(1-remaining/60,0,1) or 0
                     pane[#pane+1]=box("gardenPlot",24,y,w,178,"#283b28",{
-                        picture("gardenPicture","Farm",12,10,88,88,{opacity=planted and "1" or "0.55"}),
+                        picture("gardenPicture","CookieGarden",12,10,88,88,{opacity=planted and "1" or "0.55"}),
                         label("gardenStatus",ripe and "Ready to pick!" or planted and "Growing..." or "Plant your garden",112,10,w-124,34,22,"#fff4df"),
                         label("gardenTimer",planted and (ripe and "+5% baking for 10 min" or math.ceil(remaining).." seconds left") or "1 sugar lump • 1 minute",112,48,w-124,48,18,"#b6e6bf"),
                         box("gardenTrack",12,104,w-24,8,"#43523a",{box("fill",0,0,(w-24)*progress,8,"#a5d987")}),
@@ -884,7 +895,7 @@ return function()
 		if mobile then
 			local nav={}
 			for i,name in {"Bake","Shop","More"} do
-				nav[i]=button("nav"..name,name,(i-1)*(displayWidth/3)+4,4,displayWidth/3-8,52,function()setPage(name);setHover(0)end,{background=page==name and "#74603a" or "#30271f",["font-size"]="23px"})
+				nav[i]=button("nav"..name,"",(i-1)*(displayWidth/3)+4,4,displayWidth/3-8,52,function()setPage(name);setHover(0)end,{background="transparent",border=page==name and "2px solid #ffe19a" or "0px solid transparent"},{picture("menuFace","MenuButtons/"..name.."Button",0,0,displayWidth/3-8,52,{["object-fit"]="contain"})})
 			end
 			children[#children+1]=box("mobileNav",0,displayHeight-60,displayWidth,60,"#171510",nav,{["z-index"]="50"})
 		end

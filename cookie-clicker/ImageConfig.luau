@@ -44,6 +44,8 @@ export type Asset = {
 }
 
 ImageConfig.Assets = {
+    CookieShine = { Id = 80600210970592, ImageId = 80600210970592, Source = "user-provided rotating cookie shine" },
+    CookieStandBackground = { Id = 93747807846505, ImageId = 93747807846505, Source = "user-provided Cookie Stand background" },
     BakeryLevel5 = { Id = 121801422919701, ImageId = 121801422919701, Source = "user-provided level 5 bakery background" },
 	BakeForParty = { Id = 89016281670574, ImageId = 104612721638877, Source = "bakeforparty.png" },
 	Cookie = { Id = 72527335782131, ImageId = 99845411162505, Source = "Cookie.png" },

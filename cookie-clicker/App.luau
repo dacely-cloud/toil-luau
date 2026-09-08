@@ -63,6 +63,29 @@ local function picture(id,name,x,y,w,h,more)
     if more then for k,v in more do s[k]=v end end
     return e("img",{key=id,id=id,style=s})
 end
+-- A static, weighted image stack approximates a soft blur within this card.
+-- It is cached, does not animate, and leaves text/buttons outside the blur.
+local standBackgroundCache={}
+local function standBackground(width,height)
+    if standBackgroundCache.width==width and standBackgroundCache.height==height then return standBackgroundCache.element end
+    local layers={}
+    local weight=0
+    local zoom=1.35
+    local imageW,imageH=width*zoom+48,height*zoom+48
+    for row=-2,2 do
+        for col=-2,2 do
+            local sampleWeight=math.exp(-(row*row+col*col)/2)
+            weight+=sampleWeight
+            layers[#layers+1]=picture("blurSample"..#layers,"CookieStandBackground",(width-imageW)/2+col*10,(height-imageH)/2+row*10,imageW,imageH,{
+                ["object-fit"]="cover",opacity=tostring(sampleWeight/weight),["z-index"]=tostring(#layers+1),
+            })
+        end
+    end
+    layers[#layers+1]=box("backgroundShade",0,0,width,height,"rgba(17,13,10,0.48)",nil,{["z-index"]="30"})
+    local element=box("standBackground",0,0,width,height,nil,layers,{overflow="hidden",["z-index"]="0"})
+    standBackgroundCache={width=width,height=height,element=element}
+    return element
+end
 local function buildingPicture(id,index,x,y,w,h,more)
     return picture(id,ImageNames.buildings[index],x,y,w,h,more)
 end
@@ -119,13 +142,6 @@ local function Cookie(props)
 		onMouseDown=function() setPressed(true) end,
 		onMouseUp=function() setPressed(false) end,
 		onClick=function() props.send("click"); props.emit() end},picture("cookieArtwork","Cookie",0,0,270,270))
-end
-local shineRays = {}
-for i=1,12 do
-	local a=i*math.pi/6
-	shineRays[i]=e("path2d",{key="ray"..i,id="shineRay"..i,color="#39596b",thickness=16,controlPoints={
-		Path2DControlPoint.new(UDim2.fromScale(.5+math.cos(a)*110/380,.5+math.sin(a)*110/380)),
-		Path2DControlPoint.new(UDim2.fromScale(.5+math.cos(a)*.5,.5+math.sin(a)*.5))}})
 end
 local function Rain(props)
 	local kids={}
@@ -355,7 +371,7 @@ return function()
 		local cookieY = 0
 		local cookieScale = math.min(1, math.max(0.25, (h - (landscape and 70 or 190)) / 380))
 		local scene = {}
-		scene[#scene + 1] = box("cookieShine",210,cookieY+135,380,380,nil,shineRays,{rotation="0",animation=not state.reducedMotion and "shine 60s linear infinite" or ""})
+		scene[#scene + 1] = picture("cookieShine","CookieShine",210,cookieY+135,380,380,{rotation="0",animation=not state.reducedMotion and "shine 60s linear infinite" or ""})
 		scene[#scene + 1] = box("cookieHalo", 55, cookieY - 20, 310, 310, "rgba(180,224,255,0.08)", {}, { ["border-radius"] = "155px" })
 		scene[#scene + 1] = box("cookieHaloInner", 67, cookieY - 8, 286, 286, "rgba(165,218,255,0.09)", {}, { ["border-radius"] = "143px" })
 		scene[#scene + 1] = e(Cookie, { key = "cookie", y = cookieY, send = send, emit=function() emitClick() end })
@@ -383,7 +399,7 @@ return function()
                 label("shortcutName",name,2,51,92,26,16,"#fff4df",{["text-align"]="center"}),
             })
         end
-        center[#center+1]=e("scroll",{key="workShortcuts",id="workShortcuts",style=style(8,4,centerW-16,88,{overflow="scroll",["overflow-x"]="scroll",["overflow-y"]="hidden"})},table.unpack(shortcuts))
+        center[#center+1]=e("scroll",{key="workShortcuts",id="workShortcuts",style=style(8,4,centerW-16,88,{["overflow-x"]="scroll",["overflow-y"]="hidden"})},table.unpack(shortcuts))
         center[#center+1]=rail("shortcutsRail",0,92,centerW,10)
 
 		local tabs = { "Adventure", "Work", "More" }
@@ -487,7 +503,10 @@ return function()
                             label("propertyCount","Own "..(economy.properties[property.id] or 0).."  |  +"..number(property.income*Model.collectionBonus(state)*(1+Model.empireBonus(state))^2,true).." / sec each",80,44,w-92,40,18,"#b6e6bf"),
                             button("buyProperty"..property.id,"Buy: "..number(Model.propertyPrice(state,property.id)),12,94,w-24,48,function()send("economy","property",property.id)end,{background="#276849",["font-size"]="21px"}),
                         }
-                        pane[#pane+1]=box("propertyCard"..property.id,24,y,w,154,"#342d25",card,{border="1px solid #827052",["border-radius"]="12px"});y+=166
+                        if property.id=="stand" then
+                            card={box("standBackgroundInset",4,4,w-8,146,nil,{standBackground(w-8,146)},{overflow="hidden",["z-index"]="0"}),box("propertyControls",0,0,w,154,nil,card,{["z-index"]="2"})}
+                        end
+                        pane[#pane+1]=box("propertyCard"..property.id,24,y,w,154,"#342d25",card,{border="1px solid #827052",["border-radius"]="12px",overflow="hidden"});y+=166
                     end
                 elseif workPage[1]=="Shop" or workPage[1]=="Bag" or workPage[1]=="Collection" then
                     text("collectionHelp","Collection boost: +"..math.floor((Model.collectionBonus(state)-1)*100+.5).."% cookies",38)
@@ -759,19 +778,50 @@ return function()
 				action("spiritLuck","Lucky helper: 20% more lucky rewards","spirit","luck")
 
                     elseif adventurePage[1]=="Magic" then
-				text("spellInfo","Spell book (need a wizard tower)\nMagic: "..math.floor(state.magic).." / 100. Gain 1 magic each second.",75)
-				action("spellLucky","Make a lucky cookie - 40 magic","spell","lucky")
-				action("spellCookies","Bake a minute of cookies - 60 magic","spell","cookies")
+                    local unlocked=state.buildings[8]>0
+                    local magic=math.clamp(state.magic,0,100)
+                    pane[#pane+1]=box("magicMeter",24,y,w,88,"#30283e",{
+                        picture("magicPicture","CookieWizardTower",10,8,56,56),
+                        label("magicAmount",math.floor(magic).." / 100 magic",78,8,w-90,32,23,"#e6d3ff"),
+                        label("magicRecharge",unlocked and "+1 magic each second" or "Buy a wizard tower to unlock",78,40,w-90,30,17,"#e9dcc6"),
+                        box("magicTrack",12,76,w-24,6,"#514862",{box("fill",0,0,(w-24)*magic/100,6,"#bb95e8")}),
+                    },{["border-radius"]="10px"});y+=100
+                    for _,spell in {{"lucky","GoldenCookie","Lucky cookie",40,"Catch it as it falls!","spellLucky"},{"cookies","Cookie","Cookie burst",60,"1 minute of baking instantly","spellCookies"}} do
+                        local ready=unlocked and magic>=spell[4]
+                        local title=not unlocked and "Need a wizard tower" or ready and "Cast • "..spell[4].." magic" or "Ready in "..math.ceil(spell[4]-magic).."s"
+                        pane[#pane+1]=box("spellCard"..spell[1],24,y,w,162,"#342d25",{
+                            picture("spellPicture",spell[2],12,12,64,64),
+                            label("spellName",spell[3],88,12,w-100,32,22,"#fff4df"),
+                            label("spellReward",spell[5],88,48,w-100,44,17,"#dbc5ef"),
+                            button(spell[6],title,12,104,w-24,46,function()if ready then send("advanced","spell",spell[1]) end end,{background=ready and "#544479" or "#403a43",["font-size"]="20px"}),
+                        },{["border-radius"]="10px"});y+=174
+                    end
 
                     elseif adventurePage[1]=="Seasons" then
-				text("seasonInfo","Seasonal cookie hunt\nCurrent: "..state.season..". Found: "..state.seasonCookies..". Every 5 lucky cookies earns an extra reward.",85)
-				action("winterSeason","Start winter cookie hunt","season","winter")
-				action("springSeason","Start spring cookie hunt","season","spring")
-				action("normalSeason","End seasonal hunt","season","none")
+                    local hunting=state.season~="none"
+                    local collected=state.seasonCookies%5
+                    local huntTitle=state.season=="winter" and "Winter hunt" or state.season=="spring" and "Spring hunt" or "Choose a cookie hunt"
+                    pane[#pane+1]=box("huntProgress",24,y,w,190,"#342d25",{
+                        picture("huntPicture","CookieFestival",12,10,64,64),
+                        label("huntTitle",huntTitle,88,10,w-100,34,23,"#fff4df"),
+                        label("huntHint","Catch falling golden cookies",88,48,w-100,44,18,"#ffe3a3"),
+                        label("huntReward","Every 5 = 2 minutes of baking",12,142,w-24,26,18,"#b6e6bf",{["text-align"]="center"}),
+                        label("huntMinimum","At least 500 bonus cookies",12,168,w-24,22,16,"#dbc5ef",{["text-align"]="center"}),
+                    },{["border-radius"]="10px"})
+                    local slotW=(w-24)/5
+                    for i=1,5 do
+                        pane[#pane+1]=picture("huntCookie"..i,"GoldenCookie",36+(i-1)*slotW+(slotW-36)/2,y+98,36,36,{opacity=i<=collected and "1" or "0.25"})
+                    end;y+=204
+                    text("huntCount",collected.." / 5 collected"..(hunting and "" or " • paused"),32)
+                    for _,season in {{"winter","Winter hunt","#334e68","winterSeason"},{"spring","Spring hunt","#38623a","springSeason"}} do
+                        local active=state.season==season[1]
+                        pane[#pane+1]=button(season[4],active and season[2].." • Active" or "Start "..season[2],24,y,w,48,function()if not active then send("advanced","season",season[1]) end end,{background=active and "#544479" or season[3],["font-size"]="21px"});y+=56
+                    end
+                    if hunting then action("normalSeason","Pause hunt","season","none") end
                     end
                 end
 			end
-			center[#center + 1] = e("scroll", { key = "menuPanel"..tab..workPage[1]..adventurePage[1], id = "menuPanel", style = style(0, 160, centerW, math.max(30,h-164), { background = "#241f19", overflow = "scroll" }) }, table.unpack(pane))
+			center[#center + 1] = e("scroll", { key = "menuPanel"..tab..workPage[1]..adventurePage[1], id = "menuPanel", style = style(0, 160, centerW, math.max(30,h-164), { background = "#241f19", ["overflow-x"]="hidden", ["overflow-y"]="scroll" }) }, table.unpack(pane))
 		end
 		local store = { stripes("storeStripes", storeW, h, "#24221f", "#2a2723"), label("storeTitle", "Store", 10, 7, boostW - 20, 42, 36, "#fff2dd", titleStyle) }
 		local upgrades = {}

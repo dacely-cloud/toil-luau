@@ -183,18 +183,23 @@ function Model.collectGolden(state,id)
 	if id~=state.goldenId or (state.goldenUntil or 0)<=state.played then return nil end
 	state.goldenUntil=0
 	state.goldenClicks+=1
+	local huntMessage=""
 	if state.season~="none" then
 		state.seasonCookies+=1
-		if state.seasonCookies%5==0 then Model.award(state,math.max(500,Model.cps(state)*120)) end
+		if state.seasonCookies%5==0 then
+            local bonus=math.max(500,Model.cps(state)*120)
+            Model.award(state,bonus)
+            huntMessage=" Hunt reward: +"..math.floor(bonus).." cookies!"
+        end
 	end
 	if state.goldenClicks%2==0 then
 		state.frenzyUntil=state.played+30
-		return "Double baking for 30 seconds!"
+		return "Double baking for 30 seconds!"..huntMessage
 	end
 	local reward=math.max(25,math.floor(Model.cps(state)*60+state.cookies*.1))
 	if state.spirit=="luck" then reward=math.floor(reward*1.2) end
 	Model.award(state,reward)
-	return "Lucky cookie! You got "..reward.." extra cookies!"
+	return "Lucky cookie! You got "..reward.." extra cookies!"..huntMessage
 end
 function Model.snapshot(state)
 	local function copy(value)

@@ -1,10 +1,26 @@
 -- A saved player outbox makes empire donations retryable without a second charge.
 local EmpireService={}
-function EmpireService.new(empireStore,persistence)
+function EmpireService.new(empireStore,persistence,onChanged)
     local service={}
+    local function stale(session,record)
+        return record and session.empire and record.owner==session.empire.owner and (record.revision or 0)<(session.empire.revision or 0)
+    end
     local function apply(session,record)
+        if stale(session,record) then return end
         session.empire=record
         session.state.economy.empireLevel=record and record.level or 0
+    end
+    function service.acceptRecord(session,userId,record)
+        local e=session.state.economy
+        if session.closing or not session.ready or e.empireMembership or not record or e.empireId~=record.owner or stale(session,record) then return false end
+        local member=record.members[tostring(userId)]
+        if member and member.active then
+            apply(session,record)
+            e.empireSequence=math.max(e.empireSequence or 0,member.lastSequence or 0)
+        elseif not e.empireDonation then
+            e.empireId=nil;apply(session,nil)
+        end
+        return true
     end
     function service.refresh(session,userId)
         local e=session.state.economy
@@ -12,18 +28,7 @@ function EmpireService.new(empireStore,persistence)
         if e.empireMembership then return end
         if not id then apply(session,nil);return end
         local r=empireStore.read(id)
-        if session.closing or e.empireId~=id then return end
-        if r then
-            local member=r.members[tostring(userId)]
-            if member and member.active then
-                apply(session,r)
-                e.empireSequence=math.max(e.empireSequence or 0,member.lastSequence or 0)
-            elseif not e.empireDonation then
-                -- A successful read can prove that a saved membership is stale.
-                -- A failed read cannot: preserve the cache until the next retry.
-                e.empireId=nil;apply(session,nil)
-            end
-        end
+        service.acceptRecord(session,userId,r)
         return r
     end
     function service.resume(session,userId)
@@ -45,6 +50,7 @@ function EmpireService.new(empireStore,persistence)
                     if member then e.empireSequence=math.max(e.empireSequence or 0,member.lastSequence or 0) end
                 end
             end
+            if record and onChanged then onChanged(record) end
             e.empireMembership=nil
             session.empireFinalizing=true
             if not persistence.save(session,false) then return false,"Finishing your empire save..." end
@@ -60,6 +66,7 @@ function EmpireService.new(empireStore,persistence)
         local record,message=empireStore.donate(pending.empireId,userId,pending.sequence,pending.amount)
         if not record then return false,message end
         apply(session,record)
+        if onChanged then onChanged(record) end
         e.empireDonation=nil
         -- Do not permit a leave/new donation until clearing the outbox is durable.
         session.empireFinalizing=true
@@ -108,6 +115,7 @@ function EmpireService.new(empireStore,persistence)
         apply(session,record)
         local member=record.members[tostring(userId)]
         if member then e.empireSequence=math.max(e.empireSequence or 0,member.lastSequence or 0) end
+        if onChanged then onChanged(record) end
         persistence.save(session,false)
         return true,action=="upgrade" and "Empire leveled up!" or "Your empire is ready!"
     end

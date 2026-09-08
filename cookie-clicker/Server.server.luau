@@ -20,7 +20,8 @@ local persistence = Persistence.new(Model,store,{now=os.time,wait=task.wait})
 local EmpireStore=require(folder:WaitForChild("EmpireStore"))
 local EmpireService=require(folder:WaitForChild("EmpireService"))
 local empireStore=EmpireStore.new(studio and store or DataStoreService:GetDataStore("ToilCookieEmpires_v1"))
-local empireService=EmpireService.new(empireStore,persistence)
+local empireChanged=function()end
+local empireService=EmpireService.new(empireStore,persistence,function(record)empireChanged(record)end)
 local charityStore=require(folder:WaitForChild("CharityStore")).new(Model,studio and store or DataStoreService:GetDataStore("ToilCookieCharities_v1"))
 local charityService=require(folder:WaitForChild("CharityService")).new(Model,charityStore,persistence,os.time)
 local sessions = {}
@@ -71,6 +72,12 @@ local function send(player, session)
     end
     snapshot.socialPlayers=publicPlayers
 	remote:FireClient(player,snapshot)
+end
+empireChanged=function(record)
+    publicUpdated=-math.huge
+    for teammate,entry in sessions do
+        if empireService.acceptRecord(entry,teammate.UserId,record) then send(teammate,entry) end
+    end
 end
 local function achievements(session)
 	session.seenAchievements=session.seenAchievements or {}

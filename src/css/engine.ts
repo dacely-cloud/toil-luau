@@ -793,6 +793,17 @@ function computedStyle(
 	// Inline style wins last
 	if (inline !== undefined) {
 		const norm = normalizeDeclarations(inline);
+        // Luau style tables have no declaration order. Explicit longhands in an
+        // inline object must win over its shorthand expansions deterministically.
+        // Keep stylesheet declaration normalization and rule cascade unchanged.
+        const rawKeys = keysOf(inline);
+        for (let i = 0; i < rawKeys.size(); i++) {
+            const rawKey = rawKeys[i];
+            const key = toKebab(strTrim(rawKey));
+            if (key !== "padding" && key !== "margin" && key !== "background" && key !== "border" && key !== "inset" && key !== "font" && key !== "place-items" && key !== "place-content" && key !== "overflow") {
+                norm[key] = strTrim(tostring(inline[rawKey]));
+            }
+        }
 		const ikeys = keysOf(norm);
 		for (let ki = 0; ki < ikeys.size(); ki++) {
 			result[ikeys[ki]] = norm[ikeys[ki]];

@@ -22,6 +22,11 @@ function EmpireStore.new(store)
             return store:UpdateAsync("empire_"..key,function(old)
                 local nextRecord,message=transform(copy(old))
                 if message then reason=message end
+                if nextRecord then
+                    local revision=type(old)=="table" and old.revision or 0
+                    if not int(revision,9007199254740990) then reason="Empire update limit reached.";return nil end
+                    nextRecord.revision=revision+1
+                end
                 return nextRecord
             end)
         end)

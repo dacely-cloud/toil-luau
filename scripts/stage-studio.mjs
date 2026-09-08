@@ -46,7 +46,14 @@ if (!fs.existsSync(path.join(OUT, "host", "init.luau"))) {
 	process.exit(1);
 }
 
-fs.rmSync(STAGE, { recursive: true, force: true });
+// Clean generated runtime entries only: Studio may have a test place open
+// beside them, with a live lock file that must survive runtime staging.
+for (const entry of ["include", "TS", "node_modules", "StarterPlayerScripts", "ToilRuntime.luau"]) {
+	const target = path.resolve(STAGE, entry);
+	if (path.dirname(target) !== STAGE) throw new Error(`Unsafe staging path: ${target}`);
+	fs.rmSync(target, { recursive: true, force: true });
+}
+fs.mkdirSync(STAGE, { recursive: true });
 
 let rewritten = 0;
 let copied = 0;

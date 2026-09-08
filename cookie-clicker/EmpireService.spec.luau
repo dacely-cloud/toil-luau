@@ -97,3 +97,24 @@ do
     assert(finalService.finish(final) and not final.empireFinalizing)
 end
 print("PASS empire create/join/leave recovery: initial save failure, lost responses, restored pending operations, final save failure and definitive rejection")
+
+do
+    local member={state=Model.new(),ready=true}
+    assert(service.action(member,30,"join",20))
+    local old=empires.read(20)
+    local changed=0
+    local broadcasting=EmpireService.new(empires,persistence,function(record)
+        changed+=1;service.acceptRecord(member,30,record)
+    end)
+    local leader={state=Model.new(),ready=true};leader.state.economy.empireId=20
+    assert(broadcasting.action(leader,20,"rename","New Team","star"))
+    assert(changed==1 and member.empire.name=="New Team")
+    assert(member.empire.revision>old.revision)
+    assert(not service.acceptRecord(member,30,old))
+    assert(member.empire.name=="New Team", "late old responses cannot roll back a newer record")
+    local newer=empires.read(20);newer.revision+=1;newer.level=2
+    assert(service.acceptRecord(member,30,newer));assert(Model.clickPower(member.state)==1.02)
+    member.state.economy.empireId=1
+    assert(not service.acceptRecord(member,30,newer), "ignore previous team's updates")
+end
+print("PASS immediate empire update callback, monotonic revisions, stale response rejection and membership guard")

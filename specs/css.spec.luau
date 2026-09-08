@@ -252,6 +252,26 @@ local function loader()
 end
 
 describe("shorthand normalization", function()
+    it("inline longhands override shorthand expansions regardless of table order", function()
+        local engine=eng({})
+        local styles={
+            overflow="scroll",["overflow-x"]="hidden",["overflow-y"]="scroll",
+            padding="12px",paddingLeft="4px",border="2px solid red",borderColor="blue",
+            background="red",backgroundColor="green",font="bold 20px Arial",fontSize="26px",
+            inset="10px",top="3px",["place-items"]="center",alignItems="start",
+        }
+        local result=engine.computedStyle(mkid("scroll"),nil,0,0,styles)
+        expect(result["overflow-x"]).toBe("hidden")
+        expect(result["overflow-y"]).toBe("scroll")
+        expect(result["padding-left"]).toBe("4px")
+        expect(result["padding-top"]).toBe("12px")
+        expect(result["border-color"]).toBe("blue")
+        expect(result["background-color"]).toBe("green")
+        expect(result["font-size"]).toBe("26px")
+        expect(result.top).toBe("3px")
+        expect(result["align-items"]).toBe("start")
+    end)
+
 	it("font shorthand -> size / weight / family", function()
 		local e2 = eng({ { selector = ".f", declarations = { font = "bold 20px Arial" } } })
 		local s = e2.computedStyle(mkid("div", { classes = { "f" } }), nil, 0, 0, nil)

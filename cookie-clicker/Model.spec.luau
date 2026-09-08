@@ -124,6 +124,22 @@ test("season hunts award a bonus at five collected cookies",function()
 	for i=1,5 do s.goldenId=i;s.goldenUntil=s.played+10;assert(Model.collectGolden(s,i))end
 	assert(s.seasonCookies==5 and s.cookies>=500)
 end)
+test("hunt feedback follows each five-cookie reward and pauses preserve progress",function()
+    local s=Model.new();Model.advancedAction(s,"season","winter")
+    for i=1,10 do
+        Model.spawnGolden(s)
+        local message=Model.collectGolden(s,s.goldenId)
+        assert((string.find(message,"Hunt reward:",1,true)~=nil)==(i%5==0))
+        local paid=s.cookies
+        assert(not Model.collectGolden(s,s.goldenId) and s.cookies==paid)
+    end
+    Model.advancedAction(s,"season","none")
+    Model.spawnGolden(s);Model.collectGolden(s,s.goldenId)
+    assert(s.seasonCookies==10)
+    Model.advancedAction(s,"season","spring")
+    Model.spawnGolden(s);Model.collectGolden(s,s.goldenId)
+    assert(s.seasonCookies==11)
+end)
 test("lucky spells reset the falling cookie and invalidate old claims",function()
     local s=Model.new();s.buildings[8]=1;s.magic=100;s.played=75
     Model.goldenTick(s);local previous=s.goldenId
@@ -146,5 +162,16 @@ test("building levels cannot exceed their persistence limit",function()
     local s=Model.new();s.buildings[1]=1;s.levels[1]=99;s.lumps=1000
     assert(Model.advancedAction(s,"level",1));assert(s.levels[1]==100 and s.lumps==900)
     assert(not Model.advancedAction(s,"level",1));assert(s.levels[1]==100 and s.lumps==900)
+end)
+test("ascension does not reuse collectible identifiers",function()
+    local s=Model.new();s.buildings[2]=10
+    assert(Model.advancedAction(s,"buddies"));local oldWrinkler=s.wrinklers[1].id
+    Model.spawnGolden(s);local oldGolden=s.goldenId
+    s.earned=1e12;assert(Model.advancedAction(s,"ascend"))
+    assert(#s.wrinklers==0 and s.goldenUntil==0)
+    s.buildings[2]=10;assert(Model.advancedAction(s,"buddies"));Model.spawnGolden(s)
+    assert(s.wrinklers[1].id>oldWrinkler and s.goldenId>oldGolden)
+    assert(not Model.advancedAction(s,"popWrinkler",oldWrinkler))
+    assert(not Model.collectGolden(s,oldGolden))
 end)
 print(string.format("Cookie Clicker: %d passed", passed))

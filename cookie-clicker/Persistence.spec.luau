@@ -62,4 +62,13 @@ test("volume saves, restores and rejects malformed requests",function()
 	assert(p.load("legacy","legacy").state.soundVolume==100)
 end)
 
+test("golden spawn identifiers survive rejoin without restoring an active drop",function()
+    local p=fixture();local session=assert(p.load("golden","first"))
+    Model.spawnGolden(session.state);local id=session.state.goldenId
+    assert(p.save(session,true))
+    local next=assert(p.load("golden","second"))
+    assert(next.state.goldenId==id and next.state.goldenUntil==0)
+    Model.spawnGolden(next.state)
+    assert(next.state.goldenId>id and not Model.collectGolden(next.state,id))
+end)
 print(passed.." persistence tests passed")

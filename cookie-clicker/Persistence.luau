@@ -14,6 +14,7 @@ function Persistence.new(Model, store, options)
 		for _, key in {"cookies","earned","handmade","clicks","played","goldenClicks"} do
 			if finite(data[key]) then state[key] = data[key] end
 		end
+		if finite(data.goldenId) then state.goldenId=math.min(1e12,math.floor(data.goldenId)) end
 		for i=1,#Model.Buildings do
 			local n = type(data.buildings)=="table" and data.buildings[i]
 			if finite(n) then state.buildings[i] = math.min(1000000,math.floor(n)) end

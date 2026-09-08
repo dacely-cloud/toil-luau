@@ -72,6 +72,15 @@ for i = 1, 80 do
 	local color = i % 4 == 0 and "#4e2916" or (i % 3 == 0 and "#f2c27c" or "#b27b38")
 	cookieCrumbs[#cookieCrumbs + 1] = box("crumb" .. i, 135 + math.cos(a) * r - diameter / 2, 135 + math.sin(a) * r - diameter / 2, diameter, diameter, color, {}, { ["border-radius"] = "6px", rotation = tostring(i * 29) })
 end
+local upgradeNames = {
+	fingers="Stronger clicks", cream="Even stronger clicks", ambidextrous="Super clicks",
+	rolling="Better grandma baking", steel="Stronger rolling pins", lubricated="Super grandma baking",
+	hoes="Better farm tools", fertilizer="Help your crops grow", picks="Better mining", conveyor="Faster factories",
+}
+local function upgradeBenefit(u)
+	if u.click then return "Each click and cursor makes twice as many cookies." end
+	return "Each " .. Model.Buildings[u.building].name:lower() .. " makes twice as many cookies."
+end
 local animationRules = toil.cssToRules([[
 @keyframes shine { from { rotation: 0; } to { rotation: 360; } }
 @keyframes orbit { from { rotation: 0; } to { rotation: -360; } }
@@ -162,7 +171,7 @@ return function()
 			else
 				local u
 				for _, candidate in Model.Upgrades do if candidate.id == hover then u = candidate; break end end
-				if u then name, description, cost = u.name, u.description, u.price end
+				if u then name, description, cost = upgradeNames[u.id] or u.name, upgradeBenefit(u) .. " This boost stays after you buy it.", u.price end
 			end
 		end
 		return box("tooltip", select(1, columnWidths()) + select(2, columnWidths()) - 410, 233, 410, 175, "#1d1914", {
@@ -307,15 +316,27 @@ return function()
 		for _, u in Model.Upgrades do
 			if not state.upgrades[u.id] and state.buildings[u.building] >= u.required then upgrades[#upgrades + 1] = u end
 		end
-		for i = 1, math.min(5, #upgrades) do
-			local u = upgrades[i]
-			store[#store + 1] = button("upgrade_" .. u.id, "✦", 10 + (i - 1) * 66, 56, 60, 60, function() send("upgrade", u.id) end, { ["font-size"] = "38px", color = state.cookies >= u.price and "#f4d28a" or "#807565", background = "linear-gradient(120deg, #605447, #30271e)" }, nil, function(inside) setHover(inside and u.id or 0) end)
+		store[#store+1] = label("upgradeHeading", "Make more cookies", 10, 51, storeW-20, 25, 20, "#f4d28a")
+		local upgradeCards = {}
+		for i, u in upgrades do
+			local affordable = state.cookies >= u.price
+			local kids = {
+				label("upgradeName", upgradeNames[u.id] or u.name, 10, 5, storeW-42, 25, 19, "#fff2dd"),
+				label("upgradeBenefit", upgradeBenefit(u), 10, 32, storeW-42, 35, 15, "#dfd3bf"),
+				label("upgradePrice", (affordable and "Buy for " or "Save up ") .. number(u.price) .. " cookies", 10, 70, storeW-42, 23, 16, affordable and "#b3ef96" or "#d9ba8d"),
+			}
+			upgradeCards[#upgradeCards+1] = button("upgrade_"..u.id,"",0,(i-1)*104,storeW-22,100,function()
+				if snapshot.cookies >= u.price then send("upgrade",u.id) end
+			end,{background=affordable and "#3e5130" or "#393129"},kids,function(inside) setHover(inside and u.id or 0) end)
 		end
-		if #upgrades == 0 then store[#store + 1] = label("upgradeEmpty", "Upgrades", 10, 67, 330, 34, 18, "#756b5d", titleStyle) end
-		store[#store + 1] = rail("upgradeRail", 0, 126, storeW, 9)
-		store[#store + 1] = button("buyMode", "Buy", 8, 145, 66, 28, function() setSell(false) end, { background = sell and "#27221c" or "#766446", ["font-size"] = "17px" })
-		store[#store + 1] = button("sellMode", "Sell", 77, 145, 66, 28, function() setSell(true) end, { background = sell and "#766446" or "#27221c", ["font-size"] = "17px" })
-		for i, amount in { 1, 10, 100 } do store[#store + 1] = button("bulk" .. amount, tostring(amount), 151 + (i - 1) * 62, 145, 57, 28, function() setBulk(amount) end, { background = bulk == amount and "#766446" or "#27221c", ["font-size"] = "17px" }) end
+		if #upgrades == 0 then
+			upgradeCards[1] = label("upgradeEmpty","Buy a building to unlock upgrades here.",10,8,storeW-42,65,17,"#c3b8a8")
+		end
+		store[#store+1] = e("scroll",{key="upgradeList",id="upgradeList",style=style(8,80,storeW-8,112,{overflow="scroll"})},table.unpack(upgradeCards))
+		store[#store + 1] = rail("upgradeRail", 0, 200, storeW, 9)
+		store[#store + 1] = button("buyMode", "Buy", 8, 219, 66, 28, function() setSell(false) end, { background = sell and "#27221c" or "#766446", ["font-size"] = "17px" })
+		store[#store + 1] = button("sellMode", "Sell", 77, 219, 66, 28, function() setSell(true) end, { background = sell and "#766446" or "#27221c", ["font-size"] = "17px" })
+		for i, amount in { 1, 10, 100 } do store[#store + 1] = button("bulk" .. amount, tostring(amount), 151 + (i - 1) * 62, 219, 57, 28, function() setBulk(amount) end, { background = bulk == amount and "#766446" or "#27221c", ["font-size"] = "17px" }) end
 		local products = {}
 		for i, b in Model.Buildings do
 			local price = Model.price(state, i, bulk, sell)
@@ -336,7 +357,7 @@ return function()
 			products[#products + 1] = button("buyBuilding" .. i, "", 0, (i - 1) * 76, storeW - 9, 74, function() send("trade", i, bulk, sell) end, { background = "linear-gradient(90deg, #534c40, #2d2923)", border = "1px solid #74634c" }, kids, function(inside) setHover(inside and i or 0) end, "linear-gradient(90deg, #766a54, #463f34)")
 			productCache[i] = {signature=signature,element=products[#products]}
 		end
-		store[#store + 1] = e("scroll", { key = "storeProducts", id = "storeProducts", style = style(0, 184, storeW, h - 184, { overflow = "scroll" }) }, table.unpack(products))
+		store[#store + 1] = e("scroll", { key = "storeProducts", id = "storeProducts", style = style(0, 258, storeW, math.max(40,h - 258), { overflow = "scroll" }) }, table.unpack(products))
 		local children = {
 			box("topBar", 0, 0, displayWidth, 30, "#111111", { label("brand", "Cookie Clicker", 12, 1, 180, 27, 18, "#e2d1b6"), label("attribution", "Original by Orteil & Opti • DashNet", 192, 2, 420, 25, 14, "#a89e90"), label("edition", "Roblox edition", displayWidth - 205, 2, 190, 25, 14, "#a89e90", { ["text-align"] = "right" }) }),
 			box("bakeryColumn", 0, 30, leftW, h, nil, {stripes("blueStripes",leftW,h,"#173346","#1a3b51"), e(Rain,{key="rain",w=leftW,h=h,cps=state.cps}), box("bakeryContent",(leftW-420)/2,0,420,h,nil,left)}, { overflow = "hidden" }),

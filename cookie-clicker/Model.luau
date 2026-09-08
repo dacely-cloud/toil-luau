@@ -57,24 +57,26 @@ end
 for _,count in {100,10000,100000} do achievements[#achievements+1]={"Cookie tapper "..count,"Click "..count.." times.","clicks",count} end
 Model.Achievements = achievements
 function Model.new()
-	return { version = 1, cookies = 0, earned = 0, handmade = 0, clicks = 0, buildings = table.create(#Model.Buildings, 0), upgrades = {}, achievements = {}, played = 0, bakery = "Your bakery", goldenClicks = 0, goldenAt = 75, goldenId = 0, goldenUntil = 0, frenzyUntil = 0, soundEnabled = true }
+	local state = { version = 1, cookies = 0, earned = 0, handmade = 0, clicks = 0, buildings = table.create(#Model.Buildings, 0), upgrades = {}, achievements = {}, played = 0, bakery = "Your bakery", goldenClicks = 0, goldenAt = 75, goldenId = 0, goldenUntil = 0, frenzyUntil = 0, soundEnabled = true }
+	if Model.initAdvanced then Model.initAdvanced(state) end
+	return state
 end
 function Model.multiplier(state, building)
 	local value = 1
 	for _, upgrade in Model.Upgrades do
 		if upgrade.building == building and state.upgrades[upgrade.id] then value *= 2 end
 	end
-	return value
+	return value * (1+((state.levels and state.levels[building]) or 0)*.01)
 end
 function Model.cps(state)
 	local value = 0
 	for i, b in Model.Buildings do value += b.cps * state.buildings[i] * Model.multiplier(state, i) end
-	return value * ((state.frenzyUntil or 0)>state.played and 2 or 1)
+	return value * Model.productionFactor(state) * ((state.frenzyUntil or 0)>state.played and 2 or 1) * ((state.gardenBoostUntil or 0)>state.played and 1.05 or 1)
 end
 function Model.clickPower(state)
 	local value = 1
 	for _, u in Model.Upgrades do if u.click and state.upgrades[u.id] then value *= 2 end end
-	return value
+	return value * (state.heavenly and state.heavenly.tapping and 1.1 or 1) * (state.spirit=="clicking" and 1.1 or 1)
 end
 function Model.checkAchievements(state)
 	for _,a in achievements do
@@ -102,7 +104,11 @@ function Model.tick(state, dt)
 	local bonusSeconds=math.clamp((state.frenzyUntil or 0)-(state.played-dt),0,dt)
 	local base=0
 	for i,b in Model.Buildings do base+=b.cps*state.buildings[i]*Model.multiplier(state,i) end
-	Model.award(state,base*(dt+bonusSeconds))
+	base*=Model.productionFactor(state)
+	local extra=Model.advancedTick(state,dt,base)
+	local amount=base*(dt+bonusSeconds)+extra
+	if state.buddies then local held=amount*.05;state.buddyBank+=held;amount-=held end
+	Model.award(state,amount)
 end
 function Model.price(state, index, quantity, sell)
 	local b = Model.Buildings[index]
@@ -159,16 +165,25 @@ function Model.collectGolden(state,id)
 	if id~=state.goldenId or (state.goldenUntil or 0)<=state.played then return nil end
 	state.goldenUntil=0
 	state.goldenClicks+=1
+	if state.season~="none" then
+		state.seasonCookies+=1
+		if state.seasonCookies%5==0 then Model.award(state,math.max(500,Model.cps(state)*120)) end
+	end
 	if state.goldenClicks%2==0 then
 		state.frenzyUntil=state.played+30
 		return "Double baking for 30 seconds!"
 	end
 	local reward=math.max(25,math.floor(Model.cps(state)*60+state.cookies*.1))
+	if state.spirit=="luck" then reward=math.floor(reward*1.2) end
 	Model.award(state,reward)
 	return "Lucky cookie! You got "..reward.." extra cookies!"
 end
 function Model.snapshot(state)
-	local result = table.clone(state)
+	local function copy(value)
+		if type(value)~="table" then return value end
+		local result={};for k,v in value do result[k]=copy(v) end;return result
+	end
+	local result = copy(state)
 	result.buildings = table.clone(state.buildings)
 	result.upgrades = table.clone(state.upgrades)
 	result.achievements = table.clone(state.achievements)
@@ -176,4 +191,7 @@ function Model.snapshot(state)
 	result.clickPower = Model.clickPower(state)
 	return result
 end
+local installLateGame
+if script then installLateGame=require(script.Parent.LateGame) else installLateGame=require("./LateGame") end
+installLateGame(Model)
 return Model

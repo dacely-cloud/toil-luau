@@ -115,6 +115,9 @@ remote.OnServerEvent:Connect(function(player, action, index, quantity, sell)
 	elseif action=="upgrade" and type(index)=="string" then
 		if Model.buyUpgrade(state,index) then notice(session,"success","Boost bought! Your bakery is stronger now.")
 		else notice(session,"error","You need more cookies, or already have this boost.") end
+	elseif action=="advanced" and type(index)=="string" then
+		local ok,message=Model.advancedAction(state,index,quantity)
+		notice(session,ok and "success" or "error",message)
 	elseif action=="golden" and type(index)=="number" then
 		local message=Model.collectGolden(state,index)
 		if message then notice(session,"achievement",message) end

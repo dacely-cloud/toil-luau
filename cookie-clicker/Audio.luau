@@ -6,7 +6,7 @@ return function()
 		local sound=Instance.new("Sound")
 		sound.Name="CookieCue"..i
 		sound.SoundId="rbxasset://sounds/volume_slider.ogg"
-		sound.Volume=.12
+		sound.Volume=.5
 		sound.Parent=game:GetService("SoundService")
 		sounds[i]=sound
 	end
@@ -25,7 +25,7 @@ return function()
 		local sound=sounds[cursor]
 		sound:Stop()
 		sound.PlaybackSpeed=kind=="error" and .7 or kind=="achievement" and 1.8 or kind=="success" and 1.4 or 1.1
-		sound.Volume=kind=="click" and .07 or .14
+		sound.Volume=kind=="click" and .28 or .5
 		sound:Play()
 	end
 	function api.destroy() for _,sound in sounds do sound:Destroy() end end

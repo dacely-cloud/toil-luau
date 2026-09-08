@@ -5,6 +5,7 @@ local TS = require(RS:WaitForChild("rbxts_include"):WaitForChild("RuntimeLib"))
 local toil = TS.import(script, RS, "TS")
 local React = toil.React
 local e = React.createElement
+local icon = require(script.Parent.Icons)(e,React)
 local Model = require(script.Parent.Model)
 local Layout = require(script.Parent.Layout)
 local makeAudio = require(script.Parent.Audio)
@@ -150,11 +151,12 @@ return function()
 	local currentTab = "Buildings"
 	-- Preserve the original 1440px layout and readable text. Only the
 	-- cookie scene adapts to limited vertical space.
-	local displayWidth, displayHeight, uiScale, mobile, contentHeight
+	local displayWidth, displayHeight, uiScale, mobile, contentHeight, portraitRequired
 	local function measureViewport()
 		local viewport = workspace.CurrentCamera.ViewportSize
 		local layout = Layout.measure(viewport.X,viewport.Y)
 		uiScale, displayWidth, displayHeight, mobile, contentHeight = layout.scale, layout.width, layout.height, layout.mobile, layout.contentHeight
+		portraitRequired=layout.portraitRequired
 	end
 	measureViewport()
 	local function columnWidths()
@@ -257,6 +259,7 @@ return function()
 		local state = snapshot
 		local productCache = React.useRef({}).current
 		local nameDraft = React.useRef("")
+		local confirmFresh=React.useState(false)
 		local h = contentHeight
 		local leftW, centerW, storeW = columnWidths()
 		local centerX, storeX = mobile and 0 or leftW + 12, mobile and 0 or displayWidth - storeW
@@ -297,7 +300,7 @@ return function()
 		center[#center + 1] = box("newsBackdrop", 0, 0, centerW, 92, "linear-gradient(90deg, #423729, #181614)")
 		center[#center + 1] = label("news", state.earned < 50 and "You feel like making cookies. But nobody wants to eat your cookies." or (state.earned < 1000 and "Your first batch goes to the neighbors. They have high hopes." or "News : local cookie production continues to rise!"), 100, 8, centerW - 200, 72, 21, "#f1e6d5", titleStyle)
 		center[#center + 1] = rail("newsRail", 0, 92, centerW, 10)
-		local tabs = { "Options", "Stats", "Info", "Legacy" }
+		local tabs = { "Options", "Stats", "Info", "Adventure" }
 		for i, name in tabs do
 			center[#center + 1] = button("tab" .. name, name, 8 + (i - 1) * ((centerW - 14) / 4), 110, (centerW - 14) / 4 - 4, mobile and 44 or 31, function() setTab(tab == name and "Buildings" or name) end, { background = tab == name and "#726047" or "#322a22", ["font-size"] = "18px" })
 		end
@@ -312,7 +315,7 @@ return function()
 						label("ownedCps" .. i, number(b.cps * state.buildings[i] * Model.multiplier(state, i), true) .. " cookies / second", 18, 35, 400, 22, 14, "#ddd4c6"),
 						label("ownedCount" .. i, tostring(state.buildings[i]), centerW - 110, 6, 72, 48, 40, "#e2d7c5", { ["text-align"] = "right" }),
 					}
-					for k = 1, math.min(state.buildings[i], 14) do children[#children + 1] = label("sprite" .. i .. "_" .. k, b.icon, 16 + (k - 1) * 41, 62, 38, 48, 37, b.color, titleStyle) end
+					for k = 1, math.min(state.buildings[i], 14) do children[#children + 1] = box("sprite" .. i .. "_" .. k,16+(k-1)*41,62,38,48,nil,icon(i,b.color)) end
 					children[#children + 1] = rail("rowRail" .. i, 0, 117, centerW - 12, 7)
 					rows[#rows + 1] = box("buildingScene" .. i, 0, row * 124, centerW - 12, 124, row % 2 == 0 and "#37352d" or "#302d27", children)
 					row += 1
@@ -354,7 +357,55 @@ return function()
 			elseif tab == "Info" then
 				pane[#pane + 1] = label("credits", "Cookie Clicker v1\n\nClick the big cookie. Buy buildings. Bake more cookies.", 24, 74, centerW-48, 240, 23)
 			else
-				pane[#pane + 1] = label("legacyDescription", "Your legacy begins with a trillion cookies.\n\nPrestige level: " .. number(math.floor((state.earned / 1e12) ^ (1 / 3))) .. "\n\nAscension and heavenly upgrades are still being implemented.", 24, 74, centerW-48, 220, 21)
+				local y=68
+				local w=centerW-48
+				local function text(id,value,height)
+					pane[#pane+1]=label(id,value,24,y,w,height or 60,18,"#dfd3bf");y+= (height or 60)+8
+				end
+				local function action(id,title,kind,arg)
+					pane[#pane+1]=button(id,title,24,y,w,48,function()send("advanced",kind,arg)end,{["font-size"]="18px"});y+=56
+				end
+				text("journeyIntro","Bakery adventures\nThese are simple games for growing your bakery.",64)
+				text("prestigeInfo","Fresh start: "..number(state.prestige).." baking stars.\nYou can earn "..number(Model.ascensionGain(state)).." star chips now. Each star adds 1% baking.",85)
+				text("freshWarning","A fresh start resets cookies, buildings and normal boosts. Keep your stars, sugar lumps, building levels and achievements.",90)
+				pane[#pane+1]=button("ascendBakery",confirmFresh[1] and "Confirm: start a new bakery" or "Start a new bakery",24,y,w,48,function()
+					if confirmFresh[1] then send("advanced","ascend");confirmFresh[2](false) else confirmFresh[2](true) end
+				end);y+=56
+				if confirmFresh[1] then pane[#pane+1]=button("cancelAscend","Keep my bakery",24,y,w,48,function()confirmFresh[2](false)end);y+=56 end
+				text("chipCount","Star chips: "..number(state.chips),32)
+				action("heavenlyBaking","10% more baking - 1 star chip","heavenly","baking")
+				action("heavenlyTapping","10% more per click - 1 star chip","heavenly","tapping")
+				action("heavenlySlot","Keep one boost - 3 star chips","heavenly","slot")
+				if state.heavenly.slot then
+					text("permanentChoice","Choose a boost to keep. Current: "..(state.permanentUpgrade~="" and (upgradeNames[state.permanentUpgrade] or state.permanentUpgrade) or "none"),60)
+					for _,u in Model.Upgrades do if state.upgrades[u.id] then action("keep"..u.id,"Keep "..(upgradeNames[u.id] or u.name),"permanent",u.id) end end
+				end
+				text("lumpCount","Sugar lumps: "..number(state.lumps).."\nAfter baking 1 million cookies, grow a lump every 20 hours of bakery time.",75)
+				for i,b in Model.Buildings do if state.buildings[i]>0 then action("level"..i,b.name.." level "..state.levels[i]..": +1% for "..(state.levels[i]+1).." lumps","level",i) end end
+				text("buddyInfo","Cookie buddies (need 10 grandmas)\nThey hold 5% of your baking and return 10% extra. Saved: "..number(state.buddyBank).." cookies.",90)
+				action("buddyToggle",state.buddies and "Let buddies rest" or "Invite cookie buddies","buddies")
+				action("collectBuddies","Collect buddy cookies","collectBuddies")
+				text("gardenInfo","Garden (need a farm)\nPlant for 1 lump. Harvest in 1 minute for 5% extra baking for 10 minutes.",85)
+				if state.gardenReady>state.played then text("gardenTimer","Growing: "..math.ceil(state.gardenReady-state.played).." seconds left.",32) end
+				action("plantGarden","Plant seeds - 1 sugar lump","plant")
+				action("harvestGarden","Harvest garden","harvest")
+				text("marketInfo","Ingredient market (need a bank)\nBuy low, sell later. Prices change every 30 seconds. Selling returns 90% of the price.",90)
+				for i,name in {"Flour","Sugar","Chocolate"} do
+					text("stock"..i,name..": own "..state.stocks[i],30)
+					action("stockBuy"..i,"Buy "..name.." - "..Model.stockPrice(state,i).." cookies","stockBuy",i)
+					action("stockSell"..i,"Sell "..name.." - "..math.floor(Model.stockPrice(state,i)*.9).." cookies","stockSell",i)
+				end
+				text("spiritInfo","Temple helpers (need a temple)\nChoose one helper. Wait 1 minute to change. Current: "..state.spirit,80)
+				action("spiritBake","Baking helper: 10% more baking","spirit","baking")
+				action("spiritClick","Click helper: 10% more per click","spirit","clicking")
+				action("spiritLuck","Lucky helper: 20% more lucky rewards","spirit","luck")
+				text("spellInfo","Spell book (need a wizard tower)\nMagic: "..math.floor(state.magic).." / 100. Gain 1 magic each second.",75)
+				action("spellLucky","Make a lucky cookie - 40 magic","spell","lucky")
+				action("spellCookies","Bake a minute of cookies - 60 magic","spell","cookies")
+				text("seasonInfo","Seasonal cookie hunt\nCurrent: "..state.season..". Found: "..state.seasonCookies..". Every 5 lucky cookies earns an extra reward.",85)
+				action("winterSeason","Start winter cookie hunt","season","winter")
+				action("springSeason","Start spring cookie hunt","season","spring")
+				action("normalSeason","End seasonal hunt","season","none")
 			end
 			center[#center + 1] = e("scroll", { key = "menuPanel", id = "menuPanel", style = style(0, 160, centerW, h - 190, { background = "#241f19", overflow = "scroll" }) }, table.unpack(pane))
 		end
@@ -399,7 +450,7 @@ return function()
 				continue
 			end
 			local kids = {
-				label("buildingIcon" .. i, unlockedBuilding and b.icon or "?", 10, 4, 58, 61, 43, unlockedBuilding and b.color or "#5a5147", titleStyle),
+				box("buildingIcon"..i,10,4,58,61,nil,unlockedBuilding and icon(i,b.color) or {label("locked","?",0,0,58,61,43,"#5a5147",titleStyle)}),
 				label("buildingName" .. i, unlockedBuilding and b.name or "???", 77, 7, storeW - 139, 31, 25, affordable and "#fff7e6" or "#a59a89"),
 				label("buildingPrice" .. i, "● " .. number(price), 79, 40, 210, 23, 16, affordable and "#91cf74" or "#b07865"),
 				label("buildingOwned" .. i, state.buildings[i] > 0 and tostring(state.buildings[i]) or "", storeW - 68, 8, 46, 52, 38, "#afa18a", { ["text-align"] = "right" }),
@@ -430,6 +481,11 @@ return function()
 				label("loadingMessage",state.saveStatus or "Opening your bakery...",20,60,displayWidth-40,120,24,"#fff2dd",titleStyle)
 			},{["z-index"]="90"})
 		end
+		if portraitRequired then
+			children[#children+1]=box("rotatePhone",0,0,displayWidth,displayHeight,"#211d19",{
+				label("rotateMessage","Turn your phone upright to play.",20,displayHeight/2-40,displayWidth-40,80,24,"#fff2dd",titleStyle)
+			},{["z-index"]="110"})
+		end
 		children[#children + 1] = e(Tooltip, {key="tooltip",state=state,bulk=bulk,sell=sell})
 		return e("div", { id = "cookieClicker", style = style(0, 0, displayWidth, displayHeight, { background = "#171510" }) }, table.unpack(children))
 	end
@@ -451,6 +507,7 @@ return function()
 	-- Bank changes do not rebuild the hundreds of static scene/store elements.
 	-- Re-render the page only when its visible content or affordability changes.
 	local lastSignature
+	local lastAdventureSecond=-1
 	local priceCache = {}
 	local function pageSignature()
 		local parts = {snapshot.bakery, snapshot.saveStatus or "", tostring(snapshot.cps), tostring(snapshot.clickPower), tostring(snapshot.soundEnabled), tostring(snapshot.reducedMotion), tostring(snapshot.goldenId), tostring((snapshot.goldenUntil or 0)>snapshot.played), tostring(snapshot.ready), tostring(snapshot.earned < 50), tostring(snapshot.earned < 1000)}
@@ -476,8 +533,9 @@ return function()
 		revision += 1
 		if refreshCounters then refreshCounters(revision) end
 		local signature = pageSignature()
-		if force or signature ~= lastSignature or currentTab == "Stats" or currentTab == "Legacy" then
+		if force or signature ~= lastSignature or currentTab == "Stats" or (currentTab == "Adventure" and math.floor(snapshot.played) ~= lastAdventureSecond) then
 			lastSignature = signature
+			lastAdventureSecond=math.floor(snapshot.played)
 			if refresh then refresh(revision) end
 		end
 	end
@@ -495,6 +553,20 @@ return function()
 		update(true)
 	end)
 	script.Destroying:Connect(function() alive=false;connection:Disconnect(); resize:Disconnect(); audio.destroy();handle.unmount() end)
+	local input=game:GetService("UserInputService")
+	local actions=game:GetService("ContextActionService")
+	actions:BindAction("CookieClickerBake",function(_,state)
+		if input:GetFocusedTextBox() then return Enum.ContextActionResult.Pass end
+		if state==Enum.UserInputState.Begin then send("click");emitClick() end
+		return Enum.ContextActionResult.Sink
+	end,false,Enum.KeyCode.ButtonR2)
+	local selection=input.LastInputTypeChanged:Connect(function(kind)
+		if kind.Name:find("Gamepad",1,true) then
+			local guiService=game:GetService("GuiService")
+			if not guiService.SelectedObject then guiService.SelectedObject=handle.gui:FindFirstChild("bigCookie",true) end
+		end
+	end)
+	script.Destroying:Connect(function()selection:Disconnect();actions:UnbindAction("CookieClickerBake")end)
 	send("sync")
 	print("[CookieClicker] Mounted with toil-luau React")
 	return handle

@@ -895,7 +895,8 @@ return function()
 		if mobile then
 			local nav={}
 			for i,name in {"Bake","Shop","More"} do
-				nav[i]=button("nav"..name,"",(i-1)*(displayWidth/3)+4,4,displayWidth/3-8,52,function()setPage(name);setHover(0)end,{background="transparent",border=page==name and "2px solid #ffe19a" or "0px solid transparent"},{picture("menuFace","MenuButtons/"..name.."Button",0,0,displayWidth/3-8,52,{["object-fit"]="contain"})})
+                local navW=displayWidth/3-8
+				nav[i]=button("nav"..name,"",(i-1)*(displayWidth/3)+4,4,navW,52,function()setPage(name);setHover(0)end,{background="transparent",overflow="visible",border=page==name and "2px solid #ffe19a" or "0px solid transparent"},{picture("menuFace","MenuButtons/"..name.."Button",-navW*.25,-26,navW*1.5,78,{["object-fit"]="contain"})})
 			end
 			children[#children+1]=box("mobileNav",0,displayHeight-60,displayWidth,60,"#171510",nav,{["z-index"]="50"})
 		end

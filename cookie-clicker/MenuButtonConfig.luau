@@ -45,14 +45,15 @@ function MenuButtonConfig.resolve(image: string?): string
 		return image
 	end
 	
+
+return MenuButtonConfig.Buttons[image] or ""
+end
+
 -- Upload Decal -> Image texture, resolved with InsertService.
 MenuButtonConfig.UploadTextures = {
 	["rbxassetid://121566279610436"] = "rbxassetid://136779873820702",
 	["rbxassetid://74509559530379"] = "rbxassetid://102318049986406",
 	["rbxassetid://136768671617339"] = "rbxassetid://91365869028475",
 }
-
-return MenuButtonConfig.Buttons[image] or ""
-end
 
 return MenuButtonConfig

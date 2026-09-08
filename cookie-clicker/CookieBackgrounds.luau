@@ -92,6 +92,10 @@ function CookieBackgrounds.resolve(image: string?): string
 		return image
 	end
 	
+
+return CookieBackgrounds.Backgrounds[image] or ""
+end
+
 -- Upload Decal -> Image texture, resolved with InsertService.
 CookieBackgrounds.UploadTextures = {
 	["rbxassetid://123510161984372"] = "rbxassetid://131863781504218",
@@ -105,8 +109,5 @@ CookieBackgrounds.UploadTextures = {
 	["rbxassetid://88502979114844"] = "rbxassetid://131521631660967",
 	["rbxassetid://92286602653196"] = "rbxassetid://101407893198844",
 }
-
-return CookieBackgrounds.Backgrounds[image] or ""
-end
 
 return CookieBackgrounds

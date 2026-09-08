@@ -367,7 +367,9 @@ return function()
 						label("ownedCps" .. i, number(b.cps * state.buildings[i] * Model.multiplier(state, i), true) .. " cookies / second", 18, 35, 400, 22, 14, "#ddd4c6"),
 						label("ownedCount" .. i, tostring(state.buildings[i]), centerW - 110, 6, 72, 48, 40, "#e2d7c5", { ["text-align"] = "right" }),
 					}
-					for k = 1, math.min(state.buildings[i], 14) do children[#children + 1] = box("sprite" .. i .. "_" .. k,16+(k-1)*41,62,38,48,nil,icon(i,b.color)) end
+					for k = 1, math.min(state.buildings[i], 14) do
+						children[#children + 1] = label("sprite" .. i .. "_" .. k,b.icon,16+(k-1)*41,62,38,48,32,b.color,titleStyle)
+					end
 					children[#children + 1] = rail("rowRail" .. i, 0, 117, centerW - 12, 7)
 					rows[#rows + 1] = box("buildingScene" .. i, 0, row * 124, centerW - 12, 124, row % 2 == 0 and "#37352d" or "#302d27", children)
 					row += 1

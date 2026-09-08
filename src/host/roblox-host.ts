@@ -85,6 +85,7 @@ export function identityFromProps(
 export type RobloxClassName =
 	| "Frame"
 	| "ScrollingFrame"
+	| "Path2D"
 	| "TextLabel"
 	| "TextButton"
 	| "TextBox"
@@ -185,6 +186,8 @@ export interface StyleResolver {
 	resolve: (node: HostNode) => Record<string, string>;
 	/** The engine handle, for animation evaluation. */
 	engine: Engine;
+	beforeStyle?: (node: HostNode, style: Record<string, string>) => void;
+	removed?: (node: HostNode) => void;
 }
 
 
@@ -263,6 +266,8 @@ function isImageInstance(inst: RobloxInstance): boolean {
 // ------------------------------------------------------------------ tag map
 
 export const TAG_TO_CLASS: Record<string, RobloxClassName> = {
+	path2d: "Path2D",
+	Path2D: "Path2D",
 	scroll: "ScrollingFrame",
 	div: "Frame",
 	section: "Frame",
@@ -803,10 +808,78 @@ export function computePlacement(
  * Idempotent: helper children are created only once; properties are
  * re-written every call (cheap on the engine side).
  */
+/** Apply the complete public, writable Path2D surface without GuiObject assumptions. */
+function applyPath2D(node: HostNode, style: Record<string, string>, env: HostEnv): void {
+	const inst = node.inst as RobloxInstance;
+	const path = inst as unknown as Path2D;
+	const props = node.pendingProps;
+	const set = (name: string, value: unknown): void => { if (inst[name] !== value) inst[name] = value; };
+	set("Closed", props["closed"] ?? false);
+	const colorValue = style["stroke"] ?? style["color"] ?? props["color"];
+	if (typeIs(colorValue, "string")) {
+		const color = parseColor(colorValue as string);
+		if (color !== undefined) set("Color3", env.newColor3(color.r, color.g, color.b));
+	} else {
+		set("Color3", colorValue ?? env.newColor3(0, 0, 0));
+	}
+	const width = style["stroke-width"] !== undefined ? _parseFloat(style["stroke-width"]) : (props["thickness"] ?? 1) as number;
+	if (_isNaN(width) || width < 0 || width === math.huge) error("Path2D thickness must be a finite non-negative number");
+	set("Thickness", width);
+	set("Visible", props["visible"] !== false && style["visibility"] !== "hidden" && style["display"] !== "none" && style["stroke"] !== "none");
+	const z = style["z-index"] !== undefined ? _parseInt(style["z-index"]) : (props["zIndex"] ?? 1);
+	set("ZIndex", z);
+	const points = (props["controlPoints"] ?? []) as Array<Path2DControlPoint>;
+	const previous = node.styleState["pathPoints"] as Array<{ position: UDim2; left: UDim2; right: UDim2 }> | undefined;
+	let changed = previous === undefined || previous.size() !== points.size();
+	if (!changed && previous !== undefined) {
+		for (let i = 0; i < points.size(); i++) {
+			const p = points[i];
+			const old = previous[i];
+			if (p.Position !== old.position || p.LeftTangent !== old.left || p.RightTangent !== old.right) { changed = true; break; }
+		}
+	}
+	if (changed) {
+		if (points.size() > path.GetMaxControlPoints()) error("Path2D controlPoints exceeds the engine's GetMaxControlPoints() limit");
+		// Snapshot values before emitting the change signal; callers may update
+		// an existing control-point userdata in place between React renders.
+		const copy: Array<{ position: UDim2; left: UDim2; right: UDim2 }> = [];
+		for (let i = 0; i < points.size(); i++) {
+			const p = points[i];
+			copy.push({ position: p.Position, left: p.LeftTangent, right: p.RightTangent });
+		}
+		node.styleState["pathPoints"] = copy;
+		path.SetControlPoints(points);
+	}
+}
+
 export function applyStyle(node: HostNode, style: Record<string, string>, env: HostEnv): void {
 	const inst = node.inst;
 	if (inst === undefined) return;
 	node.computed = style;
+	// Path2D inherits GuiBase, not GuiObject. Writing Size, Position, Rotation,
+	// LayoutOrder, backgrounds or connecting mouse signals to it throws.
+	if (inst.ClassName === "Path2D") {
+		applyPath2D(node, style, env);
+		return;
+	}
+	// React may supply a fresh style table with identical values on every
+	// counter update. Do not parse it or invalidate Roblox layout again.
+	const previous = node.styleState["lastAppliedStyle"] as Record<string, string> | undefined;
+	let changed = previous === undefined;
+	if (previous !== undefined) {
+		for (const [key, value] of pairs(style)) {
+			if (previous[key as string] !== value) { changed = true; break; }
+		}
+		if (!changed) {
+			for (const [key] of pairs(previous)) {
+				if (style[key as string] === undefined) { changed = true; break; }
+			}
+		}
+	}
+	if (!changed) return;
+	const applied: Record<string, string> = {};
+	for (const [key, value] of pairs(style)) applied[key as string] = value;
+	node.styleState["lastAppliedStyle"] = applied;
 
 	// Properties currently driven by a running animation on this node. The
 	// animation driver is their sole writer (it re-applies every frame); a
@@ -1504,6 +1577,16 @@ function wireEvents(node: HostNode): void {
 	node.styleState["eventsWired"] = true;
 	const rec = inst as Record<string, unknown>;
 	const cls = inst.ClassName;
+	if (cls === "Path2D") {
+		const path = inst as unknown as Path2D;
+		path.ControlPointChanged.Connect(() => {
+			const handler = node.pendingProps["onControlPointChanged"];
+			if (typeIs(handler, "function")) {
+				(handler as (event: { type: string; target: unknown }) => void)({ type: "controlpointchanged", target: path });
+			}
+		});
+		return;
+	}
 
 	const fire = (name: string, event: Record<string, unknown>): void => {
 		const h = node.pendingProps[name];
@@ -1595,7 +1678,7 @@ function insertChild(parent: HostNode, child: HostNode, before: HostNode | undef
 	if (child.inst !== undefined && parent.inst !== undefined) {
 		(child.inst as Record<string, unknown>)["Parent"] = parent.inst;
 		child.layoutOrder = idx;
-		(child.inst as Record<string, unknown>)["LayoutOrder"] = idx;
+		if (child.inst.ClassName !== "Path2D") (child.inst as Record<string, unknown>)["LayoutOrder"] = idx;
 	}
 	if (child.kind === "text") {
 		syncTextContent(parent);
@@ -1728,10 +1811,12 @@ export function buildHostConfig(
 	}
 
 	function removeChild(_parent: HostNode, child: HostNode): void {
+		if (resolver.removed !== undefined) resolver.removed(child);
 		detachChild(child);
 	}
 
 	function removeChildFromContainer(_container: HostNode, child: HostNode): void {
+		if (resolver.removed !== undefined) resolver.removed(child);
 		detachChild(child);
 	}
 
@@ -1739,6 +1824,7 @@ export function buildHostConfig(
 		updateIdentity(instance, props);
 		// Compute and apply style now
 		const computed = resolver.resolve(instance);
+		if (resolver.beforeStyle !== undefined) resolver.beforeStyle(instance, computed);
 		applyStyle(instance, computed, env);
 		wireEvents(instance);
 		return true; // so commitMount is called
@@ -1751,6 +1837,7 @@ export function buildHostConfig(
 	function commitUpdate(instance: HostNode, _type: string, _prevProps: Record<string, unknown>, nextProps: Record<string, unknown>): void {
 		updateIdentity(instance, nextProps);
 		const computed = resolver.resolve(instance);
+		if (resolver.beforeStyle !== undefined) resolver.beforeStyle(instance, computed);
 		applyStyle(instance, computed, env);
 	}
 
@@ -1866,6 +1953,7 @@ export function buildHostConfig(
 
 	function clearContainer(container: HostNode): void {
 		for (let i = container.children.size() - 1; i >= 0; i--) {
+			if (resolver.removed !== undefined) resolver.removed(container.children[i]);
 			detachChild(container.children[i]);
 		}
 	}

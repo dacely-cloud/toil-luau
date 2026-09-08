@@ -1054,7 +1054,7 @@ function parseValue(v: string): [number, string] | undefined {
 	return undefined;
 }
 
-function interpolateValue(from: string, to: string, t: number): string {
+export function interpolateValue(from: string, to: string, t: number): string {
 	const fa = parseValue(from);
 	const tb = parseValue(to);
 	if (fa !== undefined && tb !== undefined) {

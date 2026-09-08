@@ -1,6 +1,7 @@
 local Lest = require('../.lest/core')
 local describe, it, expect = Lest.describe, Lest.it, Lest.expect
 local polyfills = require("../out/polyfills")
+local animationModule = require("../out/host/animations")
 
 -- Load the spike runtime helpers (fake game, task, Instance.new, etc.)
 local spikeErr = nil
@@ -64,6 +65,83 @@ local function findReact()
 end
 
 describe('roblox host', function ()
+	it('supports native Path2D props, updates, refs and change events without GuiObject writes', function ()
+		assert(hostModule and hostEnv)
+		local config = hostModule.buildHostConfig(hostEnv.env, { resolve = function(n) return n.pendingProps.style or {} end })
+		local n = config.createInstance("path2d", {}, nil, nil, nil)
+		local zero = hostEnv.env.newUDim2(0,0,0,0)
+		local p = { Position = zero, LeftTangent = zero, RightTangent = zero }
+		local changes = 0
+		local props = { controlPoints = { p }, closed = true, thickness = 4, visible = false, zIndex = 7, color = "#ff0000", onControlPointChanged = function(ev) assert(ev.target == n.inst); changes += 1 end }
+		config.finalizeInitialChildren(n, "path2d", props)
+		assert(n.inst.ClassName == "Path2D" and n.inst.Closed and n.inst.Thickness == 4 and not n.inst.Visible and n.inst.ZIndex == 7)
+		assert(n.inst.Size == nil and n.inst.Position == nil and n.inst.BackgroundColor3 == nil)
+		assert(config.getPublicInstance(n) == n.inst)
+		config.commitUpdate(n, "path2d", props, props)
+		assert(n.inst.ControlPointWrites == 1 and changes == 0, "unchanged points must not emit a feedback loop")
+		p.Position = hostEnv.env.newUDim2(0.5, 10, 0.5, 20)
+		config.commitUpdate(n, "path2d", props, props)
+		assert(n.inst.ControlPointWrites == 2 and changes == 1)
+		config.commitUpdate(n, "path2d", props, {})
+		assert(#n.inst:GetControlPoints() == 0 and not n.inst.Closed and n.inst.Thickness == 1 and n.inst.Visible and n.inst.ZIndex == 1)
+	end)
+	it('skips property conversion when a new style table has unchanged values', function ()
+		local calls = 0
+		local env = table.clone(hostEnv.env)
+		env.newUDim2 = function(...) calls += 1; return hostEnv.env.newUDim2(...) end
+		local config = hostModule.buildHostConfig(env, { resolve = function(n) return n.pendingProps.style or {} end })
+		local n = config.createInstance("div", {}, nil, nil, nil)
+		config.finalizeInitialChildren(n, "div", { style = { width = "100px", height = "50px" } })
+		local initial = calls
+		config.commitUpdate(n, "div", {}, { style = { width = "100px", height = "50px" } })
+		assert(calls == initial, "unchanged styles invalidated layout")
+		config.commitUpdate(n, "div", {}, { style = { width = "200px", height = "50px" } })
+		assert(calls > initial and n.inst.Size.X.Offset == 200)
+	end)
+	it('starts animation on updates, pauses, resumes, transitions and cancels on removal', function ()
+		local engine = hostModule.makeDefaultEngine({{ selector = "@keyframes turn", keyframes = {
+			{ offset = 0, styles = { rotation = "0deg" } }, { offset = 1, styles = { rotation = "360deg" } },
+		} }})
+		local clock = animationModule.makeFakeClock(0)
+		local driver = animationModule.createDriver(clock, engine, hostEnv.env)
+		local config = hostModule.buildHostConfig(hostEnv.env, {
+			resolve = function(n) return n.pendingProps.style or {} end,
+			beforeStyle = function(n,s) animationModule.syncAnimations(driver,n,s) end,
+			removed = function(n) animationModule.stopAnimations(driver,n) end,
+		})
+		local n = config.createInstance("div", {}, nil, nil, nil)
+		config.finalizeInitialChildren(n, "div", { style = { rotation = "0deg" } })
+		local running = { style = { animation = "turn 4s linear infinite" } }
+		config.commitUpdate(n, "div", {}, running)
+		assert(#driver.animations == 1)
+		clock.advance(1); animationModule.tick(driver)
+		assert(math.abs(n.inst.Rotation - 90) < 1)
+		config.commitUpdate(n,"div",running,{style={animation="turn 4s linear infinite paused"}})
+		clock.advance(2); animationModule.tick(driver)
+		assert(math.abs(n.inst.Rotation - 90) < 1)
+		config.commitUpdate(n,"div",{},running)
+		clock.advance(1); animationModule.tick(driver)
+		assert(math.abs(n.inst.Rotation - 180) < 1)
+		config.commitUpdate(n,"div",{}, {style={rotation="0deg",transition="rotation 2s linear"}})
+		config.commitUpdate(n,"div",{}, {style={rotation="100deg",transition="rotation 2s linear"}})
+		clock.advance(1); animationModule.tick(driver)
+		assert(math.abs(n.inst.Rotation - 50) < 1)
+		config.removeChild(nil,n)
+		assert(#driver.animations == 0 and #driver.transitions == 0)
+	end)
+	it('transitions a mounted React component after setState', function ()
+		local React = findReact()
+		local update
+		local ref = {}
+		local function App()
+			local state = React.useState(false); update = state[2]
+			return React.createElement("div", {ref=ref,style={rotation=state[1] and "100" or "0",transition="rotation 2s linear"}})
+		end
+		local handle=hostModule.mountReactRoot(nil,{},React.createElement(App),nil,hostEnv.env)
+		update(true); polyfills.drainTasks(); handle.tick(1)
+		assert(ref.current.Rotation > 40 and ref.current.Rotation < 60, tostring(ref.current.Rotation))
+		handle.unmount()
+	end)
 	it('removes replaced keyed siblings rather than leaving duplicate instances', function ()
 		assert(hostModule ~= nil, tostring(hostModuleErr))
 		assert(hostEnv ~= nil, tostring(envErr))

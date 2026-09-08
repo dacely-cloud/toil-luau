@@ -53,3 +53,4 @@ export { parseCss, cssToRules } from "./css/loader";
 // re-export it. Consumers write `React.useState`, `React.createContext`, etc.
 import * as React from "@toil/react";
 export { React };
+export type { Path2DProps } from "./host/path2d";

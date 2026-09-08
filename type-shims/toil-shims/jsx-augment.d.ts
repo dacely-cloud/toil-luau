@@ -7,10 +7,14 @@
  * creating a new ambient one.
  */
 import "react";
+import type { Path2DProps } from "../../src/host/path2d";
 
 declare module "react" {
 	namespace JSX {
 		interface IntrinsicElements {
+			/** Native Roblox curve; ref exposes the complete public Path2D API. */
+			path2d: Path2DProps;
+			scroll: Record<string, unknown>;
 			/** Host panel: holds the counter UI. */
 			panel: Record<string, unknown>;
 			/** Static caption text. */

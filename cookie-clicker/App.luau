@@ -42,12 +42,33 @@ end
 local function rail(id, x, y, w, h)
 	return box(id, x, y, w, h, "linear-gradient(90deg, #21160e, #9e7650, #5d3c24, #b28c5c, #291e14)", {}, { border = "1px solid #1b120c" })
 end
+local stripeCache = {}
 local function stripes(id, w, h, dark, light)
+	local cached = stripeCache[id]
+	if cached and cached.w == w and cached.h == h and cached.dark == dark and cached.light == light then return cached.element end
 	local kids = {}
 	for i = 0, math.ceil(w / 36) do
 		kids[#kids + 1] = box(id .. i, i * 36, 0, 18, h, light)
 	end
-	return box(id, 0, 0, w, h, dark, kids, { overflow = "hidden" })
+	local element = box(id, 0, 0, w, h, dark, kids, { overflow = "hidden" })
+	stripeCache[id] = { w = w, h = h, dark = dark, light = light, element = element }
+	return element
+end
+local cookieCrumbs = {}
+for i = 1, 80 do
+	local a, r = i * 2.39996, math.sqrt(i / 80) * 118
+	local diameter = i % 4 == 0 and 18 or 5
+	local color = i % 4 == 0 and "#4e2916" or (i % 3 == 0 and "#f2c27c" or "#b27b38")
+	cookieCrumbs[#cookieCrumbs + 1] = box("crumb" .. i, 135 + math.cos(a) * r - diameter / 2, 135 + math.sin(a) * r - diameter / 2, diameter, diameter, color, {}, { ["border-radius"] = "6px", rotation = tostring(i * 29) })
+end
+local function Cookie(props)
+	local state = React.useState(false)
+	local pressed, setPressed = state[1], state[2]
+	return button("bigCookie", "", pressed and 79 or 75, props.y + (pressed and 4 or 0), pressed and 262 or 270, pressed and 262 or 270, function()
+		props.send("click")
+		setPressed(true)
+		task.delay(0.08, function() setPressed(false) end)
+	end, { background = "linear-gradient(125deg, #ecc48a, #ce9b58, #b47935)", ["border-radius"] = "135px", border = "7px solid #8f5c2b", overflow = "hidden" }, cookieCrumbs)
 end
 return function()
 	local remote = script.Parent:WaitForChild("Action")
@@ -68,8 +89,6 @@ return function()
 		local sell, setSell = sellState[1], sellState[2]
 		local hoverState = React.useState(0)
 		local hover, setHover = hoverState[1], hoverState[2]
-		local pressedState = React.useState(false)
-		local pressed, setPressed = pressedState[1], pressedState[2]
 		local state = snapshot
 		local h = displayHeight - 30
 		local leftW, centerX, centerW, storeX, storeW = 420, 432, 646, 1090, 350
@@ -83,19 +102,7 @@ return function()
 		-- The cookie uses native vector-like geometry until the artwork pass.
 		left[#left + 1] = box("cookieHalo", 34, cookieY - 34, 352, 352, "rgba(180,224,255,0.08)", {}, { ["border-radius"] = "176px", border = "12px solid rgba(170,210,255,0.06)" })
 		left[#left + 1] = box("cookieHaloInner", 56, cookieY - 12, 308, 308, "rgba(165,218,255,0.09)", {}, { ["border-radius"] = "154px" })
-		local cookieKids = {}
-		for i = 1, 80 do
-			local a = i * 2.39996
-			local r = math.sqrt(i / 80) * 118
-			local diameter = i % 4 == 0 and 18 or 5
-			local color = i % 4 == 0 and "#4e2916" or (i % 3 == 0 and "#f2c27c" or "#b27b38")
-			cookieKids[#cookieKids + 1] = box("crumb" .. i, 135 + math.cos(a) * r - diameter / 2, 135 + math.sin(a) * r - diameter / 2, diameter, diameter, color, {}, { ["border-radius"] = "6px", rotation = tostring(i * 29) })
-		end
-		left[#left + 1] = button("bigCookie", "", pressed and 79 or 75, cookieY + (pressed and 4 or 0), pressed and 262 or 270, pressed and 262 or 270, function()
-			send("click")
-			setPressed(true)
-			task.delay(0.08, function() setPressed(false); toil.drainTasks() end)
-		end, { background = "linear-gradient(125deg, #ecc48a, #ce9b58, #b47935)", ["border-radius"] = "135px", border = "7px solid #8f5c2b", overflow = "hidden" }, cookieKids)
+		left[#left + 1] = e(Cookie, { key = "cookie", y = cookieY, send = send })
 		for i = 1, math.min(state.buildings[1], 50) do
 			local angle = (i - 1) / math.max(10, math.min(state.buildings[1], 50)) * math.pi * 2
 			left[#left + 1] = label("cursor" .. i, "☝", 194 + math.cos(angle) * 172, cookieY + 118 + math.sin(angle) * 172, 30, 34, 28, "#ffffff", { rotation = tostring(math.deg(angle) + 90) })
@@ -224,7 +231,9 @@ return function()
 	scale.Scale = workspace.CurrentCamera.ViewportSize.X / displayWidth
 	scale.Parent = handle.gui:FindFirstChild("cookieClicker", true)
 	local revision = 0
-	local function update() revision += 1; if refresh then refresh(revision); toil.drainTasks() end end
+	-- One flush on the renderer's Heartbeat. Never recursively drain React
+	-- from every network packet or delayed click callback.
+	local function update() revision += 1; if refresh then refresh(revision) end end
 	local connection = remote.OnClientEvent:Connect(function(nextState) snapshot = nextState; update() end)
 	local resize = workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
 		local viewport = workspace.CurrentCamera.ViewportSize

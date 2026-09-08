@@ -27,6 +27,8 @@ import {
 	tick,
 	startAnimation,
 	startTransition,
+	syncAnimations,
+	stopAnimations,
 } from "./animations";
 import { createEngine as createRealEngine } from "../css/engine";
 import type {
@@ -237,11 +239,14 @@ export function mountReactRoot(
 		},
 	};
 
+	const driver = createDriver(c, eng, e);
 	// Build the style resolver
 	// A function property, not a method: StyleResolver.resolve is called with
 	// a dot (resolver.resolve(node)), so a method form would bind the node to
 	// `self` and leave `node` nil.
 	const resolver = {
+		beforeStyle: (node: HostNode, style: Record<string, string>): void => syncAnimations(driver, node, style),
+		removed: (node: HostNode): void => stopAnimations(driver, node),
 		resolve: (node: HostNode): Record<string, string> => {
 			// Keep the identity fresh from the node's last props, so selectors
 			// re-match even when commitUpdate does not fire.
@@ -298,7 +303,8 @@ export function mountReactRoot(
 		(errorValue: unknown, _info: unknown): void => {
 			// A render error must not vanish: React swallows it and commits an
 			// empty tree, which is far harder to diagnose than a printed error.
-			print("[toil] uncaught render error:", tostring(errorValue));
+			const detail = typeIs(errorValue, "table") ? errorValue as Record<string, unknown> : undefined;
+			print("[toil] uncaught render error:", detail !== undefined ? tostring(detail["message"]) + "\n" + tostring(detail["stack"]) : tostring(errorValue));
 		},
 		(errorValue: unknown, _info: unknown): void => {
 			print("[toil] caught render error:", tostring(errorValue));
@@ -312,19 +318,9 @@ export function mountReactRoot(
 	);
 
 	// Render the element
+	clockOverride = 0;
 	reconciler.updateContainer(element as unknown as React.ReactNode, root, undefined, undefined);
 	drainTasks();
-
-	// Create the animation driver
-	const driver = createDriver(c, eng, e);
-
-	// Start animations found in the initial computed styles
-	// (This would be done in commitUpdate/finalizeInitialChildren in a full
-	// implementation; for the spike we scan the tree once after mount.)
-	// Animations declared in the initial styles start at exactly t = 0 on the
-	// mount clock, so handle.tick(now) samples them deterministically.
-	clockOverride = 0;
-	scanAndStartAnimations(guiNode, eng, driver);
 	clockOverride = undefined;
 
 	// In real Roblox, RunService.Heartbeat flushes React's task queue (so a
@@ -369,33 +365,6 @@ export function mountReactRoot(
 		unmount: doUnmount,
 		tick: doTick,
 	};
-}
-
-/**
- * Scan a mounted tree and start any animations found in computed styles.
- */
-function scanAndStartAnimations(
-	node: HostNode,
-	engine: Engine,
-	driver: AnimationDriver
-): void {
-	if (node.inst === undefined) return;
-	const computed = node.computed;
-	const animValue = computed["animation"] ?? "";
-	if (animValue.size() > 0) {
-		const specs = engine.parseAnimation(animValue);
-		for (let i = 0; i < specs.size(); i++) {
-			const spec = specs[i];
-			const kf = engine.keyframes(spec.name);
-			if (kf !== undefined) {
-				startAnimation(driver, node, spec, kf);
-			}
-		}
-	}
-	// Recurse into children
-	for (let i = 0; i < node.children.size(); i++) {
-		scanAndStartAnimations(node.children[i], engine, driver);
-	}
 }
 
 // Re-export for consumers

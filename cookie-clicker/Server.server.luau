@@ -68,7 +68,7 @@ remote.OnServerEvent:Connect(function(player, action, index, quantity, sell)
 	if not session or not session.ready or session.tokens < 1 then return end
 	session.tokens -= 1
 	local state = session.state
-	if action == "click" then Model.click(state)
+	if action == "click" then Model.click(state); return
 	elseif action == "trade" and type(index) == "number" and type(quantity) == "number" and type(sell) == "boolean" then
 		Model.trade(state, index, quantity, sell)
 	elseif action == "upgrade" and type(index) == "string" then Model.buyUpgrade(state, index)

@@ -16,6 +16,7 @@ import type {
 } from "./engine-types";
 import type { HostEnv, HostNode } from "./roblox-host";
 import { applyStyle, parseColor, parseLength, computePlacement } from "./roblox-host";
+import { interpolateValue } from "../css/engine";
 
 /**
  * Keys of a record via the Luau builtin pairs(): the host must not depend on
@@ -71,6 +72,7 @@ export function makeFakeClock(start: number): Clock & { advance: (delta: number)
  * A running keyframe animation on a specific node.
  */
 export interface RunningAnimation {
+	pausedAt?: number;
 	/** The node being animated. */
 	node: HostNode;
 	/** The animation spec (parsed from the style). */
@@ -167,6 +169,7 @@ export function startAnimation(
 		keyframes,
 		base,
 		startTime: driver.clock.now(),
+		pausedAt: spec.playState === "paused" ? driver.clock.now() : undefined,
 		engine: driver.engine,
 		env: driver.env,
 	});
@@ -222,7 +225,8 @@ export function tick(driver: AnimationDriver): void {
 	// --- Keyframe animations ---
 	for (let i = driver.animations.size() - 1; i >= 0; i--) {
 		const anim = driver.animations[i];
-		const elapsed = now - anim.startTime;
+		if (anim.node.inst === undefined) { driver.animations.remove(i); continue; }
+		const elapsed = (anim.pausedAt ?? now) - anim.startTime;
 		const { spec, keyframes } = anim;
 
 		// Check if finished (non-infinite)
@@ -259,6 +263,7 @@ export function tick(driver: AnimationDriver): void {
 	// --- CSS transitions ---
 	for (let i = driver.transitions.size() - 1; i >= 0; i--) {
 		const trans = driver.transitions[i];
+		if (trans.node.inst === undefined) { driver.transitions.remove(i); continue; }
 		const elapsed = now - trans.startTime;
 		const { spec } = trans;
 
@@ -367,17 +372,77 @@ function applyTransitionValue(
  * values to the closer end.
  */
 export function interpolateString(from: string, to: string, t: number): string {
-	// Try to parse as numbers (possibly with a unit suffix)
-	const fromNum = parseFloat(from);
-	const toNum = parseFloat(to);
-	if (!isNaN(fromNum) && !isNaN(toNum)) {
-		const interp = fromNum + (toNum - fromNum) * t;
-		// Preserve the unit suffix from `from`
-		const suffix = extractSuffix(from);
-		return String(interp) + suffix;
+	return interpolateValue(from, to, t);
+}
+
+/** Keep animations and transitions synchronized with React commits, not just initial mount. */
+export function syncAnimations(driver: AnimationDriver, node: HostNode, targetStyle: Record<string, string>): void {
+	const previous = node.styleState["targetStyle"] as Record<string, string> | undefined;
+	const declaration = targetStyle["animation"] ?? targetStyle["anim:"] ?? "";
+	const oldDeclaration = previous !== undefined ? previous["animation"] ?? previous["anim:"] ?? "" : "";
+	if (declaration !== oldDeclaration) {
+		const specs = driver.engine.parseAnimation(declaration);
+		for (let i = driver.animations.size() - 1; i >= 0; i--) {
+			const running = driver.animations[i];
+			if (running.node !== node) continue;
+			let retained = false;
+			for (let j = 0; j < specs.size(); j++) {
+				const spec = specs[j];
+				const old = running.spec;
+				if (old.name === spec.name && old.duration === spec.duration && old.delay === spec.delay && old.iterationCount === spec.iterationCount && old.direction === spec.direction && old.fillMode === spec.fillMode && old.timingFunction === spec.timingFunction) {
+					if (spec.playState === "paused" && running.pausedAt === undefined) running.pausedAt = driver.clock.now();
+					if (spec.playState !== "paused" && running.pausedAt !== undefined) { running.startTime += driver.clock.now() - running.pausedAt; running.pausedAt = undefined; }
+					running.spec = spec;
+					retained = true;
+					break;
+				}
+			}
+			if (!retained) driver.animations.remove(i);
+		}
+		rebuildAnimatedProps(driver, node);
+		for (let j = 0; j < specs.size(); j++) {
+			const spec = specs[j];
+			let exists = false;
+			for (let i = 0; i < driver.animations.size(); i++) {
+				if (driver.animations[i].node === node && driver.animations[i].spec.name === spec.name) exists = true;
+			}
+			if (!exists) {
+				const keyframes = driver.engine.keyframes(spec.name);
+				if (keyframes !== undefined) {
+					const oldComputed = node.computed;
+					node.computed = targetStyle;
+					startAnimation(driver, node, spec, keyframes);
+					node.computed = oldComputed;
+				}
+			}
+		}
 	}
-	// Non-numeric: snap to closer value
-	return t < 0.5 ? from : to;
+	if (previous !== undefined && (targetStyle["transition"] ?? "") !== "") {
+		const transitions = driver.engine.parseTransition(targetStyle["transition"] ?? "");
+		for (let i = 0; i < transitions.size(); i++) {
+			const spec = transitions[i];
+			if (spec.duration <= 0) continue;
+			const keys = spec.property === "all" ? keysOf(targetStyle) : [spec.property];
+			for (let j = 0; j < keys.size(); j++) {
+				const property = keys[j];
+				if (property === "transition" || property === "animation") continue;
+				if (previous[property] !== undefined && targetStyle[property] !== undefined && previous[property] !== targetStyle[property]) {
+					startTransition(driver, node, property, node.computed[property] ?? previous[property], targetStyle[property], spec);
+				}
+			}
+		}
+	}
+	const target: Record<string, string> = {};
+	for (const [key, value] of pairs(targetStyle)) target[key as string] = value;
+	node.styleState["targetStyle"] = target;
+}
+
+/** Remove all scheduled work for an unmounted subtree immediately. */
+export function stopAnimations(driver: AnimationDriver, node: HostNode): void {
+	for (let i = driver.animations.size() - 1; i >= 0; i--) if (driver.animations[i].node === node) driver.animations.remove(i);
+	for (let i = driver.transitions.size() - 1; i >= 0; i--) if (driver.transitions[i].node === node) driver.transitions.remove(i);
+	node.styleState["animatedProps"] = undefined;
+	for (let i = 0; i < node.children.size(); i++) stopAnimations(driver, node.children[i]);
 }
 
 function extractSuffix(s: string): string {

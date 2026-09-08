@@ -91,6 +91,21 @@ local function newInstance(className)
 			end
 		end,
 	}
+	if className == "Path2D" then
+		local points = {}
+		local listeners = {}
+		inst.ControlPointChanged = { Connect = function(_, fn)
+			table.insert(listeners, fn)
+			return { Disconnect = function() local i = table.find(listeners, fn); if i then table.remove(listeners, i) end end }
+		end }
+		methods.GetMaxControlPoints = function() return 100 end
+		methods.GetControlPoints = function() return table.clone(points) end
+		methods.SetControlPoints = function(_, value)
+			points = table.clone(value)
+			inst.ControlPointWrites = (inst.ControlPointWrites or 0) + 1
+			for _, fn in listeners do fn() end
+		end
+	end
 	setmetatable(inst, mt)
 	return inst
 end

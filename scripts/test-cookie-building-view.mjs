@@ -16,7 +16,7 @@ const code = `
 local ImageNames=(function() ${fs.readFileSync('cookie-clicker/ImageNames.luau','utf8')} end)()
 local ImageConfig=(function() ${fs.readFileSync('cookie-clicker/ImageConfig.luau','utf8')} end)()
 assert(#ImageConfig.verify()==0)
-for _,mapping in ImageNames do for _,name in mapping do assert(ImageConfig.get(name)) end end
+for key,mapping in ImageNames do for _,name in mapping do assert(ImageConfig.get(key:find("Backgrounds") and "ZoneBackground/"..name or name)) end end
 local function element(kind, props, ...) return {kind=kind, props=props, children={...}} end
 local e=element
 local function label(id,text,...) return {id=id,text=text} end
@@ -48,6 +48,7 @@ end
 print("PASS owned-building view: empty, first purchase, bulk purchases, all 20 buildings")
 `;
 try {
+ for (const name of ['Images2Config','CookieBackgrounds','MenuButtonConfig']) fs.copyFileSync('cookie-clicker/'+name+'.luau',path.join(dir,name+'.luau'));
  fs.writeFileSync(file, code);
  const fallback=path.join(os.homedir(),'.luau','bin',process.platform==='win32'?'luau.exe':'luau');
  const binary=process.env.LUAU_BIN || (fs.existsSync(fallback)?fallback:'luau');

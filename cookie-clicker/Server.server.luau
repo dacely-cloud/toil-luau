@@ -57,7 +57,7 @@ local function send(player, session)
         for _,member in r.members do if member.active then count+=1 end end
         snapshot.empire={id=r.owner,name=r.name,badge=r.badge,level=r.level,points=r.points,members=count}
     end
-    snapshot.empirePending=session.state.economy.empireDonation~=nil or session.empireFinalizing==true
+    snapshot.empirePending=session.state.economy.empireMembership~=nil or session.state.economy.empireDonation~=nil or session.empireFinalizing==true
     snapshot.charityPending=session.state.economy.charityPending~=nil or session.charityFinalizing==true
     if os.clock()-publicUpdated>=1 then
         publicUpdated=os.clock();publicPlayers={}
@@ -91,6 +91,8 @@ local function load(player)
 		if session then
 			if not player.Parent or shuttingDown then persistence.save(session,true); return end
 			session.tokens=40
+            -- Temporary level-5 background preview for Studio; published progression stays unchanged.
+            if studio then session.state.economy.xp=math.max(session.state.economy.xp,1600) end
 			session.state.bakery=(session.state.customName and filteredName(player,session.state.customName)) or player.DisplayName.."'s bakery"
 			session.saveStatus=studio and "Test game: progress resets when testing stops" or "Your bakery is saved"
 			session.seenAchievements=table.clone(session.state.achievements)
@@ -245,7 +247,7 @@ task.spawn(function()
                     session.empireBusy=true
                     empireService.refresh(session,player.UserId)
                     if session.empireFinalizing then empireService.finish(session)
-                    elseif session.state.economy.empireDonation then empireService.resume(session,player.UserId) end
+                    elseif session.state.economy.empireDonation or session.state.economy.empireMembership then empireService.resume(session,player.UserId) end
                     session.empireBusy=false
                 end)
             end

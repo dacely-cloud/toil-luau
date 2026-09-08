@@ -124,4 +124,27 @@ test("season hunts award a bonus at five collected cookies",function()
 	for i=1,5 do s.goldenId=i;s.goldenUntil=s.played+10;assert(Model.collectGolden(s,i))end
 	assert(s.seasonCookies==5 and s.cookies>=500)
 end)
+test("lucky spells reset the falling cookie and invalidate old claims",function()
+    local s=Model.new();s.buildings[8]=1;s.magic=100;s.played=75
+    Model.goldenTick(s);local previous=s.goldenId
+    s.played+=100
+    assert(Model.advancedAction(s,"spell","lucky"))
+    assert(s.magic==60 and s.goldenId==previous+1 and s.goldenStarted==s.played)
+    assert(s.goldenDuration>=8 and s.goldenDuration<=16)
+    assert(s.goldenUntil==s.played+s.goldenDuration and s.goldenX>=.1 and s.goldenX<=.9)
+    assert(s.goldenAt>s.goldenUntil)
+    Model.goldenTick(s);assert(s.goldenId==previous+1, "scheduled spawn must not replace the spell immediately")
+    assert(not Model.collectGolden(s,previous))
+    assert(Model.collectGolden(s,s.goldenId));assert(not Model.collectGolden(s,s.goldenId))
+end)
+test("ascension preserves saved audio preferences",function()
+    local s=Model.new();s.earned=1e12;s.soundEnabled=false;s.soundVolume=30;s.reducedMotion=true
+    assert(Model.advancedAction(s,"ascend"))
+    assert(s.soundEnabled==false and s.soundVolume==30 and s.reducedMotion)
+end)
+test("building levels cannot exceed their persistence limit",function()
+    local s=Model.new();s.buildings[1]=1;s.levels[1]=99;s.lumps=1000
+    assert(Model.advancedAction(s,"level",1));assert(s.levels[1]==100 and s.lumps==900)
+    assert(not Model.advancedAction(s,"level",1));assert(s.levels[1]==100 and s.lumps==900)
+end)
 print(string.format("Cookie Clicker: %d passed", passed))

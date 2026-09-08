@@ -5,6 +5,7 @@ return function(Model)
 	function Model.initAdvanced(s)
 		s.pastEarned=0;s.prestige=0;s.chips=0;s.heavenly={};s.lumps=0;s.lumpTime=0
 		s.levels=table.create(#Model.Buildings,0);s.buddyBank=0;s.buddies=false
+        s.wrinklers={};s.wrinklerSequence=0;s.wrinklerTime=0
 		s.gardenReady=0;s.gardenBoostUntil=0;s.stocks={0,0,0};s.spirit="none";s.spiritChanged=-60
 		s.magic=0;s.season="none";s.seasonCookies=0;s.permanentUpgrade=""
 	end
@@ -17,8 +18,51 @@ return function(Model)
 		if data.spirit=="baking" or data.spirit=="clicking" or data.spirit=="luck" then s.spirit=data.spirit end
 		if data.season=="winter" or data.season=="spring" then s.season=data.season end
 		s.buddies=data.buddies==true and s.buildings[2]>=10
+        s.wrinklerSequence=math.min(1e12,int(data.wrinklerSequence))
+        s.wrinklerTime=math.min(60,finite(data.wrinklerTime) and data.wrinklerTime or 0)
+        local seen={}
+        if type(data.wrinklers)=="table" then
+            for i=1,10 do
+                local w=data.wrinklers[i]
+                if type(w)=="table" and finite(w.id) and w.id%1==0 and w.id>0 and w.id<=1e12 and not seen[w.id] and finite(w.bank) then
+                    seen[w.id]=true;s.wrinklerSequence=math.max(s.wrinklerSequence,w.id)
+                    table.insert(s.wrinklers,{id=w.id,bank=math.min(1e100,w.bank)})
+                end
+            end
+        elseif s.buddyBank>0 and s.wrinklerSequence<1e12 then
+            s.wrinklerSequence+=1
+            table.insert(s.wrinklers,{id=s.wrinklerSequence,bank=math.min(1e100,s.buddyBank)})
+        end
+        s.buddyBank=0;for _,w in s.wrinklers do s.buddyBank+=w.bank end
 		for _,u in Model.Upgrades do if u.id==data.permanentUpgrade and s.heavenly.slot then s.permanentUpgrade=u.id end end
 	end
+    local function spawnWrinkler(s)
+        if #s.wrinklers>=10 or s.wrinklerSequence>=1e12 then return end
+        s.wrinklerSequence+=1
+        table.insert(s.wrinklers,{id=s.wrinklerSequence,bank=0})
+    end
+    function Model.feedWrinklers(s,dt,production)
+        local elapsed,earned=0,0
+        local feeding=s.buddies and s.buildings[2]>=10
+        if not feeding then return production(0,dt) end
+        while elapsed<dt do
+            local step=dt-elapsed
+            if feeding and #s.wrinklers<10 and s.wrinklerSequence<1e12 then step=math.min(step,60-s.wrinklerTime) end
+            local amount=production(elapsed,elapsed+step)
+            if feeding then
+                local held=amount*.05
+                for _,w in s.wrinklers do w.bank+=held end
+                amount-=held*#s.wrinklers
+            end
+            earned+=amount;elapsed+=step
+            if feeding and #s.wrinklers<10 and s.wrinklerSequence<1e12 then
+                s.wrinklerTime+=step
+                if s.wrinklerTime>=60 then s.wrinklerTime=0;spawnWrinkler(s) end
+            end
+        end
+        s.buddyBank=0;for _,w in s.wrinklers do s.buddyBank+=w.bank end
+        return earned
+    end
 	function Model.productionFactor(s)
 		return (1+(s.prestige or 0)*.01)*(s.heavenly and s.heavenly.baking and 1.1 or 1)*(s.spirit=="baking" and 1.1 or 1)*(1+Model.empireBonus(s))
 	end
@@ -46,7 +90,7 @@ return function(Model)
 			if gain<1 then return false,"Bake a trillion cookies to start your next bakery." end
 			local fresh=Model.new()
 			fresh.pastEarned=s.pastEarned+s.earned;fresh.prestige=s.prestige+gain;fresh.chips=s.chips+gain
-			for _,key in {"heavenly","lumps","lumpTime","levels","permanentUpgrade","economy","customName","bakery","soundEnabled","reducedMotion","achievements"} do fresh[key]=s[key] end
+			for _,key in {"heavenly","lumps","lumpTime","levels","permanentUpgrade","economy","customName","bakery","soundEnabled","soundVolume","reducedMotion","achievements"} do fresh[key]=s[key] end
 			if fresh.permanentUpgrade~="" then fresh.upgrades[fresh.permanentUpgrade]=true end
 			for key in s do s[key]=nil end;for key,value in fresh do s[key]=value end
 			return true,"A fresh bakery! You earned "..gain.." star chips and a lasting baking boost."
@@ -59,15 +103,30 @@ return function(Model)
 			s.permanentUpgrade=arg;return true,"This boost will stay after you start a new bakery."
 		elseif action=="level" then
 			if type(arg)~="number" or arg%1~=0 or not s.levels[arg] or s.buildings[arg]<1 then return false,"Buy this building first." end
+			if s.levels[arg]>=100 then return false,"This building is at the highest level." end
 			local cost=s.levels[arg]+1
 			if s.lumps<cost then return false,"You need "..cost.." sugar lumps." end
 			s.lumps-=cost;s.levels[arg]+=1;return true,"Building leveled up! It bakes 1% more cookies."
-		elseif action=="buddies" then
-			if s.buildings[2]<10 then return false,"Own 10 grandmas to meet cookie buddies." end
-			s.buddies=not s.buddies;return true,s.buddies and "Cookie buddies save 5% of your baking. Collect for a little extra!" or "Cookie buddies are resting."
-		elseif action=="collectBuddies" then
-			if s.buddyBank<=0 then return false,"Your buddies have not saved any cookies yet." end
-			local amount=s.buddyBank*1.1;s.buddyBank=0;Model.award(s,amount);return true,"Your buddies returned "..math.floor(amount).." cookies!"
+        elseif action=="buddies" then
+            if s.buildings[2]<10 then return false,"Own 10 grandmas to meet wrinklers." end
+            s.buddies=not s.buddies
+            if s.buddies and #s.wrinklers==0 then spawnWrinkler(s);s.wrinklerTime=0 end
+            return true,s.buddies and "Wrinklers save cookies. Pop one to get 10% extra!" or "Wrinklers are resting. Their saved cookies are safe."
+        elseif action=="popWrinkler" then
+            if not finite(arg) or arg%1~=0 then return false,"Choose a wrinkler." end
+            for i,w in s.wrinklers do
+                if w.id==arg then
+                    local amount=w.bank*1.1
+                    table.remove(s.wrinklers,i);s.buddyBank=math.max(0,s.buddyBank-w.bank)
+                    Model.award(s,amount)
+                    return true,"Pop! +"..math.floor(amount).." cookies!"
+                end
+            end
+            return false,"That wrinkler was already collected."
+        elseif action=="collectBuddies" then
+            if s.buddyBank<=0 then return false,"Your wrinklers have not saved any cookies yet." end
+            local amount=s.buddyBank*1.1;s.buddyBank=0;s.wrinklers={};s.wrinklerTime=0
+            Model.award(s,amount);return true,"Wrinklers returned "..math.floor(amount).." cookies!"
 		elseif action=="plant" then
 			if s.buildings[3]<1 or s.lumps<1 or s.gardenReady>0 then return false,"Own a farm and use 1 sugar lump to plant an empty garden." end
 			s.lumps-=1;s.gardenReady=s.played+60;return true,"Seeds planted! Come back in one minute."
@@ -91,7 +150,7 @@ return function(Model)
 			local cost=arg=="lucky" and 40 or arg=="cookies" and 60
 			if not cost or s.buildings[8]<1 or s.magic<cost then return false,"Buy a wizard tower and let your magic recharge." end
 			s.magic-=cost
-			if arg=="lucky" then s.goldenId+=1;s.goldenUntil=s.played+20;return true,"A lucky cookie appeared!" end
+			if arg=="lucky" then Model.spawnGolden(s);return true,"A lucky cookie appeared!" end
 			Model.award(s,math.max(10,Model.cps(s)*60));return true,"Magic baked a minute of extra cookies!"
 		elseif action=="season" then
 			if arg~="winter" and arg~="spring" and arg~="none" then return false,"Choose a season from the menu." end

@@ -25,7 +25,8 @@ function EmpireStore.new(store)
                 return nextRecord
             end)
         end)
-        if not ok or not result then return nil,reason end
+        if not ok then return nil,reason,true end
+        if not result then return nil,reason,false end
         return result
     end
     function service.read(id)

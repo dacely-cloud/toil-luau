@@ -50,3 +50,50 @@ do
     failWrite=false
 end
 print("PASS stale membership removes perks, read failures preserve membership, and rejoining advances donation sequences")
+
+do
+    -- A shared write can commit even when its response is lost. The saved
+    -- membership operation must recover both sides before another empire action.
+    local owner={state=Model.new(),ready=true}
+    failSave=true
+    assert(not service.action(owner,20,"create","Saved Team","cookie"))
+    assert(data.empire_20==nil and owner.state.economy.empireMembership.kind=="create")
+    failSave=false;failWrite=true
+    assert(not service.resume(owner,20))
+    assert(data.empire_20 and saved.economy.empireMembership.kind=="create")
+    local recovered={state=Model.new(),ready=true}
+    Model.restoreEconomy(recovered.state,saved)
+    assert(not service.action(recovered,20,"join",1))
+    failWrite=false
+    assert(service.resume(recovered,20))
+    assert(recovered.state.economy.empireId==20 and not recovered.state.economy.empireMembership)
+    local member={state=Model.new(),ready=true}
+    failWrite=true
+    assert(not service.action(member,21,"join",20))
+    local joined={state=Model.new(),ready=true};Model.restoreEconomy(joined.state,saved)
+    failWrite=false
+    assert(service.resume(joined,21))
+    assert(joined.state.economy.empireId==20 and data.empire_20.members["21"].active)
+    failWrite=true
+    assert(not service.action(joined,21,"leave"))
+    local left={state=Model.new(),ready=true};Model.restoreEconomy(left.state,saved)
+    failWrite=false
+    service.refresh(left,21)
+    assert(left.state.economy.empireMembership, "refresh must preserve an unfinished leave")
+    assert(service.resume(left,21))
+    assert(not left.state.economy.empireId and not data.empire_20.members["21"].active)
+    -- Definitive rejection clears the pending operation, rather than retrying forever.
+    assert(not service.action(left,21,"join",999999))
+    assert(not left.state.economy.empireMembership)
+    assert(not service.action(recovered,20,"leave"))
+    assert(recovered.state.economy.empireId==20 and not recovered.state.economy.empireMembership)
+    -- A failed final save keeps subsequent actions blocked until the player link is durable.
+    local calls=0
+    local finalService=EmpireService.new(empires,{save=function()calls+=1;return calls~=2 end})
+    local final={state=Model.new(),ready=true}
+    assert(not finalService.action(final,22,"join",20))
+    assert(final.empireFinalizing and final.state.economy.empireId==20)
+    assert(not finalService.action(final,22,"leave"))
+    assert(finalService.finish(final) and not final.empireFinalizing)
+end
+print("PASS empire create/join/leave recovery: initial save failure, lost responses, restored pending operations, final save failure and definitive rejection")

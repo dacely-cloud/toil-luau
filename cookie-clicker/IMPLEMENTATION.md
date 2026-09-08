@@ -66,3 +66,33 @@ Jar UI now has the configured image on the left and amount/transfer controls on 
 ## Compact profile and More navigation
 
 Studio verified a 116 logical-pixel profile, 31px cookie count and 19px CPS text. The backdrop fills the 2497x1042 viewport while controls use the 2497x984 safe area. No uncaught render errors appeared in this run. Options and Stats live in More. Back returns from those pages to More; controller focus recovery targets the existing More button. The extracted navigation regression now covers those routes, Garden back navigation, and focus destinations. Physical controller verification remains open.
+
+## Empire membership recovery
+
+Create, join and leave now persist a pending membership operation before changing the shared empire record. Ambiguous write failures retry the same operation after rejoin; definitive rejection clears it. Final-save failures block additional empire changes until the player link is durable. Restore validates pending membership fields, and the server includes them in the pending UI state and retry worker. EmpireService.spec covers initial/final save failures, lost committed responses, restored create/join/leave operations and rejected joins/leader leaves. EmpireStore, Economy, Persistence and MultiplayerFlow suites also pass. These are deterministic service tests; published cross-server verification remains open.
+
+## Late-game correctness follow-up
+
+Lucky spells now call the shared golden-cookie spawn function, resetting start time, duration, position and next scheduled spawn. This prevents an old animation offset from putting a newly cast cookie off-screen and prevents an overdue regular spawn from replacing it immediately. Ascension preserves saved sound volume. Building levels stop at 100, matching save restoration. Model.spec now has 23 passing cases, including all three regressions; Persistence and MultiplayerFlow also pass. Interactive wrinklers remain unfinished.
+
+## Individual wrinkler rules and controls
+
+Wrinklers now have monotonic IDs and separate saved balances. Inviting requires ten grandmas; one arrives immediately, then one per minute up to ten. Each holds 5% of building production and returns its own balance plus 10% when popped. Pausing preserves balances. The Adventure/Buddies page exposes individual Pop controls and collect-all; the displayed CPS reflects retained building income. Existing buddy balances migrate once. Wrinklers.spec covers eight-hour versus one-second tick equivalence, bonus boundaries, conservation, cap, repeated IDs, malformed saves, legacy migration and real Persistence adapter round trips with offline feeding. Creature artwork and direct interactions around the cookie are still pending the image choice; these controls do not constitute completed visual wrinkler support.
+
+Level-based backgrounds read named assets from ImageConfig.BakeryBackgrounds at five-level milestones. Level 5 uses the supplied 121801422919701 image with proportional cropping, behind cookie content (ZIndex 0 versus 2). Studio starts at level 5 for preview; published new players still start at level 1. Level 10+ artwork has not been supplied, so the last configured image remains. The corrected background layering was visually verified in portrait Studio.
+
+## Cookie-button input performance sample
+
+In the 401x777 portrait Studio emulator, the input tool clicked the actual bigCookie button, exercising React press/hover handling and particle emission. After 12 warm-up clicks, a 12.004-second sample recorded 20 MouseButton1Click events, 1,265 rendered frames, average 105.47 FPS, p95 frame time 17.783 ms and maximum 51.165 ms. Forty-seven snapshots arrived. The clickEffects subtree stayed at 60 descendants with zero new descendants during the sample. Thirty test clicks were requested; only the 20 inside the sampling window are counted. No uncaught-render/subtreeFlags errors appeared in the current log. The temporary probe and its event connections were removed. This covers actual button input in Studio emulation, not touch hardware, controller input, all menus or multiplayer performance.
+
+## Charity UI branch verification
+
+`scripts/test-cookie-charity-view.mjs` executes the actual App charity branch at widths 320, 401, 600 and 900. It verifies tier-to-request mapping for all four fundraisers, insufficient jar funds, save-pending suppression, the exact claim-time boundary, self/expired-party exclusion, and Help/Steal player IDs. It passed. A concurrent Studio interaction attempt did not complete because the visible menu changed between tool calls; no successful start-party sequence is claimed. The shortcut center also produced a VirtualInput CoreGui rejection despite CoreUISafeInsets and a reported 58px inset; a lower point worked. This alone does not prove a game layout defect, and real touch navigation remains unverified.
+
+## Empire visual presentation
+
+The Empire page now uses configured images for four perk cards and joinable team cards. Jobs/property income displays the combined multiplicative empire bonus, matching Model.economyAction and propertyIncome. Progress names the next level; level 100 has no invalid upgrade button. Donation controls respect stamina and pending-save state, and create/join/rename/leave controls do not send another empire operation while one is pending. Syntax and navigation/charity regressions pass; live multiplayer rendering of multiple team cards still needs verification.
+
+## Live malformed-request sample
+
+Sent 13 malformed requests through the running client's real Action remote: negative jar deposit, infinite withdrawal, nonexistent property/item collection, table item ID, NaN building level, table stock/heavenly choices, invalid wrinkler ID, invalid trade index/quantity, and negative/infinite volume. Subsequent snapshots remained ready with no changes to buildings, upgrades, levels, stocks, heavenly purchases, volume, jar, inventory, collection or properties. This checks these specific invalid inputs, not all possible exploit sequences. Real published save/rejoin testing still needs the private test-place target and real player sessions; the current Studio connector offers no simultaneous-client launch tool.

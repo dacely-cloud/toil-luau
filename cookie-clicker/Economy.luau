@@ -54,6 +54,15 @@ return function(Model)
                 clean.cost=kind=="help" and 5 or 10;clean.bonus=number(charityPending.bonus,1);e.charityPending=clean
             end
         end
+        local membership=saved.empireMembership
+        if type(membership)=="table" and type(membership.empireId)=="number" and membership.empireId==membership.empireId and membership.empireId%1==0 and math.abs(membership.empireId)<=9007199254740991 then
+            local kind=membership.kind
+            local badge=false
+            for _,v in {"cookie","crown","star","heart","shield","bakery"} do if membership.badge==v then badge=true end end
+            if kind=="join" or kind=="leave" or (kind=="create" and type(membership.name)=="string" and #membership.name>0 and #membership.name<=96 and badge) then
+                e.empireMembership={kind=kind,empireId=membership.empireId,name=kind=="create" and membership.name or nil,badge=kind=="create" and membership.badge or nil}
+            end
+        end
         local pending=saved.empireDonation
         if type(pending)=="table" and pending.empireId==e.empireId and e.empireId and pending.sequence==e.empireSequence and e.empireSequence>0 and (pending.amount==10 or pending.amount==25 or pending.amount==50) then
             e.empireDonation={empireId=e.empireId,sequence=e.empireSequence,amount=pending.amount}

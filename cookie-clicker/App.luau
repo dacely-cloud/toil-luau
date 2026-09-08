@@ -510,7 +510,7 @@ return function()
                 elseif workPage[1]=="Empire" then
                     local empire=state.empire
                     local function empireButton(id,title,kind,arg,extra)
-                        pane[#pane+1]=button(id,title,24,y,w,48,function()send("empire",kind,arg,extra)end,{["font-size"]="20px",background="#544479"});y+=56
+                        pane[#pane+1]=button(id,title,24,y,w,48,function()if not state.empirePending then send("empire",kind,arg,extra) end end,{["font-size"]="20px",background="#544479"});y+=56
                     end
                     local function badgeArt(id,badge,x,py)
                         return picture(id,ImageNames.badges[badge] or "CookieEmpire",x,py,64,64)
@@ -519,16 +519,36 @@ return function()
                         pane[#pane+1]=badgeArt("myEmpireBadge",empire.badge,24,y)
                         pane[#pane+1]=label("empireName",empire.name,100,y,w-76,32,24,"#fff0d8")
                         pane[#pane+1]=label("empireLevel","Level "..empire.level.."  |  "..empire.members.." friends",100,y+36,w-76,28,18,"#dbc5ef");y+=80
-                        text("empirePerks","+"..empire.level.."% cookies  |  +"..empire.level.."% job & property rewards\n+"..empire.level.."% stealing  |  "..math.min(75,empire.level).."% insurance",74)
+                        local economyPercent=math.floor(((1+empire.level*.01)^2-1)*10000+.5)/100
+                        local perks={
+                            {"Cookie","Baking","+"..empire.level.."%"},
+                            {"CookieStore","Jobs & places","+"..economyPercent.."%"},
+                            {"CookieDelivery","Steal more","+"..empire.level.."%"},
+                            {"CookieJar","Less stolen",math.min(75,empire.level).."%"},
+                        }
+                        local perkW=(w-8)/2
+                        for i,perk in perks do
+                            local px=24+((i-1)%2)*(perkW+8)
+                            pane[#pane+1]=box("empirePerk"..i,px,y+math.floor((i-1)/2)*68,perkW,60,"#342d25",{
+                                picture("perkPicture",perk[1],6,12,30,30),
+                                label("perkAmount",perk[3],42,3,perkW-48,26,20,"#b6e6bf"),
+                                label("perkName",perk[2],42,28,perkW-48,30,14,"#e9dcc6"),
+                            })
+                        end;y+=140
                         local needed=empire.level*100
-                        text("empirePoints",empire.points.." / "..needed.." team points",30)
-                        pane[#pane+1]=box("empireProgress",24,y,w,12,"#30283e",{box("fill",0,0,w*math.min(1,empire.points/needed),12,"#b18bdd")},{["border-radius"]="6px"});y+=26
-                        text("donationHelp",state.empirePending and "Saving your donation..." or "Give stamina to help your team grow",36)
+                        local maxLevel=empire.level>=100
+                        text("empirePoints",maxLevel and "Your team is at the highest level!" or (empire.points.." / "..needed.." points to level "..(empire.level+1)),32)
+                        pane[#pane+1]=box("empireProgress",24,y,w,10,"#30283e",{box("fill",0,0,w*(maxLevel and 1 or math.min(1,empire.points/needed)),10,"#b18bdd")},{["border-radius"]="5px"});y+=22
+                        text("donationHelp",state.empirePending and "Saving your team changes..." or "Give stamina = add team points",30)
                         for i,amount in {10,25,50} do
-                            pane[#pane+1]=button("donateEmpire"..amount,"Give "..amount,24+(i-1)*w/3,y,w/3-4,48,function()send("empire","donate",amount)end,{background="#544479",["font-size"]="19px"})
+                            local canGive=not state.empirePending and economy.stamina>=amount
+                            pane[#pane+1]=button("donateEmpire"..amount,"Give "..amount,24+(i-1)*w/3,y,w/3-4,48,function()if canGive then send("empire","donate",amount) end end,{background=canGive and "#544479" or "#403a43",["font-size"]="19px"})
                         end;y+=62
                         if empire.id==state.playerId then
-                            empireButton("upgradeEmpire","Level up - "..needed.." points","upgrade",empire.level)
+                            if not maxLevel then
+                                local canUpgrade=empire.points>=needed and not state.empirePending
+                                pane[#pane+1]=button("upgradeEmpire",canUpgrade and "Level up!" or "Need "..(math.max(0,needed-empire.points)).." more points",24,y,w,48,function()if canUpgrade then send("empire","upgrade",empire.level) end end,{background=canUpgrade and "#276849" or "#403a43",["font-size"]="20px"});y+=56
+                            end
                             pane[#pane+1]=button("editEmpire","Name & picture",24,y,w,48,function()empireEdit[2](not empireEdit[1])end);y+=56
                         else empireButton("leaveEmpire","Leave empire","leave") end
                     end
@@ -543,7 +563,7 @@ return function()
                             pane[#pane+1]=button("badge"..badge,"",bx,by,68,68,function()empireBadge[2](badge)end,{border=empireBadge[1]==badge and "3px solid #ffe19a" or "1px solid #514862",background="#30283e"},{badgeArt("badgePicture",badge,2,2)})
                         end
                         y+=math.ceil(#badges/cols)*72+8
-                        pane[#pane+1]=button("saveEmpire",empire and "Save look" or "Create empire",24,y,w,48,function()send("empire",empire and "rename" or "create",empireNameDraft.current,empireBadge[1])end,{background="#276849"});y+=64
+                        pane[#pane+1]=button("saveEmpire",empire and "Save look" or "Create empire",24,y,w,48,function()if not state.empirePending then send("empire",empire and "rename" or "create",empireNameDraft.current,empireBadge[1]) end end,{background="#276849"});y+=64
                     end
                     if not empire then
                         text("joinEmpireHeading","Join a friend's team",36)
@@ -551,8 +571,11 @@ return function()
                         for _,other in state.socialPlayers or {} do
                             if other.empireId and other.empireName and not seen[other.empireId] then
                                 seen[other.empireId]=true;found=true
-                                text("joinName"..other.empireId,other.empireName,36)
-                                empireButton("joinEmpire"..other.empireId,"Join team","join",other.empireId)
+                                pane[#pane+1]=box("joinTeam"..other.empireId,24,y,w,132,"#342d25",{
+                                    badgeArt("teamBadge",other.empireBadge,8,4),
+                                    label("teamName",other.empireName,82,8,w-94,52,22,"#fff0d8"),
+                                    button("joinEmpire"..other.empireId,"Join team",12,76,w-24,44,function()if not state.empirePending then send("empire","join",other.empireId) end end,{background="#544479"}),
+                                });y+=144
                             end
                         end
                         if not found then text("noEmpires","No teams here yet. Create one together!",50) end
@@ -683,9 +706,24 @@ return function()
 				for i,b in Model.Buildings do if state.buildings[i]>0 then action("level"..i,b.name.." level "..state.levels[i]..": +1% for "..(state.levels[i]+1).." lumps","level",i) end end
 
                     elseif adventurePage[1]=="Buddies" then
-				text("buddyInfo","Cookie buddies (need 10 grandmas)\nThey hold 5% of your baking and return 10% extra. Saved: "..number(state.buddyBank).." cookies.",90)
-				action("buddyToggle",state.buddies and "Let buddies rest" or "Invite cookie buddies","buddies")
-				action("collectBuddies","Collect buddy cookies","collectBuddies")
+                    local feeding=state.buddies and state.buildings[2]>=10
+                    text("buddyInfo","Wrinklers save 5% of your baking each. Pop one to get its cookies back, plus 10% extra!",72)
+                    if state.buildings[2]<10 then text("buddyUnlock","Own 10 grandmas to invite wrinklers.",48)
+                    else action("buddyToggle",state.buddies and "Pause feeding" or "Invite wrinklers","buddies") end
+                    text("buddyStatus",#(state.wrinklers or {}).." / 10 wrinklers"..(feeding and " ? feeding" or " ? resting"),32)
+                    if feeding and #(state.wrinklers or {})<10 then
+                        text("nextWrinkler","Next arrival: "..math.ceil(60-(state.wrinklerTime or 0)).."s",28)
+                    end
+                    for i,wrinkler in state.wrinklers or {} do
+                        local id=wrinkler.id
+                        pane[#pane+1]=box("wrinklerCard"..id,24,y,w,78,"#342d25",{
+                            picture("savedCookies","Cookie",8,20,32,32),
+                            label("wrinklerName","Wrinkler "..i,48,6,w-152,26,18,"#fff4df"),
+                            label("wrinklerReward",number(wrinkler.bank*1.1).." cookies",48,36,w-152,28,19,"#f5d58f"),
+                            button("popWrinkler"..id,"Pop!",w-96,15,84,48,function()send("advanced","popWrinkler",id)end,{background="#516d36"}),
+                        });y+=86
+                    end
+                    if state.buddyBank>0 then action("collectBuddies","Collect all: "..number(state.buddyBank*1.1),"collectBuddies") end
 
                     elseif adventurePage[1]=="Garden" then
                     local planted=state.gardenReady>0
@@ -786,8 +824,10 @@ return function()
 			productCache[i] = {signature=signature,element=products[#products]}
 		end
 		store[#store + 1] = e("scroll", { key = "storeProducts", id = "storeProducts", style = style(productX, landscape and 78 or mobile and 275 or 258, productW, math.max(40,h - (landscape and 78 or mobile and 275 or 258)), { overflow = "scroll" }) }, table.unpack(products))
-		local children = {
-			box("bakeryColumn", 0, 0, leftW, h, nil, {stripes("blueStripes",leftW,h,"#173346","#1a3b51"), e(Rain,{key="rain",w=leftW,h=h,cps=state.cps,reducedMotion=state.reducedMotion}), box("bakeryContent",bakeryOffset,0,landscape and leftW or 420,h,nil,left)}, { overflow = "hidden",display=(not mobile or page=="Bake") and "block" or "none" }),
+		local backgroundName=ImageConfig.bakeryBackground(Model.jobLevel(state))
+        local bakeryBackground=backgroundName and picture("bakeryBackground",backgroundName,0,0,leftW,h,{["object-fit"]="cover",["z-index"]="0"}) or stripes("blueStripes",leftW,h,"#173346","#1a3b51")
+        local children = {
+			box("bakeryColumn", 0, 0, leftW, h, nil, {bakeryBackground, e(Rain,{key="rain",w=leftW,h=h,cps=state.cps,reducedMotion=state.reducedMotion}), box("bakeryContent",bakeryOffset,0,landscape and leftW or 420,h,nil,left,{["z-index"]="2"})}, { overflow = "hidden",display=(not mobile or page=="Bake") and "block" or "none" }),
 			rail("leftRail", leftW, 0, mobile and 0 or 12, h), box("centerColumn", centerX, 0, centerW, h, nil, center,{display=(not mobile or page=="More") and "block" or "none",overflow="hidden"}),
 			rail("rightRail", centerX + centerW, 0, mobile and 0 or 12, h), box("storeColumn", storeX, 0, storeW, h, nil, store,{display=(not mobile or page=="Shop") and "block" or "none"}),
 		}
@@ -864,7 +904,7 @@ return function()
 	local lastAdventureSecond=-1
 	local priceCache = {}
 	local function pageSignature()
-		local parts = {snapshot.bakery, snapshot.saveStatus or "", tostring(snapshot.cps), tostring(snapshot.clickPower), tostring(snapshot.soundEnabled), tostring(snapshot.soundVolume), tostring(snapshot.reducedMotion), tostring(snapshot.goldenId), tostring((snapshot.goldenUntil or 0)>snapshot.played), tostring(snapshot.ready), tostring(snapshot.earned < 50), tostring(snapshot.earned < 1000)}
+		local parts = {tostring(math.floor(Model.jobLevel(snapshot)/5)), snapshot.bakery, snapshot.saveStatus or "", tostring(snapshot.cps), tostring(snapshot.clickPower), tostring(snapshot.soundEnabled), tostring(snapshot.soundVolume), tostring(snapshot.reducedMotion), tostring(snapshot.goldenId), tostring((snapshot.goldenUntil or 0)>snapshot.played), tostring(snapshot.ready), tostring(snapshot.earned < 50), tostring(snapshot.earned < 1000)}
 		for i, b in Model.Buildings do
 			parts[#parts+1] = tostring(snapshot.buildings[i])
 			parts[#parts+1] = tostring(snapshot.earned >= b.price)

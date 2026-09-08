@@ -44,6 +44,7 @@ export type Asset = {
 }
 
 ImageConfig.Assets = {
+    BakeryLevel5 = { Id = 121801422919701, ImageId = 121801422919701, Source = "user-provided level 5 bakery background" },
 	BakeForParty = { Id = 89016281670574, ImageId = 104612721638877, Source = "bakeforparty.png" },
 	Cookie = { Id = 72527335782131, ImageId = 99845411162505, Source = "Cookie.png" },
 	CookieAlchemy = { Id = 90110441527476, ImageId = 86883983206343, Source = "cookiealchemy.png" },
@@ -89,6 +90,19 @@ for name, asset in ImageConfig.Assets do
 	images[name] = `rbxassetid://{asset.ImageId}`
 end
 ImageConfig.Images = images
+
+-- Add one named image per five-level milestone. Keep the latest unlocked image
+-- until the next milestone has artwork configured.
+ImageConfig.BakeryBackgrounds = { [5] = "BakeryLevel5" }
+function ImageConfig.bakeryBackground(level: number): string?
+    local tier=math.floor(level/5)*5
+    local selected: string?=nil
+    local highest=0
+    for required,name in ImageConfig.BakeryBackgrounds do
+        if required<=tier and required>highest then highest=required;selected=name end
+    end
+    return selected
+end
 
 -- ERRORS ON A NAME THAT DOES NOT EXIST, which is the whole reason to have it.
 -- Indexing the table directly hands back nil for a typo, an ImageLabel given

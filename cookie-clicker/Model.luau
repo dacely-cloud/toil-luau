@@ -72,7 +72,8 @@ end
 function Model.cps(state)
 	local value = 0
 	for i, b in Model.Buildings do value += b.cps * state.buildings[i] * Model.multiplier(state, i) end
-	return value * Model.productionFactor(state) * ((state.frenzyUntil or 0)>state.played and 2 or 1) * ((state.gardenBoostUntil or 0)>state.played and 1.05 or 1) + Model.propertyIncome(state)
+	local retained=state.buddies and state.buildings[2]>=10 and (1-#state.wrinklers*.05) or 1
+	return value * retained * Model.productionFactor(state) * ((state.frenzyUntil or 0)>state.played and 2 or 1) * ((state.gardenBoostUntil or 0)>state.played and 1.05 or 1) + Model.propertyIncome(state)
 end
 function Model.setVolume(state,percent)
 	if type(percent)~="number" or percent~=percent or percent<0 or percent>100 or percent%1~=0 then return false end
@@ -108,13 +109,19 @@ function Model.tick(state, dt)
 	state.played += dt
 	Model.economyTick(state,dt)
 	-- Split production at the bonus boundary so a long tick cannot extend it.
-	local bonusSeconds=math.clamp((state.frenzyUntil or 0)-(state.played-dt),0,dt)
 	local base=0
 	for i,b in Model.Buildings do base+=b.cps*state.buildings[i]*Model.multiplier(state,i) end
 	base*=Model.productionFactor(state)
-	local extra=Model.advancedTick(state,dt,base)
-	local amount=base*(dt+bonusSeconds)+extra
-	if state.buddies then local held=amount*.05;state.buddyBank+=held;amount-=held end
+    Model.advancedTick(state,dt,base)
+    local start=state.played-dt
+    local amount=Model.feedWrinklers(state,dt,function(from,to)
+        local first,last=start+from,start+to
+        local duration=to-from
+        local frenzy=math.clamp((state.frenzyUntil or 0)-first,0,duration)
+        local garden=math.clamp(state.gardenBoostUntil-first,0,duration)
+        local both=math.clamp(math.min(state.gardenBoostUntil,state.frenzyUntil or 0)-first,0,duration)
+        return base*(duration+frenzy+.05*(garden+both))
+    end)
 	Model.award(state,amount)
 end
 function Model.price(state, index, quantity, sell)
@@ -161,15 +168,16 @@ function Model.buyUpgrade(state, id)
 	end
 	return false
 end
+function Model.spawnGolden(state)
+    state.goldenId=(state.goldenId or 0)+1
+    state.goldenDuration=8+(state.goldenId*7)%9
+    state.goldenStarted=state.played
+    state.goldenX=.1+((state.goldenId*37)%81)/100
+    state.goldenUntil=state.played+state.goldenDuration
+    state.goldenAt=state.played+75+(state.goldenId%4)*10
+end
 function Model.goldenTick(state)
-	if state.played >= (state.goldenAt or 75) then
-		state.goldenId=(state.goldenId or 0)+1
-		state.goldenDuration=8+(state.goldenId*7)%9
-		state.goldenStarted=state.played
-		state.goldenX=.1+((state.goldenId*37)%81)/100
-		state.goldenUntil=state.played+state.goldenDuration
-		state.goldenAt=state.played+75+(state.goldenId%4)*10
-	end
+    if state.played >= (state.goldenAt or 75) then Model.spawnGolden(state) end
 end
 function Model.collectGolden(state,id)
 	if id~=state.goldenId or (state.goldenUntil or 0)<=state.played then return nil end

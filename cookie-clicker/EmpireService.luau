@@ -9,6 +9,7 @@ function EmpireService.new(empireStore,persistence)
     function service.refresh(session,userId)
         local e=session.state.economy
         local id=e.empireId
+        if e.empireMembership then return end
         if not id then apply(session,nil);return end
         local r=empireStore.read(id)
         if session.closing or e.empireId~=id then return end
@@ -27,6 +28,30 @@ function EmpireService.new(empireStore,persistence)
     end
     function service.resume(session,userId)
         local e=session.state.economy
+        local membership=e.empireMembership
+        if membership then
+            if not persistence.save(session,false) then return false,"Your empire change is waiting for your save." end
+            if session.closing or not session.ready then return false,"Your empire change will finish when you rejoin." end
+            local record,message,retry
+            if membership.kind=="create" then record,message,retry=empireStore.create(userId,membership.name,membership.badge)
+            elseif membership.kind=="join" then record,message,retry=empireStore.join(membership.empireId,userId)
+            else record,message,retry=empireStore.leave(membership.empireId,userId) end
+            if not record and retry then return false,message end
+            if record then
+                if membership.kind=="leave" then e.empireId=nil;apply(session,nil)
+                else
+                    e.empireId=membership.empireId;apply(session,record)
+                    local member=record.members[tostring(userId)]
+                    if member then e.empireSequence=math.max(e.empireSequence or 0,member.lastSequence or 0) end
+                end
+            end
+            e.empireMembership=nil
+            session.empireFinalizing=true
+            if not persistence.save(session,false) then return false,"Finishing your empire save..." end
+            session.empireFinalizing=false
+            if not record then return false,message end
+            return true,membership.kind=="leave" and "You left the empire." or "Your empire is ready!"
+        end
         local pending=e.empireDonation
         if not pending then return true end
         -- Save the debit and its operation sequence before touching the shared record.
@@ -49,7 +74,7 @@ function EmpireService.new(empireStore,persistence)
     end
     function service.action(session,userId,action,arg,extra)
         local e=session.state.economy
-        if e.empireDonation or session.empireFinalizing then return false,"Your last donation is still saving." end
+        if e.empireDonation or e.empireMembership or session.empireFinalizing then return false,"Your last empire change is still saving." end
         if action=="donate" then
             if not e.empireId or (arg~=10 and arg~=25 and arg~=50) then return false,"Join an empire and choose an amount." end
             if e.stamina<arg then return false,"Not enough stamina yet." end
@@ -60,18 +85,22 @@ function EmpireService.new(empireStore,persistence)
             return service.resume(session,userId)
         end
         local record,message
-        if action=="create" then
-            if e.empireId then return false,"You already belong to an empire." end
-            record,message=empireStore.create(userId,arg,extra)
-            if record then e.empireId=userId end
-        elseif action=="join" then
-            if e.empireId then return false,"Leave your current empire first." end
-            record,message=empireStore.join(arg,userId)
-            if record then e.empireId=arg end
-        elseif action=="leave" then
-            if not e.empireId then return false,"You do not belong to an empire." end
-            record,message=empireStore.leave(e.empireId,userId)
-            if record then e.empireId=nil;apply(session,nil);persistence.save(session,false);return true,"You left the empire." end
+        if action=="create" or action=="join" or action=="leave" then
+            if action=="leave" then
+                if not e.empireId then return false,"You do not belong to an empire." end
+                e.empireMembership={kind=action,empireId=e.empireId}
+            else
+                if e.empireId then return false,"Leave your current empire first." end
+                local id=action=="create" and userId or arg
+                if type(id)~="number" or id~=id or id%1~=0 or math.abs(id)>9007199254740991 then return false,"Choose a valid empire." end
+                if action=="create" then
+                    local validBadge=false
+                    for _,badge in {"cookie","crown","star","heart","shield","bakery"} do if extra==badge then validBadge=true end end
+                    if type(arg)~="string" or #arg<1 or #arg>96 or not validBadge then return false,"Choose a name and badge." end
+                end
+                e.empireMembership={kind=action,empireId=id,name=action=="create" and arg or nil,badge=action=="create" and extra or nil}
+            end
+            return service.resume(session,userId)
         elseif action=="upgrade" then record,message=empireStore.upgrade(e.empireId,userId,arg)
         elseif action=="rename" then record,message=empireStore.rename(e.empireId,userId,arg,extra)
         else return false,"Unknown empire action." end

@@ -8,7 +8,10 @@
       "TS": { "$path": ".studio-stage/TS" },
       "ToilRuntime": { "$path": ".studio-stage/ToilRuntime.luau" },
       "CookieClicker": { "$path": ".studio-stage/CookieClicker" },
-      "ImageConfig": { "$path": ".studio-stage/ImageConfig.luau" }
+      "ImageConfig": { "$path": ".studio-stage/ImageConfig.luau" },
+      "Images2Config": { "$path": ".studio-stage/Images2Config.luau" },
+      "CookieBackgrounds": { "$path": ".studio-stage/CookieBackgrounds.luau" },
+      "MenuButtonConfig": { "$path": ".studio-stage/MenuButtonConfig.luau" }
     },
     "ServerScriptService": { "$className": "ServerScriptService", "$path": ".studio-stage/ServerScriptService" },
     "StarterPlayer": {

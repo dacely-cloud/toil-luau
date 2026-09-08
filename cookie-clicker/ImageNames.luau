@@ -4,6 +4,10 @@ return {
     jobs={dishes="WashCookieTray",deliver="CookieDelivery",cater="BakeForParty",festival="CookieFestival"},
     properties={stand="CookieStand",store="CookieStore",market="CookieMarket"},
     items={spatula="Spatula",apron="LuckyApron",mixer="SilverMixer",crown="CookieCrown"},
+    jobBackgrounds={dishes="WashTray",deliver="DeliverCookie",cater="BakreForAParty",festival="CookieFestival"},
+    propertyBackgrounds={stand="BakingCookie",store="CookieStore",market="CookieMarket"},
+    itemBackgrounds={spatula="WashTray",apron="Luck",mixer="Mixer",crown="Crown"},
+    buildingBackgrounds={[1]="BakingCookie",[2]="CookieParty",[5]="CookieManifacture",[6]="CookieBank"},
     -- Keep saved badge IDs compatible while using the configured artwork.
     badges={cookie="Cookie",crown="CookieCrown",star="GoldenCookie",heart="CookieJar",shield="CookieEmpire",bakery="CookieStore"},
 }

@@ -36,6 +36,9 @@
 -- rectangle rather than as an error.
 
 local ImageConfig = {}
+local Images2Config = if script then require(script.Parent.Images2Config) else require("./Images2Config")
+local CookieBackgrounds = if script then require(script.Parent.CookieBackgrounds) else require("./CookieBackgrounds")
+local MenuButtonConfig = if script then require(script.Parent.MenuButtonConfig) else require("./MenuButtonConfig")
 
 export type Asset = {
 	Id: number, -- the Decal asset -- what Open Cloud created and will update
@@ -92,10 +95,17 @@ for name, asset in ImageConfig.Assets do
 	images[name] = `rbxassetid://{asset.ImageId}`
 end
 ImageConfig.Images = images
+for name,id in Images2Config.Images2 do images[name]=id end
+for name,id in Images2Config.ZoneBackground do images["ZoneBackground/"..name]=id end
+for name,id in CookieBackgrounds.Backgrounds do images["CookieBackgrounds/"..name]=id end
+for name,id in MenuButtonConfig.Buttons do images["MenuButtons/"..name]=id end
 
 -- Add one named image per five-level milestone. Keep the latest unlocked image
 -- until the next milestone has artwork configured.
 ImageConfig.BakeryBackgrounds = { [5] = "BakeryLevel5" }
+for index,name in CookieBackgrounds.NAMES do
+    ImageConfig.BakeryBackgrounds[index*5]="CookieBackgrounds/"..name
+end
 function ImageConfig.bakeryBackground(level: number): string?
     local tier=math.floor(level/5)*5
     local selected: string?=nil
@@ -120,7 +130,7 @@ end
 
 function ImageConfig.names(): { string }
 	local out: { string } = {}
-	for name in ImageConfig.Assets do
+	for name in images do
 		table.insert(out, name)
 	end
 	table.sort(out)

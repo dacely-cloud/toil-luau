@@ -70,7 +70,7 @@ for folder, title, kind in (
     ('CookieClicker', 'CookieClicker', 'Folder'),
 ):
     sync(STAGE / folder, child(replicated, title, kind), folder == 'TS')
-for title in ('ToilRuntime', 'ImageConfig'):
+for title in ('ToilRuntime', 'ImageConfig', 'Images2Config', 'CookieBackgrounds', 'MenuButtonConfig'):
     source(child(replicated, title, 'ModuleScript'), STAGE / (title + '.luau'))
 sync(STAGE / 'ServerScriptService', child(root, 'ServerScriptService', 'ServerScriptService'))
 starter = child(root, 'StarterPlayer', 'StarterPlayer')

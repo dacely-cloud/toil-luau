@@ -118,7 +118,7 @@ return function(Model)
     function Model.propertyIncome(s)
         local income=0
         for _,p in Model.Properties do income+=p.income*(s.economy.properties[p.id] or 0) end
-        return income*Model.collectionBonus(s)*(1+Model.empireBonus(s))^2*Model.friendMultiplier(s)*Model.passFactor(s,"PropertyIncome")*Model.passFactor(s,"CookieGain")
+        return income*Model.collectionBonus(s)*(1+Model.empireBonus(s))^2*Model.friendMultiplier(s)*Model.passFactor(s,"PropertyIncome")*Model.passFactor(s,"CookieGain")*Model.milkMultiplier(s)
     end
     function Model.economyTick(s,dt)
         local e=s.economy

@@ -15,7 +15,7 @@ local boosted=Model.snapshot(baseline);boosted.friendCount=10
 assert(math.abs(Model.cps(boosted)-Model.cps(baseline)*1.1)<1e-8)
 Model.tick(baseline,10);Model.tick(boosted,10)
 assert(math.abs(boosted.cookies-baseline.cookies*1.1)<1e-8,"actual production matches displayed bonus")
-assert(Model.clickPower(boosted)==Model.clickPower(baseline),"production boost does not change tapping")
+assert(Model.baseClickPower(boosted)==Model.baseClickPower(baseline),"production boost does not change the base tap reward")
 boosted.earned=1e15;assert(Model.advancedAction(boosted,"ascend"));assert(boosted.friendCount==10)
 local saved=Model.snapshot(boosted)
 local store={UpdateAsync=function(_,_,fn)saved=fn(saved);return saved end}

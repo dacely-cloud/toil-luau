@@ -49,6 +49,7 @@ local function render(empire,stamina,pending,friends,width,editing,invite)
  local ImageNames={badges={cookie="Cookie",crown="CookieCrown",star="GoldenCookie",heart="Cookie",shield="CookieJar",bakery="CookieStore"}}
  local function hook(value)local h={value};h[2]=function(v)h[1]=v end;return h end
  local empireEdit,empireBadge,empireNameDraft=hook(editing),hook("cookie"),{current="Cookie Team"}
+ local empireMemberPage,empireRemoveConfirm=hook(1),hook(nil)
  local pane,y,w={},8,width-48
  local controls,labels,requests,images={},{},{},{}
  local function number(n)return tostring(n)end
@@ -69,7 +70,7 @@ local function render(empire,stamina,pending,friends,width,editing,invite)
  return controls,labels,requests,images,empireBadge
 end
 local function team(owner,level,points)
- return {id=owner,name="Cookie Team",badge="crown",level=level,points=points,members=2}
+ return {id=owner,name="Cookie Team",badge="crown",level=level,points=points,members=2,roster={{id=owner,name="Leader",owner=true,online=true,donated=100},{id=owner==1 and 2 or 1,name="Friend",owner=false,online=false,donated=25}}}
 end
 for _,width in {320,401,600,900} do
  local ic,il,ir=render(nil,100,false,{},width,false,{id=9,name="Friends",badge="cookie"})
@@ -80,6 +81,9 @@ for _,width in {320,401,600,900} do
  ic,il,ir=render(team(1,2,200),100,false,{{id=2,name="Friend"},{id=3,name="Member",empireId=1}},width,false)
  ic.inviteEmpireFriends.click();ic.inviteEmpirePlayer2.click()
  assert(ir[1][1]=="nativeInvite" and ir[2][2]=="invite" and ir[2][3]==2 and not ic.inviteEmpirePlayer3)
+ assert(ic.removeEmpireMember2 and not ic.removeEmpireMember1)
+ ic.removeEmpireMember2.click();assert(#ir==2,"first click only confirms removal")
+ ic.removeEmpireMember2.click();assert(ir[3][2]=="remove" and ir[3][3]==2)
  local c,l,r,images,badge=render(nil,100,false,{
   {empireId=2,empireName="First",empireBadge="crown"},
   {empireId=2,empireName="First",empireBadge="crown"},
@@ -104,6 +108,7 @@ for _,width in {320,401,600,900} do
   end
   c,l,r=render(team(2,2,200),100,pending,{},width,false)
   assert(not c.upgradeEmpire and not c.editEmpire and c.leaveEmpire)
+  assert(not c.removeEmpireMember1 and not c.removeEmpireMember2,"members cannot remove anyone")
   c.leaveEmpire.click();assert(#r==(pending and 0 or 1))
   c,l,r=render(nil,100,pending,{{empireId=2,empireName="Team"}},width,false)
   c.saveEmpire.click();c.joinEmpire2.click();assert(#r==(pending and 0 or 2))

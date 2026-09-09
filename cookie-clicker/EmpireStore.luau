@@ -83,8 +83,10 @@ function EmpireStore.new(store)
         return mutate(id,function(r)
             if not valid(r) then return nil,"Empire not found." end
             local member=r.members[key]
+            -- A credited donation still needs its receipt after an owner removes
+            -- the donor. Check the receipt before current membership.
+            if member and sequence<=member.lastSequence then return r end
             if not member or not member.active then return nil,"Join this empire first." end
-            if sequence<=member.lastSequence then return r end
             if r.points+amount>1e15 then return nil,"Empire points are full." end
             member.lastSequence=sequence;member.donated+=amount;r.points+=amount
             return r
@@ -98,6 +100,17 @@ function EmpireStore.new(store)
             local cost=r.level*100
             if r.points<cost then return nil,"Donate more stamina first." end
             r.points-=cost;r.level+=1
+            return r
+        end)
+    end
+    function service.remove(id,ownerId,memberId)
+        local key=userKey(memberId)
+        if not key then return nil,"Choose a valid member.",false end
+        return mutate(id,function(r)
+            if not valid(r) or r.owner~=ownerId then return nil,"Only the owner can remove members." end
+            if memberId==r.owner then return nil,"The owner cannot remove themselves." end
+            if not r.members[key] then return nil,"That player is not a member." end
+            r.members[key].active=false
             return r
         end)
     end

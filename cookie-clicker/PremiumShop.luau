@@ -8,7 +8,7 @@ return function(React,helpers,Model)
     local array=require(game:GetService("ReplicatedStorage").ToilRuntime).__arrNew
     local cache={}
     return function(props)
-        local category=React.useState("Pass")
+        local category=React.useState(props.initialCategory or "Pass")
         local revision=React.useState(0)
         local busy=React.useState(false)
         local message=React.useState("")

@@ -26,6 +26,9 @@ local function box(id,x,y,w,h,color,children) return {id=id,children=children} e
 local function rail(id,...) return {id=id} end
 local function style(...) return {} end
 local number=tostring
+local uiFont="Arial"
+local viewCache={}
+${source.slice(source.indexOf('local function remember('),source.indexOf('local shopBackdrop'))}
 local titleStyle={}
 local Model={Buildings={},multiplier=function()return 1 end}
 for i=1,20 do Model.Buildings[i]={name="Building "..i,icon="icon"..i,color="#ffffff",cps=i} end
@@ -39,6 +42,8 @@ end
 assert(#render(0)==2, "empty bakery hints")
 for _,count in {1,10,100} do
  local rows=render(count)
+ local again=render(count)
+ assert(rows[1]==again[1],"unchanged purchases must preserve decorative element identity")
  assert(#rows==20, "all owned building types render")
  for i,row in rows do
   assert(#row.children==4+math.min(count,14), "bounded sprite count")

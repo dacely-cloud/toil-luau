@@ -32,6 +32,27 @@ local empireService=EmpireService.new(empireStore,persistence,function(record)em
 local charityStore=require(folder:WaitForChild("CharityStore")).new(Model,studio and store or DataStoreService:GetDataStore("ToilCookieCharities_v1"))
 local charityService=require(folder:WaitForChild("CharityService")).new(Model,charityStore,persistence,os.time)
 local sessions = {}
+local EmpireRoster=require(folder:WaitForChild("EmpireRoster"))
+local memberNames={}
+local memberNameCount=0
+local function memberName(id)
+    local player=Players:GetPlayerByUserId(id)
+    if player then return player.DisplayName,true,true end
+    local cached=memberNames[id]
+    if not cached then
+        if memberNameCount>=512 then memberNames={};memberNameCount=0 end
+        cached={name=id>0 and "Loading baker..." or "Baker #"..id,retryAt=0,resolved=id<=0};memberNames[id]=cached;memberNameCount+=1
+    end
+    if id>0 and not cached.loading and os.clock()>=cached.retryAt then
+        cached.loading=true;cached.retryAt=os.clock()+60
+        task.spawn(function()
+            local ok,name=pcall(function()return Players:GetNameFromUserIdAsync(id)end)
+            if ok then cached.name=name;cached.resolved=true;cached.retryAt=math.huge end
+            cached.loading=false
+        end)
+    end
+    return cached.name,false,cached.resolved
+end
 local friendBoost=require(folder:WaitForChild("FriendBoost"))(function(a,b)
     for attempt=1,3 do
         local ok,result=pcall(function()return a:IsFriendsWithAsync(b.UserId)end)
@@ -65,6 +86,7 @@ local function notice(session, kind, message)
 end
 local function send(player, session)
 	if not player.Parent then return end
+    for _,message in EmpireRoster.observe(session,player.UserId,session.empire,memberName) do notice(session,"info",message) end
 	local snapshot = Model.snapshot(session.state,true)
     snapshot.paidRandomAllowed=session.paidRandomAllowed==true
 	snapshot.saveStatus = session.saveStatus
@@ -78,7 +100,10 @@ local function send(player, session)
     if session.empire then
         local r=session.empire;local count=0
         for _,member in r.members do if member.active then count+=1 end end
-        snapshot.empire={id=r.owner,name=r.name,badge=r.badge,level=r.level,points=r.points,members=count}
+        if session.rosterRecord~=r or not session.rosterAt or os.clock()-session.rosterAt>=1 then
+            session.rosterRecord=r;session.rosterAt=os.clock();session.roster=EmpireRoster.members(r,memberName)
+        end
+        snapshot.empire={id=r.owner,name=r.name,badge=r.badge,level=r.level,points=r.points,members=count,roster=session.roster}
     end
     snapshot.empirePending=session.state.economy.empireMembership~=nil or session.state.economy.empireDonation~=nil or session.empireFinalizing==true
     snapshot.charityPending=session.state.economy.charityPending~=nil or session.charityFinalizing==true

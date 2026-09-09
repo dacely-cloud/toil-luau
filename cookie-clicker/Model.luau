@@ -72,6 +72,14 @@ end
 function Model.friendMultiplier(state)
     return 1+(state.friendCount or 0)*.01
 end
+function Model.milkBonus(state)
+    local count=0
+    for _,earned in state.achievements do if earned==true then count+=1 end end
+    return math.floor(count/5),count%5
+end
+function Model.milkMultiplier(state)
+    return 1+Model.milkBonus(state)*.01
+end
 function Model.cps(state)
 	local value = 0
 	for i, b in Model.Buildings do value += b.cps * state.buildings[i] * Model.multiplier(state, i) end
@@ -83,10 +91,14 @@ function Model.setVolume(state,percent)
 	state.soundVolume=percent
 	return true
 end
-function Model.clickPower(state)
+function Model.baseClickPower(state)
 	local value = 1
 	for _, u in Model.Upgrades do if u.click and state.upgrades[u.id] then value *= 2 end end
 	return value * (state.heavenly and state.heavenly.tapping and 1.1 or 1) * (state.spirit=="clicking" and 1.1 or 1)*(1+Model.empireBonus(state))*Model.passFactor(state,"CookieGain")
+end
+function Model.clickPower(state,cps)
+    local tapping=(state.heavenly and state.heavenly.tapping and 1.1 or 1)*(state.spirit=="clicking" and 1.1 or 1)
+    return Model.baseClickPower(state)+(cps or Model.cps(state))*.05*tapping
 end
 function Model.checkAchievements(state)
 	for _,a in achievements do
@@ -110,11 +122,12 @@ end
 function Model.tick(state, dt)
 	if dt <= 0 or dt ~= dt or dt == math.huge then return end
 	state.played += dt
-	Model.economyTick(state,dt)
 	-- Split production at the bonus boundary so a long tick cannot extend it.
 	local base=0
 	for i,b in Model.Buildings do base+=b.cps*state.buildings[i]*Model.multiplier(state,i) end
 	base*=Model.productionFactor(state)*Model.friendMultiplier(state)*Model.passFactor(state,"CookieGain")
+    -- Capture building bonuses before property rewards can unlock new badges.
+    Model.economyTick(state,dt)
     Model.advancedTick(state,dt,base)
     local start=state.played-dt
     local amount=Model.feedWrinklers(state,dt,function(from,to)
@@ -215,7 +228,7 @@ function Model.snapshot(state,forClient)
 	result.upgrades = table.clone(state.upgrades)
 	result.achievements = table.clone(state.achievements)
 	result.cps = Model.cps(state)
-	result.clickPower = Model.clickPower(state)
+	result.clickPower = Model.clickPower(state,result.cps)
 	return result
 end
 local installLateGame

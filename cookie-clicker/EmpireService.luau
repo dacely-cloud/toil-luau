@@ -17,8 +17,9 @@ function EmpireService.new(empireStore,persistence,onChanged)
         if member and member.active then
             apply(session,record)
             e.empireSequence=math.max(e.empireSequence or 0,member.lastSequence or 0)
-        elseif not e.empireDonation then
-            e.empireId=nil;apply(session,nil)
+        else
+            if not e.empireDonation then e.empireId=nil end
+            apply(session,nil)
         end
         return true
     end
@@ -63,16 +64,23 @@ function EmpireService.new(empireStore,persistence,onChanged)
         -- Save the debit and its operation sequence before touching the shared record.
         if not persistence.save(session,false) then return false,"Donation is waiting for your save. It will retry." end
         if session.closing or not session.ready then return false,"Donation will finish when you rejoin." end
-        local record,message=empireStore.donate(pending.empireId,userId,pending.sequence,pending.amount)
-        if not record then return false,message end
-        apply(session,record)
-        if onChanged then onChanged(record) end
+        local record,message,retry=empireStore.donate(pending.empireId,userId,pending.sequence,pending.amount)
+        if not record and retry~=false then return false,message end
+        if not record then
+            -- A removed member's uncredited donation must not remain stuck.
+            e.stamina=math.min(100,e.stamina+pending.amount)
+        else
+            local member=record.members[tostring(userId)]
+            if member and member.active then apply(session,record)
+            else e.empireId=nil;apply(session,nil) end
+            if onChanged then onChanged(record) end
+        end
         e.empireDonation=nil
         -- Do not permit a leave/new donation until clearing the outbox is durable.
         session.empireFinalizing=true
         if not persistence.save(session,false) then return false,"Donation received. Finishing your save..." end
         session.empireFinalizing=false
-        return true,"Your stamina helped the empire!"
+        return record~=nil,record and "Your stamina helped the empire!" or "Donation cancelled. Your stamina was returned."
     end
     function service.finish(session)
         if not session.empireFinalizing then return true end
@@ -110,6 +118,7 @@ function EmpireService.new(empireStore,persistence,onChanged)
             return service.resume(session,userId)
         elseif action=="upgrade" then record,message=empireStore.upgrade(e.empireId,userId,arg)
         elseif action=="rename" then record,message=empireStore.rename(e.empireId,userId,arg,extra)
+        elseif action=="remove" then record,message=empireStore.remove(e.empireId,userId,arg)
         else return false,"Unknown empire action." end
         if not record then return false,message end
         apply(session,record)
@@ -117,7 +126,7 @@ function EmpireService.new(empireStore,persistence,onChanged)
         if member then e.empireSequence=math.max(e.empireSequence or 0,member.lastSequence or 0) end
         if onChanged then onChanged(record) end
         persistence.save(session,false)
-        return true,action=="upgrade" and "Empire leveled up!" or "Your empire is ready!"
+        return true,action=="upgrade" and "Empire leveled up!" or action=="remove" and "Member removed from the empire." or "Your empire is ready!"
     end
     return service
 end

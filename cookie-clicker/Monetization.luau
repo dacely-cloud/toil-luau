@@ -24,8 +24,8 @@ return function(Model,Config)
         rate*=Model.productionFactor(s)*Model.passFactor(s,"CookieGain")
         local property=0
         for _,p in Model.Properties do property+=p.income*(s.economy.properties[p.id] or 0) end
-        rate+=property*Model.collectionBonus(s)*(1+Model.empireBonus(s))^2*Model.passFactor(s,"PropertyIncome")*Model.passFactor(s,"CookieGain")
-        return math.floor(math.max(reward.Min,math.max(rate,Model.clickPower(s))*reward.Seconds))
+        rate+=property*Model.collectionBonus(s)*(1+Model.empireBonus(s))^2*Model.passFactor(s,"PropertyIncome")*Model.passFactor(s,"CookieGain")*Model.milkMultiplier(s)
+        return math.floor(math.max(reward.Min,math.max(rate,Model.baseClickPower(s))*reward.Seconds))
     end
     function Model.productReward(s,product,roll,now)
         local grants={cookies=0,items={}}

@@ -14,6 +14,8 @@ near(Model.cps(s),9)
 assert(Model.advancedAction(s,"buddies"));local held=s.buddyBank;Model.tick(s,10);near(s.buddyBank,held);near(Model.cps(s),10)
 -- Partitioning an offline-sized tick must not change births, bonus overlap or payout.
 local large,small=bakery(),bakery()
+-- Hold achievement-driven production constant while comparing feeding partitions.
+for _,state in {large,small} do state.earned=1e6;Model.checkAchievements(state) end
 large.frenzyUntil=85;small.frenzyUntil=85;large.gardenBoostUntil=145;small.gardenBoostUntil=145
 Model.tick(large,28800)
 for _=1,28800 do Model.tick(small,1) end

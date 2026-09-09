@@ -105,8 +105,16 @@ return function(Model)
 	function Model.productionFactor(s)
 		return Model.starMultiplier(s.prestige)*Model.heavenlyFactor(s,"baking")*(s.spirit=="baking" and 1.1 or 1)*(1+Model.empireBonus(s))*Model.milkMultiplier(s)*Model.collectionBonus(s)*Model.decorBonus(s)
 	end
+    function Model.starGoal(stars)
+        return stars^Model.Balance.RebirthExponent*Model.Balance.RebirthCookies
+    end
 	function Model.ascensionGain(s)
-		return math.max(0,math.floor(((s.pastEarned+s.earned)/Model.Balance.RebirthCookies)^(1/3))-s.prestige)
+        local total=s.pastEarned+s.earned
+        local stars=math.floor((total/Model.Balance.RebirthCookies)^(1/Model.Balance.RebirthExponent))
+        -- Correct root rounding at exact thresholds without granting early chips.
+        if Model.starGoal(stars)>total then stars-=1
+        elseif Model.starGoal(stars+1)<=total then stars+=1 end
+		return math.max(0,stars-s.prestige)
 	end
 	function Model.stockPrice(s,index)
 		return math.floor(100*(index+1)*(1+.25*math.sin(math.floor(s.played/30)*.7+index)))

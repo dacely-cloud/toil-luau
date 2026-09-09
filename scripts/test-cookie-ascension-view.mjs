@@ -10,7 +10,7 @@ assert(start>=0 && end>start);
 const code=`
 local function render(gain,confirmed,width)
  local state={prestige=3,chips=2}
- local Model={ascensionGain=function()return gain end,starMultiplier=function(stars)return 1+stars*.05 end,Balance={RebirthCookies=1e7,StarProductionBonus=.05,StarBonusSoftcap=100}}
+ local Model={ascensionGain=function()return gain end,starGoal=function(stars)return stars^4*1e11 end,starMultiplier=function(stars)return 1+stars*.05 end,Balance={RebirthCookies=1e11,StarProductionBonus=.05,StarBonusSoftcap=100}}
  local pane,y,w={},0,width-48
  local controls,labels,requests={},{},{}
  local confirmFresh={confirmed};confirmFresh[2]=function(value)confirmFresh[1]=value end

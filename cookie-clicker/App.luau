@@ -1802,7 +1802,7 @@ return function()
                     },{["border-radius"]="12px",border="1px solid #967446"});y+=242
                     local total=(state.pastEarned or 0)+(state.earned or 0)
                     local nextStar=state.prestige+gain+1
-                    local goal=nextStar^3*Model.Balance.RebirthCookies
+                    local goal=Model.starGoal(nextStar)
                     pane[#pane+1]=box("starProgress",24,y,w,132,"#302a35",{
                         label("starUnlock","Bake "..number(math.max(0,goal-total)).." more cookies",12,8,w-24,54,20,"#fff1cd",{["text-align"]="center"}),
                         box("starProgressTrack",16,72,w-32,10,"#17141e",{box("starProgressFill",0,0,(w-32)*math.clamp(total/goal,0,1),10,"#eac36d")},{["border-radius"]="5px"}),

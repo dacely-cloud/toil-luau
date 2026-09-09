@@ -18,7 +18,7 @@ s.prestige=1000
 near(Model.cps(s)/cps,Model.starMultiplier(1000))
 assert(Model.clickPower(s)>click)
 -- Rebirth still grants all earned stars/chips; only the production curve changes.
-s.earned=2000^3*Model.Balance.RebirthCookies;s.chips=7
+s.earned=Model.starGoal(2000);s.chips=7
 local gain=Model.ascensionGain(s)
 assert(Model.advancedAction(s,"ascend"))
 assert(s.prestige==1000+gain and s.chips==7+gain)

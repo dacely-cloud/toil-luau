@@ -43,7 +43,7 @@ s.heavenly.energy=true;s.heavenly.stamina=true
 Model.economyTick(s,15)
 near(s.economy.energy,3.6);near(s.economy.stamina,1.2)
 s=Model.new();s.earned=3.43e9
-assert(Model.ascensionGain(s)==1,"old seven-chip bakery must now award one chip")
+assert(Model.ascensionGain(s)==0,"old seven-chip bakery must not unlock rebirth yet")
 s.earned=Model.Balance.RebirthCookies-1;assert(Model.ascensionGain(s)==0)
 s.prestige=7;s.chips=7;s.earned=3.43e9
 assert(Model.ascensionGain(s)==0 and s.chips==7,"existing chips must be retained")

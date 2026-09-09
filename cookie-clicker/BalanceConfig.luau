@@ -1,6 +1,7 @@
 -- Shared pacing constants; UI and server must read the same values.
 return {
-    RebirthCookies=1e9,
+    RebirthCookies=1e11,
+    RebirthExponent=4,
     StarProductionBonus=.05,
     StarBonusSoftcap=100,
     FundraiserProductionShare=.1,

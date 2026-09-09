@@ -710,7 +710,9 @@ return function()
 		local size=safeArea and safeArea.AbsoluteSize
 		local width,height=viewport.X-topLeft.X-bottomRight.X,viewport.Y-topLeft.Y-bottomRight.Y
 		if size and size.X>0 and size.Y>0 then width,height=size.X,size.Y end
-		local touchLayout=input.TouchEnabled and (input.PreferredInput==Enum.PreferredInput.Touch or not input.KeyboardEnabled)
+		-- Alt-Tab or an attached keyboard changes PreferredInput, not the device.
+		-- Keep compact touch layouts stable when the window loses focus.
+		local touchLayout=input.TouchEnabled
 		local layout = Layout.measure(width,height,touchLayout)
 		uiScale, displayWidth, displayHeight, mobile, contentHeight = layout.scale, layout.width, layout.height, layout.mobile, layout.contentHeight
 		landscape=layout.landscape
@@ -2341,7 +2343,7 @@ return function()
 	local safeResize=safeArea:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
 		measureViewport();viewportScale.Scale=uiScale;update(true)
 	end)
-	local inputResize=input:GetPropertyChangedSignal("PreferredInput"):Connect(function()
+	local inputResize=input:GetPropertyChangedSignal("TouchEnabled"):Connect(function()
 		measureViewport();viewportScale.Scale=uiScale;update(true)
 	end)
 	measureViewport();viewportScale.Scale=uiScale;update(true)

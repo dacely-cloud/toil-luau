@@ -10,7 +10,7 @@ assert(tracker.count(1)==10 and counts[1]==10 and tracker.count(2)==1)
 tracker.add(2);assert(#tasks==0,"no duplicate lookups")
 tracker.remove(2);assert(tracker.count(1)==9 and counts[1]==9)
 tracker.add(12);tracker.remove(12);drain();assert(tracker.count(1)==9,"late lookup cannot restore departed friend")
-local baseline=Model.new();baseline.buildings[1]=10;baseline.economy.properties.stand=1
+local baseline=Model.new();baseline.buildings[2]=10;baseline.economy.properties.stand=1
 local boosted=Model.snapshot(baseline);boosted.friendCount=10
 assert(math.abs(Model.cps(boosted)-Model.cps(baseline)*1.1)<1e-8)
 Model.tick(baseline,10);Model.tick(boosted,10)

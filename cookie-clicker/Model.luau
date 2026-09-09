@@ -98,11 +98,30 @@ end
 function Model.milkMultiplier(state)
     return 1+Model.milkBonus(state)*.01
 end
-function Model.cps(state)
+local function clickProduction(state, excludeCursors)
 	local value = 0
-	for i, b in Model.Buildings do value += b.cps * state.buildings[i] * Model.multiplier(state, i) end
+	for i, b in Model.Buildings do if not excludeCursors or i~=1 then value += b.cps * state.buildings[i] * Model.multiplier(state, i) end end
 	local retained=state.buddies and state.buildings[2]>=10 and (1-#state.wrinklers*.05) or 1
 	return value * retained * Model.productionFactor(state) * Model.friendMultiplier(state) * Model.passFactor(state,"CookieGain") * ((state.frenzyUntil or 0)>state.played and 2 or 1) * ((state.gardenBoostUntil or 0)>state.played and 1.05 or 1) + Model.propertyIncome(state)
+end
+-- Fifty staggered groups, regardless of ownership. Count crossed tap boundaries
+-- arithmetically: an offline catch-up or 10,000 cursors never loops over taps.
+-- A full-strength tap every ten seconds preserves the original 0.1 CPS
+-- opening rate, while upgraded click power still increases cursor rewards.
+Model.CursorPeriod = 10
+Model.CursorVisualLimit = 50
+function Model.cursorTaps(count, from, to)
+    local function total(time)
+        local step=math.floor(math.max(0,time)*50/Model.CursorPeriod+1e-8)
+        local remainder=step%50
+        return math.floor(step/50)*count+remainder*math.floor(count/50)+math.min(remainder,count%50)
+    end
+    return total(to)-total(from)
+end
+function Model.cps(state)
+    -- Cursor production is replaced by actual taps. The old base production
+    -- remains the input to click scaling so automatic income cannot recurse.
+    return clickProduction(state,true)+state.buildings[1]*Model.clickPower(state)/Model.CursorPeriod
 end
 function Model.setVolume(state,percent)
 	if type(percent)~="number" or percent~=percent or percent<0 or percent>100 or percent%1~=0 then return false end
@@ -118,7 +137,7 @@ function Model.clickPower(state,cps)
     local tapping=Model.heavenlyFactor(state,"tapping")*(state.spirit=="clicking" and 1.1 or 1)
     local share=Model.Balance.ClickProductionShare
     for _,u in clickUpgrades do if state.upgrades[u.id] then share+=Model.Balance.ClickUpgradeShare end end
-    local production=cps or Model.cps(state)
+    local production=clickProduction(state)
     -- Wrinklers hold passive cookies only; arriving or feeding must not nerf taps.
     if state.buddies and state.buildings[2]>=10 and #state.wrinklers>0 then
         local property=Model.propertyIncome(state)
@@ -154,10 +173,27 @@ end
 -- of the simulation that must not advance while nobody is playing can opt out.
 function Model.tick(state, dt, offline)
 	if dt <= 0 or dt ~= dt or dt == math.huge then return end
+    local startTime=state.played
+    local finish=startTime+dt
+    local cursorAmount=0
+    if state.buildings[1]>0 and Model.cursorTaps(state.buildings[1],startTime,finish)>0 then
+        -- At most three intervals, even across hours of offline time. Freeze the
+        -- current upgrades and split temporary bonuses at their expiry.
+        local sample=table.clone(state)
+        local points={startTime,finish}
+        for _,boundary in {state.frenzyUntil or 0,state.gardenBoostUntil or 0} do
+            if boundary>startTime and boundary<finish then table.insert(points,boundary) end
+        end
+        table.sort(points)
+        for i=2,#points do
+            sample.played=(points[i-1]+points[i])*.5
+            cursorAmount+=Model.cursorTaps(state.buildings[1],points[i-1],points[i])*Model.clickPower(sample)
+        end
+    end
 	state.played += dt
 	-- Split production at the bonus boundary so a long tick cannot extend it.
 	local base=0
-	for i,b in Model.Buildings do base+=b.cps*state.buildings[i]*Model.multiplier(state,i) end
+	for i,b in Model.Buildings do if i~=1 then base+=b.cps*state.buildings[i]*Model.multiplier(state,i) end end
 	base*=Model.productionFactor(state)*Model.friendMultiplier(state)*Model.passFactor(state,"CookieGain")
     -- Capture building bonuses before property rewards can unlock new badges.
     Model.economyTick(state,dt,offline)
@@ -171,7 +207,7 @@ function Model.tick(state, dt, offline)
         local both=math.clamp(math.min(state.gardenBoostUntil,state.frenzyUntil or 0)-first,0,duration)
         return base*(duration+frenzy+.05*(garden+both))
     end)
-	Model.award(state,amount)
+	Model.award(state,amount+cursorAmount)
 end
 function Model.price(state, index, quantity, sell)
 	local b = Model.Buildings[index]

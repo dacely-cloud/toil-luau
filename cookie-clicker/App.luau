@@ -585,7 +585,7 @@ local function upgradeBenefit(u, state)
 	if u.click then
 		local before = state.clickPower or Model.clickPower(state)
         local after=table.clone(state);after.upgrades=table.clone(state.upgrades);after.upgrades[u.id]=true
-		return "Each click gives " .. number(Model.clickPower(after),true) .. " cookies instead of " .. number(before,true) .. ".\nYour cursors make double the cookies too!"
+		return "Each click gives " .. number(Model.clickPower(after),true) .. " cookies instead of " .. number(before,true) .. ".\nEvery automatic cursor tap gets this reward too!"
 	end
 	local building = Model.Buildings[u.building]
 	local before = building.cps * Model.multiplier(state,u.building)
@@ -618,17 +618,27 @@ local animationRules = toil.cssToRules([[
 @keyframes rain { 0% { top: -10%; opacity: 0; } 10% { top: 2%; opacity: 0.55; } 85% { top: 92%; opacity: 0.55; } 100% { top: 110%; opacity: 0; } }
 ]])
 local cookieKick = 0
+local cursorVisuals = {}
+local automaticCookiePress = function() end
 local function Cookie(props)
 	-- Hover lives in a ref, not state: the spring already carries the visual, so
 	-- there is nothing for a re-render to do. Pressing the cookie -- the single
 	-- most repeated action in the game -- now costs zero React work.
 	local scale = useSpringScale(1)
 	local hovered = React.useRef(false)
+    local function press(automatic)
+        cookieKick += 1
+        scale.kick(hovered.current and 1.04 or 1, {frequency=4.4,dampingRatio=.34,
+            impulse=automatic and -.3 or -(0.55+(cookieKick*17%40)/100)})
+    end
 	-- rotation="0" is load-bearing, not leftover: the host centres AnchorPoint for
 	-- any element that declares a rotation, and that is what makes the UIScale
 	-- grow about the cookie's middle. Drop it and the anchor reverts to top-left,
 	-- so the cookie jumps half its own size down and to the right.
-	return e("button", {id="bigCookie",ref=scale.bind,style=style(210,props.y+135,270,270,{
+	return e("button", {id="bigCookie",ref=function(inst)
+        scale.bind(inst)
+        automaticCookiePress=inst and function() press(true) end or function() end
+    end,style=style(210,props.y+135,270,270,{
 		background="transparent",rotation="0"}),
 		onMouseEnter=function() hovered.current=true; scale.to(1.04, COOKIE_RELEASE) end,
 		onMouseLeave=function() hovered.current=false; scale.to(1, COOKIE_RELEASE) end,
@@ -639,9 +649,7 @@ local function Cookie(props)
 			-- Alternating sign with a drifting magnitude: consecutive clicks never
 			-- land the same kick twice, so rapid clicking reads as a real wobble
 			-- instead of one animation retriggering.
-			cookieKick += 1
-			scale.kick(hovered.current and 1.04 or 1, { frequency = 4.4, dampingRatio = 0.34,
-				impulse = -(0.55 + (cookieKick * 17 % 40) / 100) })
+            press(false)
 		end},picture("cookieArtwork","Cookie",0,0,270,270))
 end
 local function Rain(props)
@@ -654,10 +662,16 @@ local function Rain(props)
 end
 local function Cursors(props)
 	local kids={}
-	for i=1,math.min(props.count,50) do
+	for i=1,math.min(props.count,Model.CursorVisualLimit) do
 		local angle=(i-1)/50*math.pi*2
-		kids[i]=label("cursor"..i,"\u{261D}",180+math.cos(angle)*172,180+math.sin(angle)*172,30,34,28,"#ffffff",
-			{rotation=tostring(math.deg(angle)-90),animation=not props.reducedMotion and ("cursorTap 3s linear -"..(i*.06).."s infinite") or ""})
+        local origin=UDim2.fromOffset(180+math.cos(angle)*172,180+math.sin(angle)*172)
+        kids[i]=e("span",{key="cursor"..i,id="cursor"..i,ref=function(inst)
+            -- A rebind can happen mid-tap. Never adopt that displaced position
+            -- as the next resting point or the ring drifts on every render.
+            if inst then inst.Position=origin end
+            cursorVisuals[i]=inst and {instance=inst,origin=origin,angle=angle} or nil
+        end,style=style(180+math.cos(angle)*172,180+math.sin(angle)*172,30,34,
+            {rotation=tostring(math.deg(angle)-90),["font-size"]="28px",color="#ffffff",["font-family"]=uiFont})},"\u{261D}")
 	end
 	return box("cursorOrbit",210,props.y+135,360,360,nil,kids,{rotation="0",animation=not props.reducedMotion and "orbit 120s linear infinite" or ""})
 end
@@ -666,6 +680,8 @@ local PromoPopups=require(script.Parent.PromoPopups).component(React,{label=labe
 return function()
 	local remote = script.Parent:WaitForChild("Action")
 	local snapshot = Model.snapshot(Model.new())
+    local cursorClock=snapshot.played
+    local cursorFrame=0
 	snapshot.ready = false
 	local audio = makeAudio()
 	local alive = true
@@ -695,6 +711,7 @@ return function()
 	snapshot.saveStatus = "Connecting…"
 	local refresh
 	local refreshCounters
+	local refreshOnboarding
 	local currentTab = "Buildings"
 	local currentPage="Bake"
     local lastPurchaseAt=-math.huge
@@ -710,9 +727,7 @@ return function()
 		local size=safeArea and safeArea.AbsoluteSize
 		local width,height=viewport.X-topLeft.X-bottomRight.X,viewport.Y-topLeft.Y-bottomRight.Y
 		if size and size.X>0 and size.Y>0 then width,height=size.X,size.Y end
-		-- Alt-Tab or an attached keyboard changes PreferredInput, not the device.
-		-- Keep compact touch layouts stable when the window loses focus.
-		local touchLayout=input.TouchEnabled
+		local touchLayout=input.TouchEnabled and (input.PreferredInput==Enum.PreferredInput.Touch or not input.KeyboardEnabled)
 		local layout = Layout.measure(width,height,touchLayout)
 		uiScale, displayWidth, displayHeight, mobile, contentHeight = layout.scale, layout.width, layout.height, layout.mobile, layout.contentHeight
 		landscape=layout.landscape
@@ -899,7 +914,7 @@ return function()
 		if hover ~= 0 then
 			if type(hover) == "number" then
 				local b = Model.Buildings[hover]
-				name, description, cost = b.name, "Each " .. b.name:lower() .. " produces " .. number(b.cps * Model.multiplier(state, hover), true) .. " cookies per second.\nOwned: " .. state.buildings[hover], Model.price(state, hover, bulk, sell)
+				name, description, cost = b.name, (hover==1 and ("Each cursor taps every "..Model.CursorPeriod.." seconds for "..number(state.clickPower,true).." cookies.") or ("Each " .. b.name:lower() .. " produces " .. number(b.cps * Model.multiplier(state, hover), true) .. " cookies per second.")).."\nOwned: " .. state.buildings[hover], Model.price(state, hover, bulk, sell)
 			else
 				local u
 				for _, candidate in Model.Upgrades do if candidate.id == hover then u = candidate; break end end
@@ -952,6 +967,84 @@ return function()
             label("friendBoost","Friend boost +"..(snapshot.friendCount or 0).."%",half+10,104,math.max(20,half-22),20,metaFont,"#b6e6bf",{["text-align"]="left"}),
             label("bonusTimer",(snapshot.frenzyUntil or 0)>snapshot.played and ("Baking + taps boosted · "..math.ceil(snapshot.frenzyUntil-snapshot.played).."s") or "",12,128,width-24,22,16,"#f4d28a",{["text-align"]="center"}))
     end
+
+	-- Its own component for one reason: the bakery column is cached on a
+	-- signature that deliberately leaves the cookie count out, so that a rising
+	-- count does not rebuild the cookie, the rain and the milk every frame.
+	-- Anything inside that cache showing a live number goes stale -- the banner
+	-- read "40 / 100" while the bank said 86. This refreshes on its own tick,
+	-- exactly as the counters above do, and reads the snapshot directly.
+	local function Onboarding(props)
+		local tick=React.useState(0)
+		refreshOnboarding=tick[2]
+		local state=snapshot
+		local leftW,bakeryOffset=props.leftW,props.bakeryOffset
+		local cookies=math.floor(state.cookies)
+		local step=nil
+		local ownsBuilding=false
+		for i=1,#Model.Buildings do if state.buildings[i]>0 then ownsBuilding=true; break end end
+		if not ownsBuilding then
+			local price=Model.price(state,1,1,false)
+			step={icon=1,hint="Tap the cookie to bake",
+				goal="First "..Model.Buildings[1].name:lower()..": "..number(cookies).." / "..number(price),
+				ready="You can afford a "..Model.Buildings[1].name:lower(),
+				cta="Open the shop",target="shop",
+				progress=math.clamp(state.cookies/price,0,1),first=true}
+		else
+			local ownsUpgrade=false
+			for _,u in Model.Upgrades do if state.upgrades[u.id] then ownsUpgrade=true; break end end
+			-- The cheapest boost actually buyable now, not the cheapest listed --
+			-- most of them need buildings the player does not have yet.
+			local best=nil
+			if not ownsUpgrade then
+				for _,u in Model.Upgrades do
+					if not state.upgrades[u.id] and state.buildings[u.building]>=u.required and (best==nil or u.price<best.price) then best=u end
+				end
+			end
+			if best then
+				step={icon=best.building,hint="Boosts multiply everything you bake",
+					goal="First boost: "..number(cookies).." / "..number(best.price),
+					ready="You can afford "..best.name,
+					cta="Open the shop",target="shop",
+					progress=math.clamp(state.cookies/best.price,0,1)}
+			else
+				local ownsProperty=false
+				for _,property in Model.Properties do if (state.economy.properties[property.id] or 0)>0 then ownsProperty=true; break end end
+				local first=Model.Properties[1]
+				local price=Model.propertyPrice(state,first.id)
+				if not ownsProperty and state.earned>=price*.25 then
+					step={icon=2,hint="Places earn while you are away",
+						goal="First "..first.name:lower()..": "..number(cookies).." / "..number(price),
+						ready="You can afford a "..first.name:lower(),
+						cta="Open Properties",target="properties",
+						progress=math.clamp(state.cookies/price,0,1)}
+				end
+			end
+		end
+		-- Desktop already gives step one a whole card in the middle column.
+		if not step or (step.first and not mobile) then return nil end
+		local bannerW=leftW-32
+		-- Once it is affordable the count stops being progress and starts being
+		-- nonsense -- "101 / 15" -- so the bar gives way to the thing to do next.
+		local ready=step.progress>=1
+		local banner={
+			buildingPicture("bannerIcon",step.icon,12,16,52,52),
+			label("bannerHint",step.hint,76,8,bannerW-88,22,15,"#b3c6d4"),
+			label("bannerGoal",if ready then step.ready else step.goal,76,30,bannerW-88,22,16,"#fff4df"),
+		}
+		if not ready then
+			banner[#banner+1]=box("bannerTrack",76,60,bannerW-92,8,"#12242f",{
+				box("bannerFill",0,0,(bannerW-92)*step.progress,8,"#6abed5",{},{["border-radius"]="4px",border="none"}),
+			},{["border-radius"]="4px",border="none"})
+		elseif mobile then
+			banner[#banner+1]=button("bannerGo",step.cta.."  →",76,54,math.min(200,bannerW-92),26,function()props.navigate(step.target)end,{background="#276849",["font-size"]="14px",["border-radius"]="6px"})
+		else
+			-- On desktop the store is already on screen; a button with nowhere to
+			-- send anyone is worse than a line telling you where to look.
+			banner[#banner+1]=label("bannerWhere","Buy it in the store on the right  →",76,54,bannerW-92,24,14,"#8fd3a4")
+		end
+		return box("firstRunBanner",-bakeryOffset+16,132,bannerW,84,"rgba(11,24,34,0.78)",banner,{["border-radius"]="12px",border="1px solid #2c4a5e",["z-index"]="6"})
+	end
 
 	local function App()
 		local renderState = React.useState(0)
@@ -1073,6 +1166,15 @@ return function()
 		scene[#scene + 1] = e(Cursors,{key="cursors",count=state.buildings[1],y=cookieY,reducedMotion=state.reducedMotion})
 		left[#left+1] = box("cookieScene",(landscape and leftW*.7 or 210)-210*cookieScale,(landscape and (h-50)/2+20 or 138+(h-178)/2)-135*cookieScale,420,math.max(380,h),nil,scene,{transform="scale("..cookieScale..")",["z-index"]="3"})
 		left[#left + 1] = e(ClickEffects,{key="effects"})
+		left[#left+1]=e(Onboarding,{key="onboarding",leftW=leftW,bakeryOffset=bakeryOffset,navigate=function(target)
+			if target=="shop" then
+				if mobile then setPage("Shop") end
+			else
+				if mobile then setPage("More") end
+				setTab("Work");workPage[2]("Properties")
+			end
+			setHover(0)
+		end})
 		left[#left + 1] = box("milk", -bakeryOffset, h - milkHeight, leftW, milkHeight, "linear-gradient(90deg, #e8e7dd, #a8bfca)",{}, {["z-index"]="0"})
 		left[#left + 1] = box("milkWave",-bakeryOffset-80,h-milkHeight,leftW+160,12,nil,{
 			e("path2d",{key="milkFoam",id="milkFoam",color="#faf5e8",thickness=8,controlPoints=wave.points})
@@ -1085,8 +1187,8 @@ return function()
 		local center = { stripes("brownStripes", centerW, h, "#211d19", "#28231e") }
         local workSections={
             {"Jobs","WashCookieTray"},{"Properties","CookieStore"},{"Shop","Spatula"},{"Bag","CookieTray"},
-            {"Collection","CookieCrown"},{"Jar","CookieJar"},{"Charity","CookieFestival"},{"Empire","CookieEmpire"},
-            {"Decor","CookiePrism"},
+            {"Collection","CookieCrown"},{"Jar","CookieJar"},{"Charity","CookieFestival"},{"Decor","CookiePrism"},
+            {"Empire","CookieEmpire"},
         }
         -- Which pane is on screen. Changing it replays the card entrance.
         local paneKey=tab..":"..workPage[1]..":"..adventurePage[1]
@@ -1225,7 +1327,7 @@ return function()
                     rows[#rows+1]=remember(viewCache,"buildingScene"..i,rowSignature,function()
                     local children = {
                         label("ownedTitle" .. i, b.name, 18, 6, 390, 26, 24, "#ffffff"),
-						label("ownedCps" .. i, number(b.cps * state.buildings[i] * Model.multiplier(state, i), true) .. " cookies / second", 18, 35, 400, 22, 14, "#ddd4c6"),
+						label("ownedCps" .. i, number((i==1 and state.clickPower/Model.CursorPeriod or b.cps*Model.multiplier(state,i))*state.buildings[i], true) .. " cookies / second", 18, 35, 400, 22, 14, "#ddd4c6"),
 						label("ownedCount" .. i, tostring(state.buildings[i]), centerW - 110, 6, 72, 48, 40, "#e2d7c5", { ["text-align"] = "right" }),
 					}
 					for k = 1, math.min(state.buildings[i], 14) do
@@ -1389,7 +1491,8 @@ return function()
                             -- most of a screen down, which is the opposite of
                             -- what someone with nothing running came here for.
                             pane[#pane+1]=box("adSlotLocked"..slot,24,slotY,w,56,"#26221e",{
-                                label("adLockedTitle","Slot "..slot.." · LOCKED — VIP unlocks a third campaign slot",14,16,w-28,24,15,"#6f675c",{["text-align"]="center"}),
+                                -- The long form measured 339px against a 313px box.
+                                label("adLockedTitle","Slot "..slot.." · LOCKED — VIP only",14,16,w-28,24,15,"#6f675c",{["text-align"]="center"}),
                             },{border="1px solid #3d372f",["border-radius"]="12px",ref=springIn("adSlotLocked"..slot,slot)})
                             y+=68
                         else
@@ -1408,14 +1511,30 @@ return function()
                         local reward=Model.adReward(state,ad)
                         local affordable=state.cookies>=cost and free>0
                         local rowY=y
-                        pane[#pane+1]=box("adRow"..ad.id,24,rowY,w,104,"#312b24",{
-                            picture("adPicture",ad.image,12,14,44,44),
-                            label("adName",ad.name,68,10,w-210,28,19,"#fff4df"),
-                            label("adFacts",span(ad.seconds).."  ·  "..number(reward).." cookies  ·  +"..ad.xp.." XP  ·  "..math.floor(ad.chance*100).."% item",68,40,w-88,22,14,"#b9ad9b"),
-                            label("adCost","Costs "..number(cost).." up front",68,64,w-88,22,14,if affordable then "#b6e6bf" else "#c08a7f"),
-                            button("adStart"..ad.id,"START",w-138,26,124,44,function()send("economy","adStart",ad.id)end,{background=if affordable then "#276849" else "#51483d",["font-size"]="18px"}),
-                        },{border="1px solid #443c32",["border-radius"]="12px",ref=springIn("adRow"..ad.id,adIndex)})
-                        y+=116
+                        -- Side by side needs ~430px. Below that the name box was
+                        -- 131px against a 222px name, and the facts line ran
+                        -- underneath the START button. Narrow stacks instead, and
+                        -- splits the facts in two because the whole line is 285px
+                        -- against a 261px column.
+                        local narrow=w<430
+                        local textW=if narrow then w-80 else w-210
+                        local adRow={
+                            picture("adPicture",ad.image,12,12,44,44),
+                            label("adName",ad.name,68,10,textW,26,19,"#fff4df"),
+                        }
+                        if narrow then
+                            adRow[#adRow+1]=label("adFacts",span(ad.seconds).."  ·  "..number(reward).." cookies",68,38,textW,20,14,"#b9ad9b")
+                            adRow[#adRow+1]=label("adFacts2","+"..ad.xp.." XP  ·  "..math.floor(ad.chance*100).."% item",68,58,textW,20,14,"#b9ad9b")
+                            adRow[#adRow+1]=label("adCost","Costs "..number(cost).." up front",68,80,textW,20,14,if affordable then "#b6e6bf" else "#c08a7f")
+                            adRow[#adRow+1]=button("adStart"..ad.id,"START",12,108,w-24,42,function()send("economy","adStart",ad.id)end,{background=if affordable then "#276849" else "#51483d",["font-size"]="18px"})
+                        else
+                            adRow[#adRow+1]=label("adFacts",span(ad.seconds).."  ·  "..number(reward).." cookies  ·  +"..ad.xp.." XP  ·  "..math.floor(ad.chance*100).."% item",68,40,w-210,22,14,"#b9ad9b")
+                            adRow[#adRow+1]=label("adCost","Costs "..number(cost).." up front",68,64,w-210,22,14,if affordable then "#b6e6bf" else "#c08a7f")
+                            adRow[#adRow+1]=button("adStart"..ad.id,"START",w-138,26,124,44,function()send("economy","adStart",ad.id)end,{background=if affordable then "#276849" else "#51483d",["font-size"]="18px"})
+                        end
+                        local adRowH=if narrow then 162 else 104
+                        pane[#pane+1]=box("adRow"..ad.id,24,rowY,w,adRowH,"#312b24",adRow,{border="1px solid #443c32",["border-radius"]="12px",ref=springIn("adRow"..ad.id,adIndex)})
+                        y+=adRowH+12
                     end
                 elseif workPage[1]=="Decor" then
                     local level=Model.jobLevel(state)
@@ -1426,16 +1545,13 @@ return function()
                     -- every locked card: the per-card version ran to 262px and
                     -- the card's text column is 173px on a phone.
                     text("decorTotal","Level "..level.."  ·  "..owned.."/"..#Model.Decor.."  ·  +"..math.floor((bonus-1)*100+.5).."% baking",30)
-                    -- Only the piece being worked toward is shown. Ten cards of
-                    -- which nine said "Needs level 40" was a wall of things the
-                    -- player cannot act on; the header still says how many exist.
-                    local nextD,nextIndex=Model.nextDecor(state)
-                    local showing=if nextD then {nextD} else {}
-                    if not nextD then
-                        text("decorDone","Every piece is up. The bakery is fully decorated.",30)
-                    end
+                    -- Every tier stays listed, but the ART is held back until you
+                    -- own it or it is the one you are working toward. The backdrop
+                    -- is the reward, so showing all ten up front spends it -- the
+                    -- collection album withholds unfound items the same way.
+                    local nextD=Model.nextDecor(state)
                     local decorIndex=0
-                    for _,d in showing do
+                    for _,d in Model.Decor do
                         decorIndex+=1
                         local have=Model.decorOwned(state,d.id)
                         local reachable=Model.decorUnlocked(state,d)
@@ -1447,8 +1563,12 @@ return function()
                         -- "1 million cookies" does not fit beside a verb there.
                         -- The card is 140 tall and the art reaches y=130, so the
                         -- bottom row has to finish by 130.
+                        local reveal=have or (nextD~=nil and nextD.id==d.id)
+                        local art=if reveal
+                            then picture("decorArt",d.image,10,10,130,120,{["border-radius"]="8px",["object-fit"]="cover",opacity=if have then "1" else "0.9"})
+                            else box("decorArt",10,10,130,120,"#191512",{label("decorHidden","?",0,36,130,48,34,"#4f473d",{["text-align"]="center"})},{["border-radius"]="8px",border="1px solid #2f2922"})
                         local card={
-                            picture("decorArt",d.image,10,10,130,120,{["border-radius"]="8px",["object-fit"]="cover",opacity=if have then "1" else "0.45"}),
+                            art,
                             label("decorName",d.name,150,12,w-168,28,21,if have then "#ffe3a3" else "#fff4df"),
                             label("decorBoost","+"..math.floor(d.bonus*100).."% baking, forever",150,42,w-168,22,16,"#b6e6bf"),
                         }
@@ -1462,10 +1582,6 @@ return function()
                         end
                         pane[#pane+1]=box("decorCard"..d.id,24,rowY,w,140,if have then "#37312a" else "#312b24",card,{border="1px solid "..(if have then "#9a7f45" else "#443c32"),["border-radius"]="12px",ref=springIn("decorCard"..d.id,decorIndex)})
                         y+=152
-                        -- One line of what comes after, so the ladder is still
-                        -- visible without ten cards of it.
-                        local after=Model.Decor[(nextIndex or 0)+1]
-                        if after then text("decorAfter","Then "..after.name.." at level "..after.level..".",28) end
                     end
                 elseif workPage[1]=="Properties" then
                     text("propertyIncome","Your places: +"..number(Model.propertyIncome(state),true).." cookies / sec",38)
@@ -1486,34 +1602,63 @@ return function()
                         pane[#pane+1]=box("propertyCard"..property.id,24,y,w,154,"#342d25",card,{border="1px solid #827052",["border-radius"]="12px",overflow="hidden",ref=springIn("propertyCard"..property.id,propertyIndex),["--zone-background"]=property.id~="stand" and ImageNames.propertyBackgrounds[property.id] or nil});y+=166
                     end
                 elseif workPage[1]=="Collection" then
-                    -- Deliberately not the Bag list. Bag is an inventory: rows, counts,
-                    -- actions. Collection is an album -- a grid of slots where a missing
-                    -- piece is a faded silhouette and a displayed one wears a gold frame,
-                    -- so what you have and what you are missing reads at a glance.
+                    -- An album, not the Bag list. What changed here is that a slot
+                    -- is no longer a yes/no: an item pays at 1, 10 and 100 copies,
+                    -- so the card has to show WHERE YOU ARE on that run.
+                    --   Goal-gradient  -- a bar to the next threshold, because a
+                    --     visible near-goal is what makes the last few copies get
+                    --     bought. "Displayed / Not found" offered nothing to close.
+                    --   Common region  -- the three thresholds share one inset
+                    --     plate, so they read as one ladder rather than three tags.
+                    --   Von Restorff   -- the NEXT threshold is outlined; reached
+                    --     ones are filled flat. Exactly one chip asks for attention.
+                    --   Miller        -- five things on a card: art, name, ladder,
+                    --     progress, payout. Rarity rides on the name's colour.
                     text("collectionHelp","Baking, jobs & property boost: +"..math.floor((Model.collectionBonus(state)-1)*100+.5).."%",52)
                     local rarityColors={Common="#b4c4d0",Uncommon="#89cf9e",Rare="#93b5ff",Legendary="#f5cd70",Exclusive="#e9a5f0"}
                     local slotW=(w-16)/2
+                    local tiers=Model.Balance.CollectionTiers
                     local slot=0
                     for _,item in Model.Items do
                         slot+=1
-                        local owned=economy.inventory[item.id] or 0
-                        local displayed=economy.collection[item.id]
-                        local art=displayed and "1" or (owned>0 and "0.8" or "0.22")
+                        local tier,owned=Model.itemTier(state,item)
+                        local _,target=Model.itemNextTier(state,item)
+                        local found=owned>0
+                        local maxed=target==nil
+                        -- Progress runs between the tier just passed and the next,
+                        -- so the bar restarts full-width at every threshold instead
+                        -- of crawling for the whole hundred.
+                        local from=if tier>0 then tiers[tier] else 0
+                        local progress=if maxed then 1 else math.clamp((owned-from)/math.max(1,(target or 1)-from),0,1)
+                        local barW=slotW-24
+                        local plateW=slotW-16
+                        local chipGap=5
+                        local chipW=(plateW-12-chipGap*2)/3
                         local card={
-                            picture("itemArt",ImageNames.items[item.id],(slotW-84)/2,14,84,84,{opacity=art}),
-                            label("itemName",if displayed or owned>0 then item.name else "???",4,104,slotW-8,26,18,displayed and "#fff4df" or "#a2988a",{["text-align"]="center"}),
-                            label("rarity",item.rarity,4,130,slotW-8,22,15,displayed and rarityColors[item.rarity] or "#6f6558",{["text-align"]="center"}),
+                            picture("itemArt",ImageNames.items[item.id],(slotW-76)/2,10,76,76,{opacity=if maxed then "1" elseif found then "0.92" else "0.22"}),
+                            label("itemName",if found then item.name else "???",4,90,slotW-8,24,17,if found then rarityColors[item.rarity] else "#6f6558",{["text-align"]="center"}),
+                            box("tierPlate",8,120,plateW,38,"rgba(0,0,0,0.28)",{},{["border-radius"]="8px",border="none"}),
                         }
-                        if displayed then
-                            card[#card+1]=label("displayedTag","DISPLAYED · +"..math.floor(item.bonus*100).."%",4,158,slotW-8,24,13,"#e9a827",{["text-align"]="center",["letter-spacing"]="1px"})
-                        elseif owned>0 then
-                            card[#card+1]=button("displayItem"..item.id,"Display · +"..math.floor(item.bonus*100).."%",10,154,slotW-20,36,function()send("economy","collect",item.id)end,{background="#605193",["font-size"]="16px"})
-                        else
-                            card[#card+1]=label("missingTag","NOT FOUND YET",4,158,slotW-8,24,13,"#6f6558",{["text-align"]="center",["letter-spacing"]="1px"})
+                        for i,threshold in tiers do
+                            local reached=tier>=i
+                            local isNext=(not maxed) and tier+1==i
+                            card[#card+1]=box("tierChip"..i,14+(i-1)*(chipW+chipGap),126,chipW,26,
+                                if reached then "#7a5f22" else "rgba(255,255,255,0.05)",
+                                {label("tierChipText"..i,tostring(threshold),0,3,chipW,20,14,if reached then "#ffe3a3" elseif isNext then "#e9a827" else "#6f6558",{["text-align"]="center"})},
+                                {["border-radius"]="6px",border=if isNext then "1px solid #e9a827" else "none"})
                         end
-                        pane[#pane+1]=box("itemSlot"..item.id,24+((slot-1)%2)*(slotW+16),y+math.floor((slot-1)/2)*206,slotW,194,"#2b2620",card,{border=displayed and "1px solid #e9a827" or "1px solid #3f382e",["border-radius"]="12px",ref=springIn("itemSlot"..item.id,slot)})
+                        card[#card+1]=box("tierTrack",12,166,barW,6,"#241f19",{
+                            box("tierFill",0,0,barW*progress,6,if maxed then "#e9a827" else "#6abed5",{},{["border-radius"]="3px",border="none"}),
+                        },{["border-radius"]="3px",border="none"})
+                        card[#card+1]=label("tierCount",
+                            if not found then "Not found yet" elseif maxed then "Complete · "..number(owned) else number(owned).." / "..target,
+                            4,178,slotW-8,20,13,if maxed then "#e9a827" else "#a2988a",{["text-align"]="center"})
+                        card[#card+1]=label("tierPayout",
+                            if tier>0 then "+"..math.floor(Model.itemBonus(state,item)*100+.5).."% boost" else "+"..math.floor(item.bonus*100+.5).."% at 1",
+                            4,198,slotW-8,22,15,if tier>0 then "#b6e6bf" else "#6f6558",{["text-align"]="center"})
+                        pane[#pane+1]=box("itemSlot"..item.id,24+((slot-1)%2)*(slotW+16),y+math.floor((slot-1)/2)*234,slotW,222,"#2b2620",card,{border=if maxed then "1px solid #e9a827" elseif found then "1px solid #5c5142" else "1px solid #3f382e",["border-radius"]="12px",ref=springIn("itemSlot"..item.id,slot)})
                     end
-                    y+=math.ceil(slot/2)*206
+                    y+=math.ceil(slot/2)*234
                 elseif workPage[1]=="Shop" or workPage[1]=="Bag" then
                     text("collectionHelp","Baking, jobs & property boost: +"..math.floor((Model.collectionBonus(state)-1)*100+.5).."%",52)
                     local rarityColors={Common="#b4c4d0",Uncommon="#89cf9e",Rare="#93b5ff",Legendary="#f5cd70",Exclusive="#e9a5f0"}
@@ -1521,20 +1666,21 @@ return function()
                     for _,item in Model.Items do
                         if workPage[1]=="Shop" and item.exclusive then continue end
                         itemIndex+=1
-                        local owned=economy.inventory[item.id] or 0
-                        local displayed=economy.collection[item.id]
+                        local tier,owned=Model.itemTier(state,item)
+                        local togo,target=Model.itemNextTier(state,item)
+                        local price=Model.itemPrice(state,item)
                         local card={picture("itemArt",ImageNames.items[item.id],8,8,66,66),
                             label("itemName",item.name,84,8,w-96,28,22,"#fff4df"),
-                            label("rarity",item.rarity.."  |  +"..math.floor(item.bonus*100).."%",84,40,w-96,26,18,rarityColors[item.rarity]),
-                            label("owned",workPage[1]=="Collection" and (displayed and "Displayed!" or "Missing") or "In bag: "..owned,14,78,w-28,26,18,"#e9dcc6"),
+                            label("rarity",item.rarity.."  |  +"..math.floor(Model.itemBonus(state,item)*100+.5).."% now",84,40,w-96,26,18,rarityColors[item.rarity]),
+                            -- What the next threshold is worth, stated plainly, so
+                            -- the reason to buy another is on the row that sells it.
+                            label("owned",if target then "In bag: "..number(owned).."  ·  "..number(togo).." more for +"..math.floor(item.bonus*Model.Balance.CollectionTierBonus[tier+1]*100+.5).."%" else "In bag: "..number(owned).."  ·  fully collected",14,78,w-28,26,18,"#e9dcc6"),
                         }
                         if workPage[1]=="Shop" then
-                            card[#card+1]=button("buyItem"..item.id,"Buy: "..number(item.price),12,112,w-24,48,function()send("economy","item",item.id)end,{background="#276849",["font-size"]="21px"})
-                        elseif not displayed then
-                            card[#card+1]=button("displayItem"..item.id,"Display for +"..math.floor(item.bonus*100).."%",12,112,w-24,48,function()send("economy","collect",item.id)end,{background=owned>0 and "#605193" or "#51483d",["font-size"]="21px"})
-                        elseif workPage[1]=="Bag" and owned>0 and not item.exclusive then
-                            card[#card+1]=button("sellSpare"..item.id,"Sell 1 spare · "..number(math.floor(item.price*.25)),12,112,w-24,48,function()send("economy","sellItem",item.id)end,{background="#544479",["font-size"]="19px"})
-                        else card[#card+1]=label("activeBoost","Boost is active",14,117,w-28,35,21,"#b6e6bf") end
+                            card[#card+1]=button("buyItem"..item.id,"Buy: "..number(price),12,112,w-24,48,function()send("economy","item",item.id)end,{background=if state.cookies>=price then "#276849" else "#51483d",["font-size"]="21px"})
+                        elseif owned>0 and not item.exclusive then
+                            card[#card+1]=button("sellSpare"..item.id,"Sell 1 · "..number(math.floor(price/Model.Balance.ItemPriceGrowth*.25)),12,112,w-24,48,function()send("economy","sellItem",item.id)end,{background="#544479",["font-size"]="19px"})
+                        else card[#card+1]=label("activeBoost",if owned>0 then "Boost is active" else "None in your bag",14,117,w-28,35,21,if owned>0 then "#b6e6bf" else "#6f6558") end
                         pane[#pane+1]=box("itemCard"..item.id,24,y,w,172,"#342d25",card,{border="1px solid "..rarityColors[item.rarity],["border-radius"]="12px",ref=springIn("itemCard"..item.id,itemIndex),["--zone-background"]=ImageNames.itemBackgrounds[item.id],["--shop-icon"]=workPage[1]=="Shop" and ImageNames.items[item.id] or nil});y+=184
                     end
                 elseif workPage[1]=="Empire" then
@@ -1804,7 +1950,7 @@ return function()
                     },{["border-radius"]="12px",border="1px solid #967446"});y+=242
                     local total=(state.pastEarned or 0)+(state.earned or 0)
                     local nextStar=state.prestige+gain+1
-                    local goal=Model.starGoal(nextStar)
+                    local goal=nextStar^3*Model.Balance.RebirthCookies
                     pane[#pane+1]=box("starProgress",24,y,w,132,"#302a35",{
                         label("starUnlock","Bake "..number(math.max(0,goal-total)).." more cookies",12,8,w-24,54,20,"#fff1cd",{["text-align"]="center"}),
                         box("starProgressTrack",16,72,w-32,10,"#17141e",{box("starProgressFill",0,0,(w-32)*math.clamp(total/goal,0,1),10,"#eac36d")},{["border-radius"]="5px"}),
@@ -2131,7 +2277,7 @@ return function()
 			local unlockedBuilding = i <= 2 or state.earned >= Model.Buildings[i - 1].price or state.buildings[i] > 0
 			local affordable = sell and state.buildings[i] > 0 or not sell and state.cookies >= price
 			local cached = productCache[i]
-			local perUnit = b.cps * Model.multiplier(state, i)
+			local perUnit = i==1 and state.clickPower/Model.CursorPeriod or b.cps * Model.multiplier(state, i)
 			local sharePct = (totalCps > 0 and state.buildings[i] > 0) and math.floor(perUnit * state.buildings[i] / totalCps * 100 + .5) or 0
 			local signature = table.concat({tostring(price),tostring(unlockedBuilding),tostring(affordable),tostring(state.buildings[i]),tostring(bulk),tostring(sell),tostring(productW),uiFont,tostring(perUnit),tostring(sharePct)},"|")
 			if cached and cached.signature == signature then
@@ -2313,6 +2459,7 @@ return function()
 	local function update(force)
 		revision += 1
 		if refreshCounters then refreshCounters(revision) end
+		if refreshOnboarding then refreshOnboarding(revision) end
 		local signature = pageSignature()
 		local centerVisible=not mobile or currentPage=="More"
 		local timedMenu=centerVisible and (currentTab=="Stats" or currentTab=="Adventure" or currentTab=="Work")
@@ -2325,6 +2472,7 @@ return function()
 	local connection = remote.OnClientEvent:Connect(function(nextState)
 		local oldInvite=snapshot.empireInvite
 		snapshot = nextState
+        cursorClock=nextState.played
         refreshResources(nextState)
 		audio.setEnabled(snapshot.soundEnabled~=false)
 		audio.setVolume(snapshot.soundVolume or 100)
@@ -2343,7 +2491,7 @@ return function()
 	local safeResize=safeArea:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
 		measureViewport();viewportScale.Scale=uiScale;update(true)
 	end)
-	local inputResize=input:GetPropertyChangedSignal("TouchEnabled"):Connect(function()
+	local inputResize=input:GetPropertyChangedSignal("PreferredInput"):Connect(function()
 		measureViewport();viewportScale.Scale=uiScale;update(true)
 	end)
 	measureViewport();viewportScale.Scale=uiScale;update(true)
@@ -2378,6 +2526,24 @@ return function()
 	end
 	local focusElapsed=0
 	local focus=game:GetService("RunService").Heartbeat:Connect(function(dt)
+        local previous=cursorClock
+        cursorClock+=dt
+        if snapshot.ready and not snapshot.reducedMotion then
+            -- One bounded visual pass, no state updates, remotes, sounds or
+            -- particle spawns per automatic tap. Server owns every reward.
+            if Model.cursorTaps(math.min(snapshot.buildings[1],Model.CursorVisualLimit),previous,cursorClock)>0 then
+                automaticCookiePress()
+            end
+            cursorFrame+=dt
+            if cursorFrame>=1/30 then
+                cursorFrame=0
+                for i,visual in cursorVisuals do
+                    local phase=(cursorClock-i*Model.CursorPeriod/50)%Model.CursorPeriod
+                    local distance=phase<.12 and 12*(1-phase/.12) or (phase>Model.CursorPeriod-.12 and 12*(phase-(Model.CursorPeriod-.12))/.12 or 0)
+                    visual.instance.Position=visual.origin+UDim2.fromOffset(-math.cos(visual.angle)*distance,-math.sin(visual.angle)*distance)
+                end
+            end
+        end
 		if not usingController or guiService.MenuIsOpen or input:GetFocusedTextBox() then return end
 		focusElapsed+=dt;if focusElapsed<.15 then return end;focusElapsed=0
 		local selected=guiService.SelectedObject

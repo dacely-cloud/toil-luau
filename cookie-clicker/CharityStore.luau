@@ -38,7 +38,7 @@ function CharityStore.new(Model,store)
         if not int(tierIndex,4) or tierIndex<1 then return nil,"Choose a duration.",true end
         local tier=Model.Fundraisers[tierIndex]
         local cost=investment==nil and tier.cost or investment
-        if not int(cost,1e12) or cost<tier.cost then return nil,"Invalid investment.",true end
+        if not int(cost,Model.Balance.MaxFundraiserInvestment) or cost<tier.cost then return nil,"Invalid investment.",true end
         return change(owner,sequence,function(old)
             if old then
                 if old.version==1 and old.owner==owner and old.sequence==sequence then return old end

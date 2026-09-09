@@ -14,6 +14,7 @@ local ImageNames = require(script.Parent.ImageNames)
 local uiFont = "Georgia"
 local suffixes = { "million", "billion", "trillion", "quadrillion", "quintillion", "sextillion", "septillion", "octillion", "nonillion", "decillion" }
 local function number(n, decimals)
+	if n >= 1e36 then return string.format("%.3g",n) end
 	if n >= 1e6 then
 		local tier = math.min(#suffixes, math.floor(math.log10(n) / 3) - 1)
 		return string.format("%.3f %s", n / 10 ^ ((tier + 1) * 3), suffixes[tier])
@@ -844,14 +845,15 @@ return function()
                         for i,tier in Model.Fundraisers do
                             local cost=Model.fundraiserCost(state,i)
                             local ready=economy.jar>=cost and not state.charityPending
-                            pane[#pane+1]=box("partyTier"..i,24,y,w,178,"#342d25",{
+                            pane[#pane+1]=box("partyTier"..i,24,y,w,218,"#342d25",{
                                 picture("partyPicture","CookieFestival",12,12,56,56),
                                 label("partyDuration",tier.name,80,10,w-92,28,23,"#fff4df"),
                                 label("partyReward",number(math.floor(cost*tier.multiplier)).." cookies back",80,42,w-92,54,19,"#b6e6bf"),
-                                button("startCharity"..i,(ready and "Start: " or "Need: ")..number(cost).." from jar",12,114,w-24,50,function()if ready then send("fundraiser","start",i) else workPage[2]("Jar") end end,{background=ready and "#276849" or "#51483d",["font-size"]="20px"}),
-                            },{["border-radius"]="12px",["--zone-background"]="CookieCharity"});y+=190
+                                label("partyProfit","+"..number(math.floor(cost*tier.multiplier)-cost).." extra cookies",12,98,w-24,40,18,"#b6e6bf",{["text-align"]="center"}),
+                                button("startCharity"..i,(ready and "Start: " or "Need: ")..number(cost).." from jar",12,154,w-24,50,function()if ready then send("fundraiser","start",i) else workPage[2]("Jar") end end,{background=ready and "#276849" or "#51483d",["font-size"]="20px"}),
+                            },{["border-radius"]="12px",["--zone-background"]="CookieCharity"});y+=230
                         end
-                        text("partyChanges","Friends can add cookies. Thieves can take some.",48)
+                        text("partyChanges","Rewards grow with your baking when you start. Friends can add cookies; thieves can take some.",76)
                     end
                     text("charityPlayers","Friends' parties",36)
                     local found=false
@@ -889,8 +891,8 @@ return function()
                     pane[#pane+1]=button("withdrawCookies","Take out",controlsX,y+164,controlsW,48,function()send("economy","withdraw",jarAmount[1])end,{["font-size"]="22px"})
                     pane[#pane+1]=label("depositFee","Deposit fee: "..number(Model.depositFee(state,jarAmount[1])).." cookies",24,y+218,w,30,16,"#dfcba6")
                     y+=258
-                    local depositAll=math.floor(math.max(0,math.min(state.cookies,1e12,1e15-economy.jar)))
-                    local withdrawAll=math.floor(math.min(economy.jar,1e12))
+                    local depositAll=math.floor(math.max(0,math.min(state.cookies,Model.Balance.MaxJarCookies-economy.jar)))
+                    local withdrawAll=math.floor(economy.jar)
                     pane[#pane+1]=button("depositAll","Put in max",24,y,(w-8)/2,44,function()if depositAll>0 then send("economy","deposit",depositAll) end end,{background="#276849",["font-size"]="18px"})
                     pane[#pane+1]=button("withdrawAll","Take out max",24+(w+8)/2,y,(w-8)/2,44,function()if withdrawAll>0 then send("economy","withdraw",withdrawAll) end end,{["font-size"]="18px"});y+=56
                     pane[#pane+1]=button("jarParty","Start a cookie party",24,y,w,48,function()workPage[2]("Charity")end,{background="#544479",["font-size"]="21px"});y+=56
@@ -993,15 +995,22 @@ return function()
                     elseif adventurePage[1]=="Boosts" then
 				text("chipCount","Star chips: "..number(state.chips),32)
                     pane[#pane+1]=button("earnStarChips","How do I get chips?",24,y,w,44,function()adventurePage[2]("Stars")end,{["font-size"]="18px"});y+=56
-                    for _,boost in {{"baking","CookieBoost","+10% baking",1,"heavenlyBaking"},{"tapping","CursorCookie","+10% per tap",1,"heavenlyTapping"},{"slot","Stars","Keep one boost",3,"heavenlySlot"}} do
-                        local owned=state.heavenly[boost[1]]==true
-                        local ready=not owned and state.chips>=boost[4]
-                        pane[#pane+1]=box("heavenlyCard"..boost[1],24,y,w,220,"#342d25",{
-                            picture("boostPicture",boost[2],(w-64)/2,12,64,64),
-                            label("boostBenefit",boost[3],12,84,w-24,32,23,"#fff4df",{["text-align"]="center"}),
-                            label("boostLasts","Yours forever, even after rebirth",12,122,w-24,36,17,"#b6e6bf",{["text-align"]="center"}),
-                            button(boost[5],owned and "Owned!" or (ready and "Buy • " or "Need ")..boost[4]..(boost[4]==1 and " star chip" or " star chips"),12,166,w-24,44,function()if ready then send("advanced","heavenly",boost[1]) end end,{background=owned and "#385847" or ready and "#544479" or "#403a43",["font-size"]="21px"}),
-                        },{["border-radius"]="10px"});y+=232
+                    for _,boost in Model.HeavenlyBoosts do
+                        local owned=state.heavenly[boost.id]==true
+                        local locked=boost.requires and not state.heavenly[boost.requires]
+                        local ready=not owned and not locked and state.chips>=boost.cost
+                        local requirement="Yours forever, even after rebirth"
+                        if locked then
+                            for _,first in Model.HeavenlyBoosts do if first.id==boost.requires then requirement="First buy "..first.name;break end end
+                        end
+                        local signature=table.concat({w,y,tostring(owned),tostring(locked),tostring(ready),uiFont},":")
+                        pane[#pane+1]=remember(viewCache,"heavenly"..boost.id,signature,function()return box("heavenlyCard"..boost.id,24,y,w,266,"#342d25",{
+                            picture("boostPicture",boost.icon,(w-64)/2,12,64,64),
+                            label("boostName",boost.name,12,84,w-24,30,22,"#fff4df",{["text-align"]="center"}),
+                            label("boostBenefit",boost.description,12,118,w-24,48,19,"#fff4df",{["text-align"]="center"}),
+                            label("boostLasts",requirement,12,170,w-24,36,17,"#b6e6bf",{["text-align"]="center"}),
+                            button("heavenly_"..boost.id,owned and "Owned!" or (ready and "Buy · " or "Need ")..boost.cost.." star chips",12,212,w-24,44,function()if ready then send("advanced","heavenly",boost.id) end end,{background=owned and "#385847" or ready and "#544479" or "#403a43",["font-size"]="21px"}),
+                        },{["border-radius"]="10px"})end);y+=278
                     end
 				if state.heavenly.slot then
 					text("permanentChoice","Choose a boost to keep. Current: "..(state.permanentUpgrade~="" and (upgradeNames[state.permanentUpgrade] or state.permanentUpgrade) or "none"),60)

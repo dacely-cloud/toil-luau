@@ -3,9 +3,9 @@ active	Farm	106	seconds
 active	Level5	351	seconds
 active	Bank	1608	seconds
 active	10M	1632	seconds
-active	Rebirth	1632	seconds
 active	HOUR	1	earned	173452668.60827556	CPS	87417.336	click	8773.7336	level	10
 active	Tower	5115	seconds
+active	Rebirth	5835	seconds
 active	HOUR	2	earned	2048653141.5469851	CPS	533151.216	click	58710.63376	level	14
 active	HOUR	3	earned	9523931947.455599	CPS	2095883.712	click	230611.20831999998	level	17
 active	HOUR	4	earned	36196384951.1555	CPS	7429578.24	click	817317.6063999999	level	19
@@ -14,9 +14,9 @@ casual	Farm	176	seconds
 casual	Level5	451	seconds
 casual	Bank	1875	seconds
 casual	10M	1902	seconds
-casual	Rebirth	1902	seconds
 casual	HOUR	1	earned	110571359.43247922	CPS	79383.336	click	7970.333599999999	level	9
 casual	Tower	5835	seconds
+casual	Rebirth	6606	seconds
 casual	HOUR	2	earned	1326121357.8095627	CPS	454876.656	click	50100.43216	level	13
 casual	HOUR	3	earned	5873473182.1477785	CPS	1414729.472	click	155684.24192	level	15
 casual	HOUR	4	earned	19234700815.415325	CPS	3759883.712	click	413651.2083199999	level	18
@@ -25,10 +25,10 @@ bakery_only	Level3	370	seconds
 bakery_only	Level5	1604	seconds
 bakery_only	Bank	2202	seconds
 bakery_only	10M	2227	seconds
-bakery_only	Rebirth	2227	seconds
 bakery_only	HOUR	1	earned	60865281.26119973	CPS	54363.194	click	5468.3194	level	6
 bakery_only	Tower	6894	seconds
 bakery_only	HOUR	2	earned	744937896.7483771	CPS	295109.36	click	32526.029599999994	level	8
+bakery_only	Rebirth	7844	seconds
 bakery_only	HOUR	3	earned	2870559050.619705	CPS	811538.4160000001	click	89333.22576	level	9
 bakery_only	HOUR	4	earned	8493165503.943243	CPS	2050123.712	click	225577.60831999997	level	10
 long_run	Level3	8	seconds
@@ -36,9 +36,9 @@ long_run	Farm	106	seconds
 long_run	Level5	351	seconds
 long_run	Bank	1608	seconds
 long_run	10M	1632	seconds
-long_run	Rebirth	1632	seconds
 long_run	HOUR	1	earned	173452668.60827556	CPS	87417.336	click	8773.7336	level	10
 long_run	Tower	5115	seconds
+long_run	Rebirth	5835	seconds
 long_run	HOUR	2	earned	2048653141.5469851	CPS	533151.216	click	58710.63376	level	14
 long_run	HOUR	3	earned	9523931947.455599	CPS	2095883.712	click	230611.20831999998	level	17
 long_run	HOUR	4	earned	36196384951.1555	CPS	7429578.24	click	817317.6063999999	level	19
@@ -69,49 +69,36 @@ repeated_rebirth	Farm	106	seconds
 repeated_rebirth	Level5	351	seconds
 repeated_rebirth	Bank	1608	seconds
 repeated_rebirth	10M	1632	seconds
-repeated_rebirth	Rebirth	1632	seconds
-repeated_rebirth	RESTART	1632	stars	1	run earned	10010326.657079734	retained CPS	931.12
-repeated_rebirth	RESTART	3507	stars	2	run earned	73985825.69262837	retained CPS	1246.3
-repeated_rebirth	HOUR	1	earned	198297.03137507976	CPS	2259.79116	click	283.77702760000005	level	10
-repeated_rebirth	RESTART	7002	stars	4	run earned	560371771.0596895	retained CPS	1719.07
-repeated_rebirth	HOUR	2	earned	1079200.302850871	CPS	5203.99672	click	607.6396392000001	level	14
-repeated_rebirth	Tower	10317	seconds
-repeated_rebirth	HOUR	3	earned	976306483.8384974	CPS	470981.10592000006	click	57059.11381632	level	17
-repeated_rebirth	RESTART	13181	stars	8	run earned	4476731210.791443	retained CPS	1894.88
-repeated_rebirth	HOUR	4	earned	60892836.45516789	CPS	84468.25088000002	click	9326.707596800003	level	19
-repeated_rebirth	HOUR	5	earned	3303642377.7937427	CPS	1248500.88064	click	151139.00655743998	level	21
-repeated_rebirth	HOUR	6	earned	28243791798.742138	CPS	8431794.6216	click	1020317.5492136	level	23
-repeated_rebirth	RESTART	22028	stars	16	run earned	35852651522.34599	retained CPS	1913.1000000000001
-repeated_rebirth	HOUR	7	earned	1915831377.080702	CPS	1063596.8616000002	click	128765.62025360002	level	25
-repeated_rebirth	HOUR	8	earned	29874353932.006477	CPS	14167513.9032	click	1714339.5822872	level	27
-repeated_rebirth	RESTART	32151	stars	32	run earned	286757471554.3616	retained CPS	1913.1000000000001
-repeated_rebirth	HOUR	9	earned	3928567.356775215	CPS	24017.582400000003	click	2677.1340640000003	level	28
-repeated_rebirth	HOUR	10	earned	11716580551.576912	CPS	6047807.354400001	click	731855.0898824001	level	30
-repeated_rebirth	HOUR	11	earned	396990678283.31885	CPS	197228800.55760005	click	23864755.267469604	level	31
-repeated_rebirth	1T	40661	seconds
-repeated_rebirth	RESTART	41521	stars	64	run earned	2294777609295.4087	retained CPS	1931.3200000000002
-repeated_rebirth	HOUR	12	earned	3197104999.3902965	CPS	3813668.898880001	click	461524.33676448016	level	33
-repeated_rebirth	HOUR	13	earned	899158910559.6241	CPS	955722926.8662403	click	115642544.55081508	level	34
-repeated_rebirth	RESTART	48796	stars	129	run earned	19167887430998.824	retained CPS	1931.3200000000002
-repeated_rebirth	HOUR	14	earned	17265799630.183006	CPS	30644624.797620367	click	3708070.000512064	level	35
-repeated_rebirth	RESTART	53904	stars	258	run earned	150101934288827.25	retained CPS	1949.5400000000002
-repeated_rebirth	HOUR	15	earned	3296496.7185999625	CPS	80831.63321588672	click	8926.679653747538	level	36
-repeated_rebirth	HOUR	16	earned	315896277640030.5	CPS	807589394169.5359	click	97718316764.91383	level	38
-repeated_rebirth	RESTART	57962	stars	516	run earned	1204051593869663.2	retained CPS	1949.5400000000002
-repeated_rebirth	HOUR	17	earned	2901929092119516	CPS	10435156883623.105	click	1262653982988.7957	level	39
-repeated_rebirth	RESTART	61450	stars	1032	run earned	9623353484325998	retained CPS	1949.5400000000002
-repeated_rebirth	RESTART	64613	stars	2064	run earned	76938688831706160	retained CPS	1967.7600000000002
-repeated_rebirth	HOUR	18	earned	427736499.8745213	CPS	5375776.047292959	click	591370.5652022255	level	40
-repeated_rebirth	RESTART	67538	stars	4128	run earned	615715151163155200	retained CPS	1967.7600000000002
-repeated_rebirth	HOUR	19	earned	413747015030.5655	CPS	1919535540.8548064	click	232263870.8434316	level	41
-repeated_rebirth	FinalBuilding	70302	seconds
-repeated_rebirth	RESTART	70315	stars	8272	run earned	4958397974230193000	retained CPS	1985.9800000000002
-repeated_rebirth	HOUR	20	earned	4690990950461213	CPS	31205582323591.89	click	3775875461225.0186	level	42
-repeated_rebirth	RESTART	72917	stars	16568	run earned	39823586143988860000	retained CPS	1985.9800000000002
-repeated_rebirth	RESTART	75518	stars	33159	run earned	319134636166366760000	retained CPS	1985.9800000000002
-repeated_rebirth	HOUR	21	earned	170859520.82429174	CPS	4580734.416910915	click	503915.98586020066	level	43
-repeated_rebirth	RESTART	78186	stars	66381	run earned	2.5604762171438347e+21	retained CPS	2004.2000000000003
-repeated_rebirth	HOUR	22	earned	234012315576091.66	CPS	1997644625651.5298	click	241714999774.23508	level	45
-repeated_rebirth	RESTART	81685	stars	132790	run earned	2.049025114916769e+22	retained CPS	2217.06
-repeated_rebirth	HOUR	23	earned	6331496328049491	CPS	57104272883526.836	click	6909617018977.147	level	46
-repeated_rebirth	HOUR	24	earned	9.334308884220854e+22	CPS	30252642608662974000	click	3660569755648219600	level	47
+repeated_rebirth	HOUR	1	earned	173452668.60827556	CPS	87417.336	click	8773.7336	level	10
+repeated_rebirth	Tower	5115	seconds
+repeated_rebirth	Rebirth	5835	seconds
+repeated_rebirth	RESTART	5835	stars	1	run earned	1020629942.3451222	retained CPS	2054
+repeated_rebirth	HOUR	2	earned	34164736.4319197	CPS	39043.9712	click	3936.3971199999996	level	14
+repeated_rebirth	HOUR	3	earned	1179092189.4362307	CPS	443447.3888000001	click	48843.212768000005	level	17
+repeated_rebirth	HOUR	4	earned	6544871167.898928	CPS	1757925.3536000003	click	193435.788896	level	19
+repeated_rebirth	RESTART	14555	stars	2	run earned	6981223102.157871	retained CPS	2054
+repeated_rebirth	HOUR	5	earned	457330665.81743044	CPS	258187.36320000002	click	25850.73632	level	21
+repeated_rebirth	HOUR	6	earned	3919271985.570766	CPS	1190357.0016	click	131003.27017599999	level	23
+repeated_rebirth	HOUR	7	earned	18106506101.50351	CPS	4175418.7440000004	click	459360.06184	level	25
+repeated_rebirth	RESTART	27950	stars	4	run earned	56600643060.68825	retained CPS	2234.4
+repeated_rebirth	HOUR	8	earned	17307557.224352106	CPS	24614.419200000004	click	2493.44192	level	27
+repeated_rebirth	HOUR	9	earned	1597491762.3828926	CPS	688401.9744000001	click	75788.217184	level	28
+repeated_rebirth	HOUR	10	earned	11765345963.503527	CPS	2792647.1328000003	click	307255.184608	level	30
+repeated_rebirth	HOUR	11	earned	64624010702.129684	CPS	13386308.611200001	click	1472557.9472319998	level	31
+repeated_rebirth	HOUR	12	earned	334730811976.9505	CPS	91030028.61120002	click	10013367.147232002	level	33
+repeated_rebirth	RESTART	43927	stars	8	run earned	447491800206.1586	retained CPS	2234.4
+repeated_rebirth	HOUR	13	earned	712169629.1406484	CPS	458124.91200000007	click	55503.51435200001	level	34
+repeated_rebirth	HOUR	14	earned	9751454456.310055	CPS	3257715.9216000005	click	394254.0265136001	level	35
+repeated_rebirth	HOUR	15	earned	68616669669.262146	CPS	15616987.6464	click	1889725.9052144	level	36
+repeated_rebirth	HOUR	16	earned	457874911823.9095	CPS	106201327.64640002	click	12850431.045214402	level	38
+repeated_rebirth	1T	59098	seconds
+repeated_rebirth	HOUR	17	earned	3102383194104.767	CPS	820898662.64448	click	99328808.57998209	level	39
+repeated_rebirth	RESTART	61502	stars	16	run earned	3587383994111.803	retained CPS	2255.6800000000003
+repeated_rebirth	HOUR	18	earned	2233166915.7714815	CPS	1074050.71552	click	130030.53657792	level	40
+repeated_rebirth	HOUR	19	earned	38191899771.30301	CPS	14848454.96704	click	1796733.45101184	level	41
+repeated_rebirth	HOUR	20	earned	441934010911.0542	CPS	137844344.05696002	click	16679236.030892162	level	42
+repeated_rebirth	HOUR	21	earned	4864269573387.695	CPS	1957924493.2057605	click	236908934.077897	level	44
+repeated_rebirth	RESTART	78268	stars	32	run earned	28683566318302.3	retained CPS	2255.6800000000003
+repeated_rebirth	HOUR	22	earned	143307368.41463283	CPS	254955.30432000002	click	28080.2834752	level	45
+repeated_rebirth	HOUR	23	earned	26303125422.16564	CPS	15806849.879680002	click	1912699.23544128	level	46
+repeated_rebirth	HOUR	24	earned	861300754944.9678	CPS	593215494.44672	click	71779145.22805312	level	47

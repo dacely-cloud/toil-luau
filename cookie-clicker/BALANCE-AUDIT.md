@@ -25,16 +25,23 @@ not player telemetry or an optimum.
   seconds. Base payback is now capped at one hour; opening buildings keep their
   prices. Upgrade costs derive from their building's adjusted price. The long-run
   simulation reaches the final building around 19 hours without rebirth bonuses.
-- Rebirth: first star at 10 million lifetime baked, later thresholds remain cubic.
+- Rebirth: first star at 1 billion lifetime baked, later thresholds remain cubic.
   The first 100 stars each grant 5% permanent building production instead of 1%.
   Above 100, effective stars are `100*(1+ln(stars/100))`: production keeps growing
   with diminishing returns. The earlier linear curve produced sub-minute repeat
-  rebirths around hour 17. With the taper, the doubling-star strategy's shortest
-  later run is about 43 minutes and the final building arrives around 19.5 hours.
+  rebirths around hour 17. The later requested difficulty increase raises the
+  threshold from 10 million to 1 billion. First-star simulations now take
+  97 minutes active, 110 minutes casual, and 131 minutes bakery-only. The repeated
+  rebirth profile has 32 stars at 24 hours; it is not an optimal strategy.
   Stars UI shows the current and post-rebirth baking bonus and explains the taper.
   Chips, reset
   confirmation and existing saved progress stay intact. The test profiles first
-  qualify around 27–37 minutes; the original profiles had no star after four hours.
+  retain all earned chips; a bakery with 3.43 billion baked now qualifies for one
+  star rather than seven. Previously purchased boosts stay owned.
+- Nine permanent boosts replace the original three: baking/tapping cost 3 chips
+  each, energy/stamina regeneration 8 each, permanent slot 10, jobs/property income
+  15 each, and advanced baking/tapping 25 each. Advanced tiers require their first
+  tier. One shared catalog drives prices, server validation, saved ownership and UI.
 - Click upgrades improve both flat tapping and the production share: base share
   5%, plus one percentage point per click upgrade. Generated Cursor upgrades now
   affect tapping too. Every upgrade is tested to avoid lowering click or passive
@@ -75,8 +82,12 @@ not player telemetry or an optimum.
   Garden still costs one lump for a ten-minute 5% boost; permanent building levels
   compete for those lumps and cap at 100. Garden, helpers, magic, seasonal rewards,
   wrinkler conservation and their action guards remain covered by model/view tests.
-- Fundraiser investment now scales to 5% of stable production over its duration,
-  between its original minimum and one trillion cookies. Its stake is persisted
+- Fundraiser investment now scales to 10% of stable production over its duration,
+  above its original minimum. The former one-trillion investment ceiling and
+  jar transfer/storage bottlenecks made late-game rewards negligible; monetary
+  bounds now allow 1e98 invested and 1e100 in the jar. Net fundraiser profit is
+  5/8/15/20% of baseline baking over the duration, before jar fees or visitors.
+  Its stake is persisted
   before dispatch and never requoted on retry. Legacy funds retain original stakes.
   The duration ladder returns 1.5/1.8/2.5/3 times principal; only profit is baked.
   Theft remains capped at 25% of principal, with insurance and shields respected.

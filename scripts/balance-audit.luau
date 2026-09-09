@@ -17,6 +17,8 @@ for _,v in Model.Items do print(v.id,v.price,v.bonus) end
 print("FUNDRAISERS | minutes | cost | net payout before fees/visits | net per second")
 for _,f in Model.Fundraisers do print(f.name,f.seconds/60,f.cost,f.cost*(f.multiplier-1),f.cost*(f.multiplier-1)/f.seconds) end
 print("PASSES | id | goal")
+print("STAR BOOSTS | id | chip cost | effect | prerequisite")
+for _,boost in Model.HeavenlyBoosts do print(boost.id,boost.cost,boost.description,boost.requires or "none") end
 for _,key in Model.MonetizationConfig.PassOrder do local p=Model.MonetizationConfig.Passes[key];print(key,p.GamePassId,p.Goal) end
 print("PRODUCTS | id | goal")
 for _,key in Model.MonetizationConfig.ProductOrder do local p=Model.MonetizationConfig.Products[key];print(key,p.ProductId,p.Goal) end

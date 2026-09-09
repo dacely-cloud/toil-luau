@@ -51,6 +51,7 @@
         ".luaurc"
     ],
     "scripts": {
+        "audit:game": "node scripts/audit-game.mjs",
         "cookie:stage": "node scripts/stage-studio.mjs && node scripts/stage-cookie-clicker.mjs",
         "cookie:sync": "npm run cookie:stage && node scripts/stage-to-sync.mjs",
         "cookie:build": "npm run build && npm run cookie:stage",

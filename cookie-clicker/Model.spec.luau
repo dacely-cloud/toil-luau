@@ -91,7 +91,8 @@ end)
 test("fresh starts grant chips once and retain permanent progress",function()
 	local s=Model.new();s.earned=Model.Balance.RebirthCookies;s.cookies=s.earned;s.buildings[1]=20;s.lumps=3;s.levels[1]=2
 	assert(Model.advancedAction(s,"ascend"));assert(s.prestige==1 and s.chips==1 and s.cookies==0 and s.buildings[1]==0 and s.lumps==3 and s.levels[1]==2)
-	assert(not Model.advancedAction(s,"ascend"));assert(Model.advancedAction(s,"heavenly","baking"));assert(s.chips==0 and s.heavenly.baking)
+	assert(not Model.advancedAction(s,"ascend"));assert(not Model.advancedAction(s,"heavenly","baking"));s.chips=3
+    assert(Model.advancedAction(s,"heavenly","baking"));assert(s.chips==0 and s.heavenly.baking)
 	assert(not Model.advancedAction(s,"heavenly","baking"))
 end)
 test("sugar growth and levels use bounded costs",function()

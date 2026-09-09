@@ -1,5 +1,31 @@
 -- Simplified, server-owned late-game rules for the kid-friendly edition.
 return function(Model)
+    Model.HeavenlyBoosts={
+        {id="baking",name="Star ovens",description="+10% building baking",icon="CookieBoost",cost=3,stat="baking",factor=1.1},
+        {id="tapping",name="Star fingers",description="+10% cookies per tap",icon="CursorCookie",cost=3,stat="tapping",factor=1.1},
+        {id="energy",name="Full of energy",description="Energy refills 20% faster",icon="CookieFestival",cost=8,stat="energy",factor=1.2},
+        {id="stamina",name="Ready to help",description="Stamina refills 20% faster",icon="CookieJar",cost=8,stat="stamina",factor=1.2},
+        {id="slot",name="Keep a favorite",description="Keep one regular boost on rebirth",icon="Stars",cost=10},
+        {id="jobs",name="Star worker",description="+25% job cookies",icon="CookieFestival",cost=15,stat="jobs",factor=1.25},
+        {id="property",name="Star shops",description="+25% property income",icon="CookieStand",cost=15,stat="property",factor=1.25},
+        {id="baking2",name="Galaxy ovens",description="Another +25% building baking",icon="CookieBoost",cost=25,stat="baking",factor=1.25,requires="baking"},
+        {id="tapping2",name="Galaxy fingers",description="Another +25% cookies per tap",icon="CursorCookie",cost=25,stat="tapping",factor=1.25,requires="tapping"},
+    }
+    local boostsById,boostsByStat={},{}
+    for _,boost in Model.HeavenlyBoosts do
+        boostsById[boost.id]=boost
+        if boost.stat then
+            boostsByStat[boost.stat]=boostsByStat[boost.stat] or {}
+            table.insert(boostsByStat[boost.stat],boost)
+        end
+    end
+    function Model.heavenlyFactor(s,stat)
+        local factor=1
+        for _,boost in boostsByStat[stat] or {} do
+            if s.heavenly and s.heavenly[boost.id] then factor*=boost.factor end
+        end
+        return factor
+    end
 	local function finite(n) return type(n)=="number" and n==n and n>=0 and n<math.huge end
 	local function int(n) return finite(n) and math.floor(n) or 0 end
 	function Model.initAdvanced(s)
@@ -20,7 +46,7 @@ return function(Model)
             -- treating their entire inventory as free, newly baked cookies.
             s.stockCosts[i]=s.stocks[i]>0 and (finite(cost) and cost or s.stocks[i]*Model.stockPrice(s,i)) or 0
         end
-		for _,key in {"baking","tapping","slot"} do if type(data.heavenly)=="table" and data.heavenly[key]==true then s.heavenly[key]=true end end
+        for _,boost in Model.HeavenlyBoosts do if type(data.heavenly)=="table" and data.heavenly[boost.id]==true then s.heavenly[boost.id]=true end end
 		if data.spirit=="baking" or data.spirit=="clicking" or data.spirit=="luck" then s.spirit=data.spirit end
 		if data.season=="winter" or data.season=="spring" then s.season=data.season end
 		s.buddies=data.buddies==true and s.buildings[2]>=10
@@ -77,7 +103,7 @@ return function(Model)
         return 1+effective*Model.Balance.StarProductionBonus
     end
 	function Model.productionFactor(s)
-		return Model.starMultiplier(s.prestige)*(s.heavenly and s.heavenly.baking and 1.1 or 1)*(s.spirit=="baking" and 1.1 or 1)*(1+Model.empireBonus(s))*Model.milkMultiplier(s)*Model.collectionBonus(s)
+		return Model.starMultiplier(s.prestige)*Model.heavenlyFactor(s,"baking")*(s.spirit=="baking" and 1.1 or 1)*(1+Model.empireBonus(s))*Model.milkMultiplier(s)*Model.collectionBonus(s)
 	end
 	function Model.ascensionGain(s)
 		return math.max(0,math.floor(((s.pastEarned+s.earned)/Model.Balance.RebirthCookies)^(1/3))-s.prestige)
@@ -108,8 +134,9 @@ return function(Model)
 			for key in s do s[key]=nil end;for key,value in fresh do s[key]=value end
 			return true,"A fresh bakery! You earned "..gain.." star chips and a lasting baking boost."
 		elseif action=="heavenly" then
-			local costs={baking=1,tapping=1,slot=3};local cost=costs[arg]
+            local boost=boostsById[arg];local cost=boost and boost.cost
 			if not cost or s.heavenly[arg] or s.chips<cost then return false,"You need more star chips, or already own this." end
+            if boost.requires and not s.heavenly[boost.requires] then return false,"Buy "..boostsById[boost.requires].name.." first." end
 			s.chips-=cost;s.heavenly[arg]=true;return true,"Your permanent boost is ready!"
 		elseif action=="permanent" then
 			if not s.heavenly.slot or not s.upgrades[arg] then return false,"Buy a permanent slot, then choose a boost you own." end

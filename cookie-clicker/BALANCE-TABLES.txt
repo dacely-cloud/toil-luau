@@ -144,6 +144,16 @@ FUNDRAISERS | minutes | cost | net payout before fees/visits | net per second
 4 hours	240	2500	3750	0.2604166666666667
 8 hours	480	5000	10000	0.3472222222222222
 PASSES | id | goal
+STAR BOOSTS | id | chip cost | effect | prerequisite
+baking	3	+10% building baking	none
+tapping	3	+10% cookies per tap	none
+energy	8	Energy refills 20% faster	none
+stamina	8	Stamina refills 20% faster	none
+slot	10	Keep one regular boost on rebirth	none
+jobs	15	+25% job cookies	none
+property	15	+25% property income	none
+baking2	25	Another +25% building baking	baking
+tapping2	25	Another +25% cookies per tap	tapping
 VIP	1966305446	+10% cookies from baking and jobs, and +10% maximum Energy.
 JobRewards2x	1969293886	Every job you finish pays double.
 PropertyIncome2x	1967864115	Every property you own earns double income.
@@ -163,4 +173,4 @@ Shield4h	3711873983	Nobody can steal from you for 4 hours.
 Shield8h	3711875190	Nobody can steal from you for 8 hours.
 Shield24h	3711875195	Nobody can steal from you for a full day.
 MARKET ROUND TRIP	cookie loss	25000	new earned	0	principal	242000
-CPS BENCHMARK	10000	0.030208099982701242
+CPS BENCHMARK	10000	0.0336204000050202

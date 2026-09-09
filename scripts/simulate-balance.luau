@@ -74,9 +74,8 @@ local function simulate(name,clicks,jobs,seconds,rebirth)
                 end
             end
             assert(Model.advancedAction(s,"ascend"))
-            for _,key in {"baking","tapping","slot"} do
-                local cost=key=="slot" and 3 or 1
-                if not s.heavenly[key] and s.chips>=cost then Model.advancedAction(s,"heavenly",key) end
+            for _,boost in Model.HeavenlyBoosts do
+                if not s.heavenly[boost.id] and s.chips>=boost.cost then Model.advancedAction(s,"heavenly",boost.id) end
             end
             print(name,"RESTART",time,"stars",s.prestige,"run earned",earned,"retained CPS",Model.cps(s))
             nextBuy=choose()

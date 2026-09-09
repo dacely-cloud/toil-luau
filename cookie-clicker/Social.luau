@@ -10,7 +10,7 @@ return function(Model)
         local tier=Model.Fundraisers[index]
         if not tier then return math.huge end
         local rate=Model.deliveryAmount(s,{Min=0,Seconds=1})
-        return math.floor(math.max(tier.cost,math.min(1e12,rate*tier.seconds*.05)))
+        return math.floor(math.max(tier.cost,math.min(Model.Balance.MaxFundraiserInvestment,rate*tier.seconds*Model.Balance.FundraiserProductionShare)))
     end
     local function integer(n,max)
         return type(n)=="number" and n==n and n>=0 and n<=max and n%1==0
@@ -21,7 +21,7 @@ return function(Model)
         if type(c)~="table" or not integer(c.tier,4) or c.tier<1 or not integer(c.endsAt,1e12) then return end
         local tier=Model.Fundraisers[c.tier]
         local cost=c.cost==nil and tier.cost or c.cost
-        if not integer(cost,1e12) or cost<tier.cost then return end
+        if not integer(cost,Model.Balance.MaxFundraiserInvestment) or cost<tier.cost then return end
         if not integer(c.pot,cost*tier.multiplier+6400) or not integer(c.stolen,cost) then return end
         local restored={tier=c.tier,cost=cost,endsAt=c.endsAt,pot=c.pot,stolen=c.stolen,helpers={},thieves={},participants=0}
         for _,key in {"helpers","thieves"} do

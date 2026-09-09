@@ -27,7 +27,7 @@ return function(Model,Config)
         -- Stable building output only: no golden/friend boosts or recursive job rewards.
         production*=Model.productionFactor(s)/(Model.collectionBonus(s)*(1+Model.empireBonus(s)))
         local base=math.max(job.cookies,production*job.energy*Model.Balance.JobProductionSecondsPerEnergy)
-        return math.floor(base*Model.collectionBonus(s)*(1+Model.empireBonus(s))^2*Model.passFactor(s,"JobReward")*Model.passFactor(s,"CookieGain"))
+        return math.floor(base*Model.collectionBonus(s)*(1+Model.empireBonus(s))^2*Model.passFactor(s,"JobReward")*Model.passFactor(s,"CookieGain")*Model.heavenlyFactor(s,"jobs"))
     end
     function Model.deliveryAmount(s,reward)
         -- Stable progression only: temporary golden/friend bonuses cannot inflate purchases.
@@ -36,7 +36,7 @@ return function(Model,Config)
         rate*=Model.productionFactor(s)*Model.passFactor(s,"CookieGain")
         local property=0
         for _,p in Model.Properties do property+=p.income*(s.economy.properties[p.id] or 0) end
-        rate+=property*Model.collectionBonus(s)*(1+Model.empireBonus(s))^2*Model.passFactor(s,"PropertyIncome")*Model.passFactor(s,"CookieGain")*Model.milkMultiplier(s)
+        rate+=property*Model.collectionBonus(s)*(1+Model.empireBonus(s))^2*Model.passFactor(s,"PropertyIncome")*Model.passFactor(s,"CookieGain")*Model.milkMultiplier(s)*Model.heavenlyFactor(s,"property")
         return math.floor(math.max(reward.Min,math.max(rate,Model.baseClickPower(s))*reward.Seconds))
     end
     function Model.productReward(s,product,roll,now)

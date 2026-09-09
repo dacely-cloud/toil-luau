@@ -59,7 +59,7 @@ return function(Model)
             if kind=="start" and validFund and type(charityPending.tier)=="number" and charityPending.tier%1==0 and Model.Fundraisers[charityPending.tier] then
                 clean.tier=charityPending.tier
                 local baseCost=Model.Fundraisers[clean.tier].cost
-                clean.cost=math.max(baseCost,math.floor(number(charityPending.cost,1e12)))
+                clean.cost=math.max(baseCost,math.floor(number(charityPending.cost,Model.Balance.MaxFundraiserInvestment)))
                 clean.startedAt=number(charityPending.startedAt,1e12);clean.insurance=number(charityPending.insurance,.75)
                 e.charityPending=clean
             elseif kind=="claim" and validFund and e.charityRef and e.charityRef.sequence==fund then e.charityPending=clean
@@ -80,7 +80,8 @@ return function(Model)
         if type(pending)=="table" and pending.empireId==e.empireId and e.empireId and pending.sequence==e.empireSequence and e.empireSequence>0 and (pending.amount==10 or pending.amount==25 or pending.amount==50) then
             e.empireDonation={empireId=e.empireId,sequence=e.empireSequence,amount=pending.amount}
         end
-        for _,key in {"xp","jar"} do e[key]=number(saved[key],1e15) end
+        e.xp=number(saved.xp,1e15)
+        e.jar=number(saved.jar,Model.Balance.MaxJarCookies)
         e.tapXpProgress=math.floor(number(saved.tapXpProgress,9))
         e.energy=number(saved.energy,110);e.stamina=number(saved.stamina,100)
         for _,item in Model.Items do
@@ -123,12 +124,12 @@ return function(Model)
     function Model.propertyIncome(s)
         local income=0
         for _,p in Model.Properties do income+=p.income*(s.economy.properties[p.id] or 0) end
-        return income*Model.collectionBonus(s)*(1+Model.empireBonus(s))^2*Model.friendMultiplier(s)*Model.passFactor(s,"PropertyIncome")*Model.passFactor(s,"CookieGain")*Model.milkMultiplier(s)
+        return income*Model.collectionBonus(s)*(1+Model.empireBonus(s))^2*Model.friendMultiplier(s)*Model.passFactor(s,"PropertyIncome")*Model.passFactor(s,"CookieGain")*Model.milkMultiplier(s)*Model.heavenlyFactor(s,"property")
     end
     function Model.economyTick(s,dt)
         local e=s.economy
-        e.energy=math.min(Model.maxEnergy(s),e.energy+dt/Model.Balance.EnergySeconds*Model.passFactor(s,"EnergyRegen"))
-        e.stamina=math.min(100,e.stamina+dt/Model.Balance.StaminaSeconds*Model.passFactor(s,"StaminaRegen"))
+        e.energy=math.min(Model.maxEnergy(s),e.energy+dt/Model.Balance.EnergySeconds*Model.passFactor(s,"EnergyRegen")*Model.heavenlyFactor(s,"energy"))
+        e.stamina=math.min(100,e.stamina+dt/Model.Balance.StaminaSeconds*Model.passFactor(s,"StaminaRegen")*Model.heavenlyFactor(s,"stamina"))
         Model.award(s,Model.propertyIncome(s)*dt)
     end
     function Model.economyAction(s,action,arg,roll)
@@ -169,9 +170,9 @@ return function(Model)
             s.cookies-=price;e.properties[arg]=(e.properties[arg] or 0)+1
             return true,"Your new "..p.name.." is earning cookies!"
         elseif action=="deposit" or action=="withdraw" then
-            if type(arg)~="number" or arg~=arg or arg%1~=0 or arg<=0 or arg>1e12 then return false,"Choose a valid cookie amount." end
+            if type(arg)~="number" or arg~=arg or arg%1~=0 or arg<=0 or arg>Model.Balance.MaxJarCookies then return false,"Choose a valid cookie amount." end
             if action=="deposit" then
-                if s.cookies<arg or e.jar+arg>1e15 then return false,"Not enough cookies, or the jar is full." end
+                if s.cookies<arg or e.jar+arg>Model.Balance.MaxJarCookies then return false,"Not enough cookies, or the jar is full." end
                 s.cookies-=arg;e.jar+=arg-Model.depositFee(s,arg)
             else
                 if e.jar<arg then return false,"Your jar does not have that many cookies." end

@@ -110,10 +110,10 @@ end
 function Model.baseClickPower(state)
 	local value = 1
 	for _, u in clickUpgrades do if state.upgrades[u.id] then value *= 2 end end
-	return value * (state.heavenly and state.heavenly.tapping and 1.1 or 1) * (state.spirit=="clicking" and 1.1 or 1)*(1+Model.empireBonus(state))*Model.passFactor(state,"CookieGain")
+	return value * Model.heavenlyFactor(state,"tapping") * (state.spirit=="clicking" and 1.1 or 1)*(1+Model.empireBonus(state))*Model.passFactor(state,"CookieGain")
 end
 function Model.clickPower(state,cps)
-    local tapping=(state.heavenly and state.heavenly.tapping and 1.1 or 1)*(state.spirit=="clicking" and 1.1 or 1)
+    local tapping=Model.heavenlyFactor(state,"tapping")*(state.spirit=="clicking" and 1.1 or 1)
     local share=Model.Balance.ClickProductionShare
     for _,u in clickUpgrades do if state.upgrades[u.id] then share+=Model.Balance.ClickUpgradeShare end end
     local production=cps or Model.cps(state)

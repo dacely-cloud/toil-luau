@@ -6,14 +6,20 @@ return function(Model)
 		s.pastEarned=0;s.prestige=0;s.chips=0;s.heavenly={};s.lumps=0;s.lumpTime=0
 		s.levels=table.create(#Model.Buildings,0);s.buddyBank=0;s.buddies=false
         s.wrinklers={};s.wrinklerSequence=0;s.wrinklerTime=0
-		s.gardenReady=0;s.gardenBoostUntil=0;s.stocks={0,0,0};s.spirit="none";s.spiritChanged=-60
+		s.gardenReady=0;s.gardenBoostUntil=0;s.stocks={0,0,0};s.stockCosts={0,0,0};s.spirit="none";s.spiritChanged=-60
 		s.magic=0;s.season="none";s.seasonCookies=0;s.permanentUpgrade=""
 	end
 	function Model.restoreAdvanced(s,data)
 		for _,key in {"pastEarned","prestige","chips","lumps","lumpTime","buddyBank","magic","seasonCookies","gardenReady","gardenBoostUntil","spiritChanged","frenzyUntil"} do if finite(data[key]) then s[key]=data[key] end end
 		s.prestige=int(s.prestige);s.chips=math.min(int(s.chips),s.prestige);s.lumps=int(s.lumps);s.magic=math.min(100,s.magic)
 		for i=1,#Model.Buildings do s.levels[i]=math.min(100,int(type(data.levels)=="table" and data.levels[i])) end
-		for i=1,3 do s.stocks[i]=math.min(10000,int(type(data.stocks)=="table" and data.stocks[i])) end
+		for i=1,3 do
+            s.stocks[i]=math.min(10000,int(type(data.stocks)=="table" and data.stocks[i]))
+            local cost=type(data.stockCosts)=="table" and data.stockCosts[i]
+            -- Older saves have no cost basis. Start at today's value rather than
+            -- treating their entire inventory as free, newly baked cookies.
+            s.stockCosts[i]=s.stocks[i]>0 and (finite(cost) and cost or s.stocks[i]*Model.stockPrice(s,i)) or 0
+        end
 		for _,key in {"baking","tapping","slot"} do if type(data.heavenly)=="table" and data.heavenly[key]==true then s.heavenly[key]=true end end
 		if data.spirit=="baking" or data.spirit=="clicking" or data.spirit=="luck" then s.spirit=data.spirit end
 		if data.season=="winter" or data.season=="spring" then s.season=data.season end
@@ -64,10 +70,10 @@ return function(Model)
         return earned
     end
 	function Model.productionFactor(s)
-		return (1+(s.prestige or 0)*.01)*(s.heavenly and s.heavenly.baking and 1.1 or 1)*(s.spirit=="baking" and 1.1 or 1)*(1+Model.empireBonus(s))*Model.milkMultiplier(s)
+		return (1+(s.prestige or 0)*Model.Balance.StarProductionBonus)*(s.heavenly and s.heavenly.baking and 1.1 or 1)*(s.spirit=="baking" and 1.1 or 1)*(1+Model.empireBonus(s))*Model.milkMultiplier(s)
 	end
 	function Model.ascensionGain(s)
-		return math.max(0,math.floor(((s.pastEarned+s.earned)/1e12)^(1/3))-s.prestige)
+		return math.max(0,math.floor(((s.pastEarned+s.earned)/Model.Balance.RebirthCookies)^(1/3))-s.prestige)
 	end
 	function Model.stockPrice(s,index)
 		return math.floor(100*(index+1)*(1+.25*math.sin(math.floor(s.played/30)*.7+index)))
@@ -75,8 +81,8 @@ return function(Model)
 	function Model.advancedTick(s,dt,base)
 		s.lumpTime+=dt
 		if s.earned>=1e6 then
-			local grown=math.floor(s.lumpTime/(20*3600))
-			s.lumps+=grown;s.lumpTime-=grown*20*3600
+			local grown=math.floor(s.lumpTime/Model.Balance.SugarLumpSeconds)
+			s.lumps+=grown;s.lumpTime-=grown*Model.Balance.SugarLumpSeconds
 		else s.lumpTime=0 end
 		if s.buildings[8]>0 then s.magic=math.min(100,s.magic+dt) end
 		local gardenSeconds=math.clamp(s.gardenBoostUntil-(s.played-dt),0,dt)
@@ -87,7 +93,7 @@ return function(Model)
 	function Model.advancedAction(s,action,arg)
 		if action=="ascend" then
 			local gain=Model.ascensionGain(s)
-			if gain<1 then return false,"Bake a trillion cookies to start your next bakery." end
+			if gain<1 then return false,"Reach the next star goal before rebirthing." end
 			local fresh=Model.new()
 			fresh.pastEarned=s.pastEarned+s.earned;fresh.prestige=s.prestige+gain;fresh.chips=s.chips+gain
 			for _,key in {"heavenly","lumps","lumpTime","levels","permanentUpgrade","economy","customName","bakery","soundEnabled","soundVolume","reducedMotion","achievements","wrinklerSequence","goldenId","friendCount","passes","purchaseReceipts","shieldUntil"} do fresh[key]=s[key] end
@@ -134,14 +140,26 @@ return function(Model)
 			if s.gardenReady<=0 or s.played<s.gardenReady then return false,"Your garden is still growing." end
 			s.gardenReady=0;s.gardenBoostUntil=s.played+600;return true,"Harvest time! Bake 5% more cookies for 10 minutes."
 		elseif action=="stockBuy" or action=="stockSell" then
-			if s.buildings[6]<1 or type(arg)~="number" or arg%1~=0 or arg<1 or arg>3 then return false,"Buy a bank to open the ingredient market." end
-			local price=Model.stockPrice(s,arg)
+            local index,quantity=arg,1
+            if type(arg)=="table" then index=arg.index;quantity=arg.quantity end
+            if not finite(index) or index%1~=0 or index<1 or index>3 or s.buildings[6]<1 then return false,"Buy a bank to open the ingredient market." end
+            if not finite(quantity) or quantity%1~=0 or quantity<1 or quantity>1000 then return false,"Choose between 1 and 1,000 ingredients." end
+			local price=Model.stockPrice(s,index)
 			if action=="stockBuy" then
-				if s.cookies<price or s.stocks[arg]>=10000 then return false,"Not enough cookies, or your pantry is full." end
-				s.cookies-=price;s.stocks[arg]+=1;return true,"Ingredient bought. Prices change every 30 seconds."
+                local total=price*quantity
+				if s.cookies<total or s.stocks[index]+quantity>10000 then return false,"Not enough cookies or pantry space for that many." end
+				s.cookies-=total;s.stocks[index]+=quantity;s.stockCosts[index]+=total;return true,"Bought "..quantity.." ingredients for "..total.." cookies."
 			end
-			if s.stocks[arg]<1 then return false,"You do not own this ingredient yet." end
-			s.stocks[arg]-=1;Model.award(s,math.floor(price*.9));return true,"Ingredient sold for "..math.floor(price*.9).." cookies."
+			if s.stocks[index]<quantity then return false,"You do not own that many ingredients yet." end
+            local total=math.floor(price*.9)*quantity
+            local basis=s.stockCosts[index]*quantity/s.stocks[index]
+            local profit=math.max(0,total-basis)
+            s.stockCosts[index]=math.max(0,s.stockCosts[index]-basis)
+			s.stocks[index]-=quantity
+            if s.stocks[index]==0 then s.stockCosts[index]=0 end
+            s.cookies+=total-profit
+            Model.award(s,profit)
+            return true,"Sold "..quantity.." ingredients for "..total.." cookies."
 		elseif action=="spirit" then
 			if s.buildings[7]<1 or (arg~="baking" and arg~="clicking" and arg~="luck") then return false,"Buy a temple to choose a helper." end
 			if s.played-s.spiritChanged<60 then return false,"Wait one minute before changing helpers." end

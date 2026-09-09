@@ -1,5 +1,6 @@
 -- Cookie Clicker economy. Pure Luau: no services, rendering or wall clock.
 local Model = {}
+Model.Balance=if script then require(script.Parent.BalanceConfig) else require("./BalanceConfig")
 Model.Buildings = {
 	{ name = "Cursor", price = 15, cps = 0.1, icon = "☝", color = "#cad6e2" },
 	{ name = "Grandma", price = 100, cps = 1, icon = "♟", color = "#d5aebc" },
@@ -22,6 +23,10 @@ Model.Buildings = {
 	{ name = "Cortex baker", price = 1.9e24, cps = 64e12, icon = "♧", color = "#d2a0ad" },
 	{ name = "You", price = 540e24, cps = 510e12, icon = "✧", color = "#d0bec8" },
 }
+-- Keep the opening bakery intact, but avoid multi-year late-game payback.
+for _,building in Model.Buildings do
+    building.price=math.min(building.price,building.cps*Model.Balance.MaxBuildingBasePayback)
+end
 Model.Upgrades = {
 	{ id = "fingers", name = "Reinforced index finger", description = "The mouse and cursors are twice as efficient.", price = 100, building = 1, required = 1, click = true },
 	{ id = "cream", name = "Carpal tunnel prevention cream", description = "The mouse and cursors are twice as efficient.", price = 500, building = 1, required = 1, click = true },
@@ -40,9 +45,20 @@ for i, building in Model.Buildings do
 		local exists=false
 		for _,u in Model.Upgrades do if u.building==i and u.required==required then exists=true;break end end
 		if not exists then
-			Model.Upgrades[#Model.Upgrades+1]={id="building_"..i.."_"..required,name="Better "..building.name.." "..tier,description="Makes twice as many cookies.",price=building.price*10*5^(tier-1),building=i,required=required}
+            Model.Upgrades[#Model.Upgrades+1]={id="building_"..i.."_"..required,name="Better "..building.name.." "..tier,description="Makes twice as many cookies.",price=building.price*10*5^(tier-1),building=i,required=required,click=i==1}
 		end
 	end
+end
+-- Definitions are static. Production should visit only this building's upgrades,
+-- not rescan every upgrade for every building on each click and server tick.
+local upgradesByBuilding={}
+local upgradesById={}
+local clickUpgrades={}
+for i=1,#Model.Buildings do upgradesByBuilding[i]={} end
+for _,upgrade in Model.Upgrades do
+    table.insert(upgradesByBuilding[upgrade.building],upgrade)
+    upgradesById[upgrade.id]=upgrade
+    if upgrade.click then table.insert(clickUpgrades,upgrade) end
 end
 local achievements = {
 	{ "Wake and bake", "Bake 1 cookie.", "earned", 1 },
@@ -64,8 +80,8 @@ function Model.new()
 end
 function Model.multiplier(state, building)
 	local value = 1
-	for _, upgrade in Model.Upgrades do
-		if upgrade.building == building and state.upgrades[upgrade.id] then value *= 2 end
+	for _, upgrade in upgradesByBuilding[building] or {} do
+		if state.upgrades[upgrade.id] then value *= 2 end
 	end
 	return value * (1+((state.levels and state.levels[building]) or 0)*.01)
 end
@@ -93,12 +109,14 @@ function Model.setVolume(state,percent)
 end
 function Model.baseClickPower(state)
 	local value = 1
-	for _, u in Model.Upgrades do if u.click and state.upgrades[u.id] then value *= 2 end end
+	for _, u in clickUpgrades do if state.upgrades[u.id] then value *= 2 end end
 	return value * (state.heavenly and state.heavenly.tapping and 1.1 or 1) * (state.spirit=="clicking" and 1.1 or 1)*(1+Model.empireBonus(state))*Model.passFactor(state,"CookieGain")
 end
 function Model.clickPower(state,cps)
     local tapping=(state.heavenly and state.heavenly.tapping and 1.1 or 1)*(state.spirit=="clicking" and 1.1 or 1)
-    return Model.baseClickPower(state)+(cps or Model.cps(state))*.05*tapping
+    local share=Model.Balance.ClickProductionShare
+    for _,u in clickUpgrades do if state.upgrades[u.id] then share+=Model.Balance.ClickUpgradeShare end end
+    return Model.baseClickPower(state)+(cps or Model.cps(state))*share*tapping
 end
 function Model.checkAchievements(state)
 	for _,a in achievements do
@@ -176,13 +194,12 @@ function Model.trade(state, index, quantity, sell)
 	return traded > 0,xp
 end
 function Model.buyUpgrade(state, id)
-	for _, u in Model.Upgrades do
-		if u.id == id and not state.upgrades[id] and state.buildings[u.building] >= u.required and state.cookies >= u.price then
+    local u=upgradesById[id]
+		if u and not state.upgrades[id] and state.buildings[u.building] >= u.required and state.cookies >= u.price then
 			state.cookies -= u.price
 			state.upgrades[id] = true
 			return true,Model.upgradePurchaseXp(state,id)
 		end
-	end
 	return false
 end
 function Model.spawnGolden(state)
@@ -224,9 +241,6 @@ function Model.snapshot(state,forClient)
 		local result={};for k,v in value do if not (forClient and value==state and k=="purchaseReceipts") then result[k]=copy(v) end end;return result
 	end
 	local result = copy(state)
-	result.buildings = table.clone(state.buildings)
-	result.upgrades = table.clone(state.upgrades)
-	result.achievements = table.clone(state.achievements)
 	result.cps = Model.cps(state)
 	result.clickPower = Model.clickPower(state,result.cps)
 	return result

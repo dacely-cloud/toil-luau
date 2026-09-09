@@ -377,7 +377,15 @@ return function()
                 box("fill",0,0,meterWidth*math.clamp(state.economy[resource]/maximum,0,1),3,resource=="energy" and "#6abed5" or "#b18bcc"),
             })
         end
-        resourceStatus[#resourceStatus+1]=label("workStatus","Lv "..Model.jobLevel(state),width-64,-27,64,22,14,"#f5d58f",{["text-align"]="right"})
+        local level=Model.jobLevel(state)
+        local levelStart=Model.jobLevelXp(level)
+        local levelSpan=Model.jobLevelXp(level+1)-levelStart
+        local earned=math.max(0,state.economy.xp-levelStart)
+        local xpWidth=140
+        resourceStatus[#resourceStatus+1]=label("workStatus","Lv "..level.." · "..number(earned).."/"..number(levelSpan).." XP",width-xpWidth,-27,xpWidth,20,12,"#f5d58f",{["text-align"]="right"})
+        resourceStatus[#resourceStatus+1]=box("xpMeter",width-xpWidth,-6,xpWidth,4,"#393331",{
+            box("xpFill",0,0,xpWidth*math.clamp(earned/levelSpan,0,1),4,"#f5d58f"),
+        },{["border-radius"]="2px"})
         return box("resourceStatus",48,31,width,23,nil,resourceStatus)
     end
 	local function Tooltip(props)
@@ -455,6 +463,7 @@ return function()
 		local confirmFresh=React.useState(false)
 		local workPage=React.useState("Jobs")
         local adventurePage=React.useState("Home")
+        local stockQuantity=React.useState(1)
         local jarAmount=React.useState(100)
         local empireNameDraft=React.useRef("")
         local empireBadge=React.useState("cookie")
@@ -507,7 +516,7 @@ return function()
         })})
         left[#left+1]=box("playerProfile",-bakeryOffset,0,profileWidth,116,"rgba(0,0,0,0.35)",{
             avatar,
-            label("bakeryName",state.bakery,48,4,profileWidth-124,24,18,"#f4e9d9"),
+            label("bakeryName",state.bakery,48,4,math.max(40,profileWidth-212),24,18,"#f4e9d9"),
             e(Counters,{key="counters",width=profileWidth}),
             e(ResourceStatus,{key="resourceStatus",width=profileWidth-60}),
         },{["z-index"]="5"})
@@ -891,14 +900,25 @@ return function()
                     {"Helpers","CookieHelper"},{"Magic","CookieWizardTower"},{"Seasons","CookieFestival"},
                 }
                 if adventurePage[1]=="Home" then
-                    local columns=w>=480 and 3 or 2
-                    local cardW=(w-(columns-1)*12)/columns
+                    local hints={Stars="Rebirth for permanent rewards",Boosts="Spend chips on lasting boosts",Levels="Make your buildings stronger",Buddies="Save cookies and collect extra",Garden="Grow a temporary baking boost",Market="Trade ingredients for cookies",Helpers="Choose your baking bonus",Magic="Cast spells for cookie rewards",Seasons="Catch golden cookies for prizes"}
+                    local status={
+                        Stars=Model.ascensionGain(state)>0 and "Stars ready to collect!" or "Bake toward your next star",
+                        Boosts=number(state.chips).." star chips",Levels=number(state.lumps).." sugar lumps",
+                        Buddies=state.buildings[2]>=10 and "Open" or "Needs 10 grandmas",
+                        Garden=state.buildings[3]>0 and (state.gardenReady>0 and state.gardenReady<=state.played and "Ready to harvest!" or "Open") or "Needs a Farm",
+                        Market=state.buildings[6]>0 and "Open" or "Needs a Bank",
+                        Helpers=state.buildings[7]>0 and "Open" or "Needs a Temple",
+                        Magic=state.buildings[8]>0 and math.floor(state.magic).." magic ready" or "Needs a Wizard Tower",
+                        Seasons=state.season~="none" and "Hunt in progress" or "Start a cookie hunt",
+                    }
                     for i,activity in activities do
-                        local x=24+((i-1)%columns)*(cardW+12)
-                        local row=math.floor((i-1)/columns)
-                        pane[#pane+1]=button("adventure"..activity[1],"",x,y+row*120,cardW,108,function()adventurePage[2](activity[1])end,{background="#342d25",["border-radius"]="10px"},{
-                            picture("activityPicture",activity[2],(cardW-60)/2,8,60,60),
-                            label("activityName",activity[1],4,74,cardW-8,28,21,"#fff4df",{["text-align"]="center"}),
+                        local name=activity[1]
+                        local locked=status[name]:find("Needs",1,true)~=nil
+                        pane[#pane+1]=button("adventure"..name,"",24,y+(i-1)*150,w,138,function()adventurePage[2](name)end,{background=locked and "#373737" or "#342d25",["border-radius"]="12px"},{
+                            picture("activityPicture",activity[2],12,14,68,68,{opacity=locked and "0.45" or "1"}),
+                            label("activityName",name,94,10,w-108,34,24,"#fff4df"),
+                            label("activityHint",hints[name],94,48,w-108,58,17,"#e1d5c2"),
+                            label("activityStatus",status[name],12,106,w-24,24,16,locked and "#bcbcbc" or "#b6e6bf"),
                         })
                     end
                 else
@@ -908,37 +928,67 @@ return function()
                     pane[#pane+1]=picture("activityPicture",imageName,116,y,48,48)
                     pane[#pane+1]=label("activityName",adventurePage[1],176,y+6,w-152,36,24,"#ffe3a3")
                     y+=64
-                    if adventurePage[1]=="Stars" then
+                    local requirements={Garden={3,1,"Farm","Farm"},Market={6,1,"Bank","CookieBank"},Helpers={7,1,"Temple","CookieTemple"},Magic={8,1,"Wizard Tower","CookieWizardTower"},Buddies={2,10,"10 grandmas","Grandma"}}
+                    local requirement=requirements[adventurePage[1]]
+                    if requirement and state.buildings[requirement[1]]<requirement[2] then
+                        pane[#pane+1]=box("adventureLocked",24,y,w,298,"#393939",{
+                            picture("unlockBuilding",requirement[4],(w-80)/2,16,80,80,{opacity="0.45"}),
+                            label("unlockTitle",adventurePage[1].." is locked",12,110,w-24,36,23,"#eeeeee",{["text-align"]="center"}),
+                            label("unlockRequirement","Own "..requirement[3].." to get started.",16,154,w-32,56,20,"#d0d0d0",{["text-align"]="center"}),
+                            button("unlockStore","Go to Store",16,236,w-32,48,function()setPage("Shop");setTab("Buildings")end,{background="#685338",["font-size"]="21px"}),
+                        },{["border-radius"]="12px"});y+=310
+                    elseif adventurePage[1]=="Stars" then
                     local gain=Model.ascensionGain(state)
-                    pane[#pane+1]=box("starReward",24,y,w,108,"#342d25",{
-                        picture("starPicture","Stars",12,12,72,72),
-                        label("starGain","+"..number(gain).." star chips",96,12,w-108,38,26,"#ffe3a3"),
-                        label("starBonus","Each star adds 1% baking",96,54,w-108,40,18,"#b6e6bf"),
-                    },{["border-radius"]="10px"});y+=120
-                    text("prestigeInfo",number(state.prestige).." stars earned • "..number(state.chips).." chips to spend",44)
-                    if gain<1 then text("starUnlock","Keep baking to earn your next star chip",48) end
-                    text("freshWarning","Start over: cookies, buildings, regular boosts and Adventure activities.",70)
-                    text("freshKeep","Keep: stars, permanent boosts, lumps, building levels, achievements and Work progress.",84)
+                    pane[#pane+1]=box("starHowTo",24,y,w,160,"#403447",{
+                        label("starHowToTitle","How to get star chips",12,10,w-24,32,22,"#ffe3a3",{["text-align"]="center"}),
+                        label("starHowToSteps",state.prestige==0 and "Bake 1 trillion cookies, then rebirth to get your first star chip." or "Bake to the next star goal, then rebirth to collect your star chips.",16,50,w-32,64,19,"#fff4df",{["text-align"]="center"}),
+                        label("starChipRule","1 star earned = 1 chip to spend",12,122,w-24,28,17,"#b6e6bf",{["text-align"]="center"}),
+                    },{["border-radius"]="10px"});y+=172
+                    pane[#pane+1]=box("starReward",24,y,w,230,"#34283f",{
+                        picture("starPicture","Stars",(w-100)/2,12,100,100),
+                        label("starGain",gain>0 and "+"..number(gain).." stars ready!" or "Your next big step",12,122,w-24,38,27,"#ffe3a3",{["text-align"]="center"}),
+                        label("starBonus","Each star = +1% building baking",12,166,w-24,48,18,"#b6e6bf",{["text-align"]="center"}),
+                    },{["border-radius"]="12px",border="1px solid #967446"});y+=242
+                    local total=(state.pastEarned or 0)+(state.earned or 0)
+                    local nextStar=state.prestige+gain+1
+                    local goal=nextStar^3*1e12
+                    pane[#pane+1]=box("starProgress",24,y,w,132,"#302a35",{
+                        label("starUnlock","Bake "..number(math.max(0,goal-total)).." more cookies",12,8,w-24,54,20,"#fff1cd",{["text-align"]="center"}),
+                        box("starProgressTrack",16,72,w-32,10,"#17141e",{box("starProgressFill",0,0,(w-32)*math.clamp(total/goal,0,1),10,"#eac36d")},{["border-radius"]="5px"}),
+                        label("starProgressHint","Next star: "..number(goal).." baked in total",12,94,w-24,28,15,"#cbbbd7",{["text-align"]="center"}),
+                    },{["border-radius"]="10px"});y+=144
+                    text("freshWarning","Rebirth resets cookies, buildings, regular boosts and Adventure activities.",76)
                     if confirmFresh[1] then
                         text("freshDetails","Your ingredients, garden, helpers, magic and wrinklers also reset.",70)
                     end
-                    pane[#pane+1]=button("ascendBakery",gain<1 and "No star chips ready yet" or confirmFresh[1] and "Confirm fresh start" or "Start a new bakery",24,y,w,48,function()
+                    pane[#pane+1]=button("ascendBakery",gain<1 and "Keep baking to rebirth" or confirmFresh[1] and "Confirm rebirth" or "Rebirth · +"..number(gain).." stars",24,y,w,52,function()
                         if gain<1 then return end
                         if confirmFresh[1] then send("advanced","ascend");confirmFresh[2](false) else confirmFresh[2](true) end
-                    end,{background=gain>=1 and "#544479" or "#403a43"});y+=56
+                    end,{background=gain>=1 and "#65508c" or "#403a43",["font-size"]="22px"});y+=64
 				if confirmFresh[1] then pane[#pane+1]=button("cancelAscend","Keep my bakery",24,y,w,48,function()confirmFresh[2](false)end);y+=56 end
+                    pane[#pane+1]=box("starKeeps",24,y,w,158,"#293c34",{
+                        label("starKeepsTitle","Your hard work stays",14,10,w-28,34,22,"#b6e6bf",{["text-align"]="center"}),
+                        label("freshKeep","Keep XP, Work progress, achievements, stars, permanent boosts, sugar lumps and building levels.",16,52,w-32,92,18,"#e2eee6",{["text-align"]="center"}),
+                    },{["border-radius"]="10px"});y+=170
+                    pane[#pane+1]=box("starShop",24,y,w,232,"#342d25",{
+                        picture("starShopPicture","CookieBoost",(w-64)/2,12,64,64),
+                        label("prestigeInfo",number(state.prestige).." permanent stars",12,86,w-24,30,22,"#ffe3a3",{["text-align"]="center"}),
+                        label("chipCount",number(state.chips).." star chips to spend",12,124,w-24,30,20,"#dbc5ef",{["text-align"]="center"}),
+                        button("openStarBoosts","Permanent upgrades",12,174,w-24,46,function()confirmFresh[2](false);adventurePage[2]("Boosts")end,{background="#544479",["font-size"]="20px"}),
+                    },{["border-radius"]="10px"});y+=244
 
                     elseif adventurePage[1]=="Boosts" then
 				text("chipCount","Star chips: "..number(state.chips),32)
+                    pane[#pane+1]=button("earnStarChips","How do I get chips?",24,y,w,44,function()adventurePage[2]("Stars")end,{["font-size"]="18px"});y+=56
                     for _,boost in {{"baking","CookieBoost","+10% baking",1,"heavenlyBaking"},{"tapping","CursorCookie","+10% per tap",1,"heavenlyTapping"},{"slot","Stars","Keep one boost",3,"heavenlySlot"}} do
                         local owned=state.heavenly[boost[1]]==true
                         local ready=not owned and state.chips>=boost[4]
-                        pane[#pane+1]=box("heavenlyCard"..boost[1],24,y,w,136,"#342d25",{
-                            picture("boostPicture",boost[2],12,8,60,60),
-                            label("boostBenefit",boost[3],84,10,w-96,32,22,"#fff4df"),
-                            label("boostLasts","Stays after a fresh start",84,44,w-96,32,17,"#b6e6bf"),
-                            button(boost[5],owned and "Owned!" or (ready and "Buy • " or "Need ")..boost[4]..(boost[4]==1 and " star chip" or " star chips"),12,80,w-24,44,function()if ready then send("advanced","heavenly",boost[1]) end end,{background=owned and "#403a43" or ready and "#544479" or "#403a43",["font-size"]="21px"}),
-                        },{["border-radius"]="10px"});y+=148
+                        pane[#pane+1]=box("heavenlyCard"..boost[1],24,y,w,220,"#342d25",{
+                            picture("boostPicture",boost[2],(w-64)/2,12,64,64),
+                            label("boostBenefit",boost[3],12,84,w-24,32,23,"#fff4df",{["text-align"]="center"}),
+                            label("boostLasts","Yours forever, even after rebirth",12,122,w-24,36,17,"#b6e6bf",{["text-align"]="center"}),
+                            button(boost[5],owned and "Owned!" or (ready and "Buy • " or "Need ")..boost[4]..(boost[4]==1 and " star chip" or " star chips"),12,166,w-24,44,function()if ready then send("advanced","heavenly",boost[1]) end end,{background=owned and "#385847" or ready and "#544479" or "#403a43",["font-size"]="21px"}),
+                        },{["border-radius"]="10px"});y+=232
                     end
 				if state.heavenly.slot then
 					text("permanentChoice","Choose a boost to keep. Current: "..(state.permanentUpgrade~="" and (upgradeNames[state.permanentUpgrade] or state.permanentUpgrade) or "none"),60)
@@ -960,12 +1010,12 @@ return function()
                         local maxed=level>=100
                         local cost=level+1
                         local ready=not maxed and state.lumps>=cost
-                        pane[#pane+1]=box("levelCard"..i,24,y,w,144,"#342d25",{
+                        pane[#pane+1]=box("levelCard"..i,24,y,w,176,"#342d25",{
                             buildingPicture("levelPicture",i,12,12,60,60),
-                            label("levelName",b.name,84,10,w-96,30,22,"#fff4df"),
-                            label("levelBonus","Level "..level.." • +"..level.."% baking",84,44,w-96,34,18,"#b6e6bf"),
-                            button("level"..i,maxed and "Highest level!" or ready and "Level up • "..cost.." lumps" or "Need "..cost.." sugar lumps",12,90,w-24,44,function()if ready then send("advanced","level",i) end end,{background=ready and "#276849" or "#403a43",["font-size"]="20px"}),
-                        },{["border-radius"]="10px"});y+=156
+                            label("levelName",b.name,84,10,w-96,60,20,"#fff4df"),
+                            label("levelBonus","Level "..level.." • +"..level.."% baking",12,82,w-24,30,18,"#b6e6bf",{["text-align"]="center"}),
+                            button("level"..i,maxed and "Highest level!" or ready and "Level up • "..cost.." lumps" or "Need "..cost.." sugar lumps",12,120,w-24,44,function()if ready then send("advanced","level",i) end end,{background=ready and "#276849" or "#403a43",["font-size"]="20px"}),
+                        },{["border-radius"]="10px"});y+=188
                     end end
                     if not found then text("levelsEmpty","Buy a building in the store to level it up",60) end
 
@@ -995,40 +1045,62 @@ return function()
                     local ripe=planted and remaining==0
                     local canPlant=not planted and state.buildings[3]>0 and state.lumps>=1
                     local progress=planted and math.clamp(1-remaining/60,0,1) or 0
-                    pane[#pane+1]=box("gardenPlot",24,y,w,178,"#283b28",{
-                        picture("gardenPicture","CookieGarden",12,10,88,88,{opacity=planted and "1" or "0.55"}),
-                        label("gardenStatus",ripe and "Ready to pick!" or planted and "Growing..." or "Plant your garden",112,10,w-124,34,22,"#fff4df"),
-                        label("gardenTimer",planted and (ripe and "+5% baking for 10 min" or math.ceil(remaining).." seconds left") or "1 sugar lump • 1 minute",112,48,w-124,48,18,"#b6e6bf"),
-                        box("gardenTrack",12,104,w-24,8,"#43523a",{box("fill",0,0,(w-24)*progress,8,"#a5d987")}),
-                        button(ripe and "harvestGarden" or "plantGarden",ripe and "Harvest!" or planted and "Growing..." or canPlant and "Plant • 1 lump" or state.buildings[3]<1 and "Buy a farm first" or "Need 1 sugar lump",12,124,w-24,44,function()
+                    pane[#pane+1]=box("gardenPlot",24,y,w,282,"#283b28",{
+                        picture("gardenPicture","CookieGarden",(w-88)/2,12,88,88,{opacity=planted and "1" or "0.55"}),
+                        label("gardenStatus",ripe and "Ready to pick!" or planted and "Growing..." or "Plant your garden",12,112,w-24,34,24,"#fff4df",{["text-align"]="center"}),
+                        label("gardenTimer",planted and (ripe and "+5% baking for 10 min" or math.ceil(remaining).." seconds left") or "1 sugar lump • 1 minute",12,152,w-24,42,18,"#b6e6bf",{["text-align"]="center"}),
+                        box("gardenTrack",12,204,w-24,8,"#43523a",{box("fill",0,0,(w-24)*progress,8,"#a5d987")}),
+                        button(ripe and "harvestGarden" or "plantGarden",ripe and "Harvest!" or planted and "Growing..." or canPlant and "Plant • 1 lump" or state.buildings[3]<1 and "Buy a farm first" or "Need 1 sugar lump",12,226,w-24,44,function()
                             if ripe then send("advanced","harvest") elseif canPlant then send("advanced","plant") end
                         end,{background=(ripe or canPlant) and "#477d35" or "#4d5141",["font-size"]="21px"}),
-                    },{["border-radius"]="12px"});y+=190
+                    },{["border-radius"]="12px"});y+=294
                     local boost=math.max(0,state.gardenBoostUntil-state.played)
                     if boost>0 then text("gardenBoost","+5% baking • "..math.ceil(boost/60).." min left",36)
                     else text("gardenReward","Harvest for +5% baking for 10 minutes.",44) end
 
                     elseif adventurePage[1]=="Market" then
                     local unlocked=state.buildings[6]>0
+                    if not unlocked then
+                        pane[#pane+1]=box("marketLocked",24,y,w,310,"#393939",{
+                            picture("marketBank","CookieBank",(w-96)/2,24,96,96,{opacity="0.4"}),
+                            label("marketLockedTitle","Stock market locked",16,138,w-32,36,23,"#e2e2e2",{["text-align"]="center"}),
+                            label("marketLockedReason","You need a Bank to access this feature.",16,184,w-32,64,20,"#d0d0d0",{["text-align"]="center"}),
+                            label("marketLockedHint","Buy a Bank in the Store.",16,258,w-32,32,17,"#bcbcbc",{["text-align"]="center"}),
+                        },{border="1px solid #686868",["border-radius"]="12px"});y+=322
+                    else
                     text("marketInfo",unlocked and "Buy low. Sell when prices rise." or "Buy a bank to open the market",44)
                     text("marketTimer","New prices in "..math.ceil(30-state.played%30).."s",32)
+                    local quantity=stockQuantity[1]
+                    text("marketQuantity","How many?",28)
+                    local quantityWidth=(w-24)/5
+                    for slot,amount in {1,5,10,100,1000} do
+                        pane[#pane+1]=button("stockQuantity"..amount,tostring(amount),24+(slot-1)*(quantityWidth+6),y,quantityWidth,44,function()stockQuantity[2](amount)end,{background=quantity==amount and "#806333" or "#493b2e",["font-size"]="16px"})
+                    end;y+=56
                     for i,name in {"Flour","Sugar","Chocolate"} do
-                        local price=Model.stockPrice(state,i)
-                        local sellPrice=math.floor(price*.9)
+                        local unitPrice=Model.stockPrice(state,i)
+                        local price=unitPrice*quantity
+                        local sellPrice=math.floor(unitPrice*.9)*quantity
                         local owned=state.stocks[i]
-                        local canBuy=unlocked and state.cookies>=price and owned<10000
-                        local canSell=unlocked and owned>0
+                        local canBuy=unlocked and state.cookies>=price and owned+quantity<=10000
+                        local canSell=unlocked and owned>=quantity
                         local half=(w-32)/2
                         pane[#pane+1]=box("stockCard"..i,24,y,w,174,"#342d25",{
                             label("stockName",name,14,10,w-28,32,25,"#fff4df"),
                             label("stockOwned","In your pantry: "..owned,14,46,w-28,28,19,"#dbc5ef"),
                             label("stockBuyPrice",number(price).." cookies",12,82,half,28,20,"#ffe3a3",{["text-align"]="center"}),
                             label("stockSellPrice",number(sellPrice).." cookies",20+half,82,half,28,20,"#b6e6bf",{["text-align"]="center"}),
-                            button("stockBuy"..i,owned>=10000 and "Pantry full" or "Buy one",12,118,half,44,function()if canBuy then send("advanced","stockBuy",i) end end,{background=canBuy and "#276849" or "#403a43",["font-size"]="20px"}),
-                            button("stockSell"..i,"Sell one",20+half,118,half,44,function()if canSell then send("advanced","stockSell",i) end end,{background=canSell and "#544479" or "#403a43",["font-size"]="20px"}),
+                            button("stockBuy"..i,owned>=10000 and "Pantry full" or "Buy "..quantity,12,118,half,44,function()
+                                if not unlocked then notify("Buy a Bank in the Store to unlock the stock market.","info")
+                                elseif canBuy then send("advanced","stockBuy",{index=i,quantity=quantity}) end
+                            end,{background=canBuy and "#276849" or "#403a43",["font-size"]="18px"}),
+                            button("stockSell"..i,"Sell "..quantity,20+half,118,half,44,function()
+                                if not unlocked then notify("Buy a Bank in the Store to unlock the stock market.","info")
+                                elseif canSell then send("advanced","stockSell",{index=i,quantity=quantity}) end
+                            end,{background=canSell and "#544479" or "#403a43",["font-size"]="18px"}),
                         },{["border-radius"]="10px",["--zone-background"]="CookieMarket"});y+=186
                     end
                     text("marketFee","Selling pays 90% of the current price.",40)
+                    end
 
                     elseif adventurePage[1]=="Helpers" then
                     local unlocked=state.buildings[7]>0
@@ -1037,12 +1109,12 @@ return function()
                     for _,helper in {{"baking","Cookie","Baker","+10% baking","spiritBake"},{"clicking","CursorCookie","Tap helper","+10% per tap","spiritClick"},{"luck","GoldenCookie","Lucky helper","+20% lucky cookies","spiritLuck"}} do
                         local active=state.spirit==helper[1]
                         local ready=unlocked and remaining==0 and not active
-                        pane[#pane+1]=box("helperCard"..helper[1],24,y,w,146,"#342d25",{
-                            picture("helperPicture",helper[2],12,12,60,60),
-                            label("helperName",helper[3],84,12,w-96,30,22,"#fff4df"),
-                            label("helperBonus",helper[4],84,46,w-96,32,19,"#b6e6bf"),
-                            button(helper[5],active and "Helping you!" or not unlocked and "Need a temple" or remaining>0 and "Wait "..math.ceil(remaining).."s" or "Choose helper",12,90,w-24,44,function()if ready then send("advanced","spirit",helper[1]) end end,{background=active and "#276849" or ready and "#544479" or "#403a43",["font-size"]="21px"}),
-                        },{border=active and "2px solid #97ce8a" or "1px solid #827052",["border-radius"]="10px"});y+=158
+                        pane[#pane+1]=box("helperCard"..helper[1],24,y,w,222,"#342d25",{
+                            picture("helperPicture",helper[2],(w-64)/2,12,64,64),
+                            label("helperName",helper[3],12,86,w-24,30,24,"#fff4df",{["text-align"]="center"}),
+                            label("helperBonus",helper[4],12,124,w-24,30,20,"#b6e6bf",{["text-align"]="center"}),
+                            button(helper[5],active and "Helping you!" or not unlocked and "Need a temple" or remaining>0 and "Wait "..math.ceil(remaining).."s" or "Choose helper",12,166,w-24,44,function()if ready then send("advanced","spirit",helper[1]) end end,{background=active and "#276849" or ready and "#544479" or "#403a43",["font-size"]="21px"}),
+                        },{border=active and "2px solid #97ce8a" or "1px solid #827052",["border-radius"]="10px"});y+=234
                     end
 
                     elseif adventurePage[1]=="Magic" then
@@ -1057,12 +1129,12 @@ return function()
                     for _,spell in {{"lucky","GoldenCookie","Lucky cookie",40,"Catch it as it falls!","spellLucky"},{"cookies","Cookie","Cookie burst",60,"1 minute of baking instantly","spellCookies"}} do
                         local ready=unlocked and magic>=spell[4]
                         local title=not unlocked and "Need a wizard tower" or ready and "Cast • "..spell[4].." magic" or "Ready in "..math.ceil(spell[4]-magic).."s"
-                        pane[#pane+1]=box("spellCard"..spell[1],24,y,w,162,"#342d25",{
-                            picture("spellPicture",spell[2],12,12,64,64),
-                            label("spellName",spell[3],88,12,w-100,32,22,"#fff4df"),
-                            label("spellReward",spell[5],88,48,w-100,44,17,"#dbc5ef"),
-                            button(spell[6],title,12,104,w-24,46,function()if ready then send("advanced","spell",spell[1]) end end,{background=ready and "#544479" or "#403a43",["font-size"]="20px"}),
-                        },{["border-radius"]="10px"});y+=174
+                        pane[#pane+1]=box("spellCard"..spell[1],24,y,w,234,"#342d25",{
+                            picture("spellPicture",spell[2],(w-64)/2,12,64,64),
+                            label("spellName",spell[3],12,86,w-24,32,24,"#fff4df",{["text-align"]="center"}),
+                            label("spellReward",spell[5],12,126,w-24,44,18,"#dbc5ef",{["text-align"]="center"}),
+                            button(spell[6],title,12,176,w-24,46,function()if ready then send("advanced","spell",spell[1]) end end,{background=ready and "#544479" or "#403a43",["font-size"]="20px"}),
+                        },{["border-radius"]="10px"});y+=246
                     end
 
                     elseif adventurePage[1]=="Seasons" then
@@ -1251,7 +1323,7 @@ return function()
 		local storeVisible=not mobile or currentPage=="Shop"
 		local monetizationSignature=tostring(snapshot.paidRandomAllowed)..":"..tostring(snapshot.shieldUntil)
 		for _,key in Model.MonetizationConfig.PassOrder do monetizationSignature..=":"..tostring(snapshot.passes and snapshot.passes[key]) end
-		local parts = {tostring(math.floor(Model.jobLevel(snapshot)/5)), snapshot.bakery, snapshot.saveStatus or "", tostring(snapshot.cps), tostring(snapshot.clickPower), tostring(snapshot.soundEnabled), tostring(snapshot.soundVolume), tostring(snapshot.reducedMotion), tostring(snapshot.goldenId), tostring((snapshot.goldenUntil or 0)>snapshot.played), tostring(snapshot.ready), tostring(snapshot.earned < 50), tostring(snapshot.earned < 1000)}
+		local parts = {ImageConfig.bakeryBackground(Model.jobLevel(snapshot)) or "default", snapshot.bakery, snapshot.saveStatus or "", tostring(snapshot.cps), tostring(snapshot.clickPower), tostring(snapshot.soundEnabled), tostring(snapshot.soundVolume), tostring(snapshot.reducedMotion), tostring(snapshot.goldenId), tostring((snapshot.goldenUntil or 0)>snapshot.played), tostring(snapshot.ready), tostring(snapshot.earned < 50), tostring(snapshot.earned < 1000)}
 		for i, b in Model.Buildings do
 			parts[#parts+1] = tostring(snapshot.buildings[i])
 			if storeVisible then parts[#parts+1] = tostring(snapshot.earned >= b.price) end

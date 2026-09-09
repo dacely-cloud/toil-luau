@@ -100,14 +100,14 @@ for name,id in Images2Config.ZoneBackground do images["ZoneBackground/"..name]=i
 for name,id in CookieBackgrounds.Backgrounds do images["CookieBackgrounds/"..name]=id end
 for name,id in MenuButtonConfig.Buttons do images["MenuButtons/"..name]=id end
 
--- Add one named image per five-level milestone. Keep the latest unlocked image
+-- Add one named image per three-level milestone. Keep the latest unlocked image
 -- until the next milestone has artwork configured.
-ImageConfig.BakeryBackgrounds = { [5] = "BakeryLevel5" }
+ImageConfig.BakeryBackgrounds = { [3] = "BakeryLevel5" }
 for index,name in CookieBackgrounds.NAMES do
-    ImageConfig.BakeryBackgrounds[index*5]="CookieBackgrounds/"..name
+    ImageConfig.BakeryBackgrounds[index*3]="CookieBackgrounds/"..name
 end
 function ImageConfig.bakeryBackground(level: number): string?
-    local tier=math.floor(level/5)*5
+    local tier=level
     local selected: string?=nil
     local highest=0
     for required,name in ImageConfig.BakeryBackgrounds do

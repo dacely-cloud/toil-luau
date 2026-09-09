@@ -15,7 +15,12 @@ return function(Model,Config)
     function Model.maxEnergy(s)return math.floor(100*Model.passFactor(s,"MaxEnergy")+.5)end
     function Model.depositFee(s,amount)return math.ceil(amount*Config.DepositFee*Model.passFactor(s,"DepositFee"))end
     function Model.jobReward(s,job)
-        return math.floor(job.cookies*Model.collectionBonus(s)*(1+Model.empireBonus(s))^2*Model.passFactor(s,"JobReward")*Model.passFactor(s,"CookieGain"))
+        local production=0
+        for i,b in Model.Buildings do production+=b.cps*s.buildings[i]*Model.multiplier(s,i) end
+        -- Stable building output only: no golden/friend boosts or recursive job rewards.
+        production*=Model.productionFactor(s)
+        local base=math.max(job.cookies,production*job.energy*Model.Balance.JobProductionSecondsPerEnergy)
+        return math.floor(base*Model.collectionBonus(s)*(1+Model.empireBonus(s))^2*Model.passFactor(s,"JobReward")*Model.passFactor(s,"CookieGain"))
     end
     function Model.deliveryAmount(s,reward)
         -- Stable progression only: temporary golden/friend bonuses cannot inflate purchases.

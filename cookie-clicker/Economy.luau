@@ -89,13 +89,15 @@ return function(Model)
         end
     end
     function Model.empireBonus(s) return ((s.economy and s.economy.empireLevel) or 0)*.01 end
-    function Model.jobLevel(s) return 1+math.floor(math.sqrt(s.economy.xp/100)) end
+    -- Keep earned XP; the gentler curve immediately benefits existing players.
+    function Model.jobLevelXp(level) return 40*(math.max(1,level)-1)^2 end
+    function Model.jobLevel(s) return 1+math.floor(math.sqrt(s.economy.xp/40)) end
     function Model.buildingPurchaseXp(s,index)
         local e=s.economy
         local high=e.buildingXpHigh[index] or 0
         local added=math.max(0,s.buildings[index]-high)
         e.buildingXpHigh[index]=math.max(high,s.buildings[index])
-        local reward=added*(1+math.floor((index-1)/5))
+        local reward=added*(2+math.floor((index-1)/4))
         e.xp=math.min(1e15,e.xp+reward)
         return reward
     end
@@ -103,8 +105,8 @@ return function(Model)
         local e=s.economy
         if e.upgradeXpClaimed[id] then return 0 end
         e.upgradeXpClaimed[id]=true
-        e.xp=math.min(1e15,e.xp+5)
-        return 5
+        e.xp=math.min(1e15,e.xp+10)
+        return 10
     end
     function Model.collectionBonus(s)
         local bonus=1
@@ -122,8 +124,8 @@ return function(Model)
     end
     function Model.economyTick(s,dt)
         local e=s.economy
-        e.energy=math.min(Model.maxEnergy(s),e.energy+dt/30*Model.passFactor(s,"EnergyRegen"))
-        e.stamina=math.min(100,e.stamina+dt/45*Model.passFactor(s,"StaminaRegen"))
+        e.energy=math.min(Model.maxEnergy(s),e.energy+dt/Model.Balance.EnergySeconds*Model.passFactor(s,"EnergyRegen"))
+        e.stamina=math.min(100,e.stamina+dt/Model.Balance.StaminaSeconds*Model.passFactor(s,"StaminaRegen"))
         Model.award(s,Model.propertyIncome(s)*dt)
     end
     function Model.economyAction(s,action,arg,roll)

@@ -10,6 +10,7 @@ fs.mkdirSync(path.join(stage, 'CookieClicker'), { recursive: true });
 fs.mkdirSync(path.join(stage, 'ServerScriptService'), { recursive: true });
 fs.copyFileSync(path.join(game,'EmpireRoster.luau'),path.join(stage,'CookieClicker','EmpireRoster.luau'));
 fs.copyFileSync(path.join(game,'PromoPopups.luau'),path.join(stage,'CookieClicker','PromoPopups.luau'));
+fs.copyFileSync(path.join(game,'BalanceConfig.luau'),path.join(stage,'CookieClicker','BalanceConfig.luau'));
 for (const name of ['Model', 'App', 'Persistence', 'Audio', 'FeedbackQueue', 'FriendBoost', 'Layout', 'ImageNames', 'Icons', 'LateGame', 'Economy', 'Social', 'EmpireStore', 'EmpireService', 'CharityStore', 'CharityService']) fs.copyFileSync(path.join(game, name + '.luau'), path.join(stage, 'CookieClicker', name + '.luau'));
 for (const name of ['ImageConfig', 'Images2Config', 'CookieBackgrounds', 'MenuButtonConfig']) fs.copyFileSync(path.join(game, name + '.luau'), path.join(stage, name + '.luau'));
 fs.copyFileSync(path.join(game, 'Bootstrap.client.luau'), path.join(stage, 'StarterPlayerScripts', 'ToilDemo.client.luau'));

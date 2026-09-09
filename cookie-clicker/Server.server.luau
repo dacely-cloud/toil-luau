@@ -152,7 +152,7 @@ local function load(player)
 			if not player.Parent or shuttingDown then persistence.save(session,true); return end
 			session.tokens=40
             -- Temporary level-5 background preview for Studio; published progression stays unchanged.
-            if studio then session.state.economy.xp=math.max(session.state.economy.xp,1600) end
+            if studio then session.state.economy.xp=math.max(session.state.economy.xp,Model.jobLevelXp(5)) end
 			session.state.bakery=(session.state.customName and filteredName(player,session.state.customName)) or player.DisplayName.."'s bakery"
 			session.saveStatus=studio and "Test game: progress resets when testing stops" or "Your bakery is saved"
 			session.seenAchievements=table.clone(session.state.achievements)

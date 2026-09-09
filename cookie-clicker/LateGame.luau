@@ -70,7 +70,7 @@ return function(Model)
         return earned
     end
 	function Model.productionFactor(s)
-		return (1+(s.prestige or 0)*Model.Balance.StarProductionBonus)*(s.heavenly and s.heavenly.baking and 1.1 or 1)*(s.spirit=="baking" and 1.1 or 1)*(1+Model.empireBonus(s))*Model.milkMultiplier(s)
+		return (1+(s.prestige or 0)*Model.Balance.StarProductionBonus)*(s.heavenly and s.heavenly.baking and 1.1 or 1)*(s.spirit=="baking" and 1.1 or 1)*(1+Model.empireBonus(s))*Model.milkMultiplier(s)*Model.collectionBonus(s)
 	end
 	function Model.ascensionGain(s)
 		return math.max(0,math.floor(((s.pastEarned+s.earned)/Model.Balance.RebirthCookies)^(1/3))-s.prestige)

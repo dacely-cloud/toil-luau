@@ -16,7 +16,7 @@ local property=Model.new();property.economy.properties.stand=1;property.passes={
 near(Model.propertyIncome(property),2);Model.tick(property,10);near(property.cookies,20)
 local regen=Model.new();regen.economy.energy=0;regen.economy.stamina=0
 regen.passes={EnergyRegen2x=true,StaminaRegen2x=true,VIP=true};Model.tick(regen,90)
-near(regen.economy.energy,6);near(regen.economy.stamina,4)
+near(regen.economy.energy,36);near(regen.economy.stamina,12)
 regen.cookies=1000;assert(Model.economyAction(regen,"deposit",100));assert(regen.economy.jar==95)
 regen.passes.NoDepositFee=true;assert(Model.economyAction(regen,"deposit",100));assert(regen.economy.jar==195)
 assert(not Model.economyAction(regen,"item","goldenWhisk",0),"exclusive items cannot be bought for cookies")

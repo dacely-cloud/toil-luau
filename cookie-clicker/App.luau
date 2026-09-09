@@ -439,7 +439,7 @@ return function()
             label("cookieCount", number(snapshot.cookies) .. (math.floor(snapshot.cookies) == 1 and " cookie" or " cookies"), 12, 56, props.width-24, 32, 31, "#ffffff", {["text-align"]="center"}),
             label("cps", number(snapshot.cps, true).." / sec",12,88,props.width-158,23,17,"#ffffff",{["text-align"]="right"}),
             label("friendBoost","Friend boost +"..(snapshot.friendCount or 0).."%",props.width-134,88,126,23,15,"#b6e6bf",{["text-align"]="left"}),
-            label("bonusTimer",(snapshot.frenzyUntil or 0)>snapshot.played and ("Double baking! "..math.ceil(snapshot.frenzyUntil-snapshot.played).."s left") or "",12,116,props.width-24,22,16,"#f4d28a",{["text-align"]="center"}))
+            label("bonusTimer",(snapshot.frenzyUntil or 0)>snapshot.played and ("Baking + taps boosted · "..math.ceil(snapshot.frenzyUntil-snapshot.played).."s") or "",12,116,props.width-24,22,16,"#f4d28a",{["text-align"]="center"}))
     end
 
 	local function App()
@@ -676,7 +676,7 @@ return function()
                         pane[#pane+1]=box("propertyCard"..property.id,24,y,w,154,"#342d25",card,{border="1px solid #827052",["border-radius"]="12px",overflow="hidden",["--zone-background"]=property.id~="stand" and ImageNames.propertyBackgrounds[property.id] or nil});y+=166
                     end
                 elseif workPage[1]=="Shop" or workPage[1]=="Bag" or workPage[1]=="Collection" then
-                    text("collectionHelp","Collection boost: +"..math.floor((Model.collectionBonus(state)-1)*100+.5).."% cookies",38)
+                    text("collectionHelp","Baking, jobs & property boost: +"..math.floor((Model.collectionBonus(state)-1)*100+.5).."%",52)
                     local rarityColors={Common="#b4c4d0",Uncommon="#89cf9e",Rare="#93b5ff",Legendary="#f5cd70",Exclusive="#e9a5f0"}
                     for _,item in Model.Items do
                         if workPage[1]=="Shop" and item.exclusive then continue end
@@ -691,6 +691,8 @@ return function()
                             card[#card+1]=button("buyItem"..item.id,"Buy: "..number(item.price),12,112,w-24,48,function()send("economy","item",item.id)end,{background="#276849",["font-size"]="21px"})
                         elseif not displayed then
                             card[#card+1]=button("displayItem"..item.id,"Display for +"..math.floor(item.bonus*100).."%",12,112,w-24,48,function()send("economy","collect",item.id)end,{background=owned>0 and "#605193" or "#51483d",["font-size"]="21px"})
+                        elseif workPage[1]=="Bag" and owned>0 and not item.exclusive then
+                            card[#card+1]=button("sellSpare"..item.id,"Sell 1 spare · "..number(math.floor(item.price*.25)),12,112,w-24,48,function()send("economy","sellItem",item.id)end,{background="#544479",["font-size"]="19px"})
                         else card[#card+1]=label("activeBoost","Boost is active",14,117,w-28,35,21,"#b6e6bf") end
                         pane[#pane+1]=box("itemCard"..item.id,24,y,w,172,"#342d25",card,{border="1px solid "..rarityColors[item.rarity],["border-radius"]="12px",["--zone-background"]=ImageNames.itemBackgrounds[item.id],["--shop-icon"]=workPage[1]=="Shop" and ImageNames.items[item.id] or nil});y+=184
                     end
@@ -835,12 +837,13 @@ return function()
                             button("openJar","Add cookies",76,40,w-76,40,function()workPage[2]("Jar")end,{["font-size"]="18px"}),
                         });y+=92
                         for i,tier in Model.Fundraisers do
-                            local ready=economy.jar>=tier.cost and not state.charityPending
+                            local cost=Model.fundraiserCost(state,i)
+                            local ready=economy.jar>=cost and not state.charityPending
                             pane[#pane+1]=box("partyTier"..i,24,y,w,154,"#342d25",{
                                 picture("partyPicture","CookieFestival",12,12,56,56),
                                 label("partyDuration",tier.name,80,10,w-92,28,23,"#fff4df"),
-                                label("partyReward",number(math.floor(tier.cost*tier.multiplier)).." cookies back",80,42,w-92,30,19,"#b6e6bf"),
-                                button("startCharity"..i,(ready and "Start: " or "Need: ")..number(tier.cost).." from jar",12,90,w-24,50,function()if ready then send("fundraiser","start",i) else workPage[2]("Jar") end end,{background=ready and "#276849" or "#51483d",["font-size"]="20px"}),
+                                label("partyReward",number(math.floor(cost*tier.multiplier)).." cookies back",80,42,w-92,30,19,"#b6e6bf"),
+                                button("startCharity"..i,(ready and "Start: " or "Need: ")..number(cost).." from jar",12,90,w-24,50,function()if ready then send("fundraiser","start",i) else workPage[2]("Jar") end end,{background=ready and "#276849" or "#51483d",["font-size"]="20px"}),
                             },{["border-radius"]="12px",["--zone-background"]="CookieCharity"});y+=166
                         end
                         text("partyChanges","Friends can add cookies. Thieves can take some.",48)
@@ -881,6 +884,10 @@ return function()
                     pane[#pane+1]=button("withdrawCookies","Take out",controlsX,y+164,controlsW,48,function()send("economy","withdraw",jarAmount[1])end,{["font-size"]="22px"})
                     pane[#pane+1]=label("depositFee","Deposit fee: "..number(Model.depositFee(state,jarAmount[1])).." cookies",24,y+218,w,30,16,"#dfcba6")
                     y+=258
+                    local depositAll=math.floor(math.max(0,math.min(state.cookies,1e12,1e15-economy.jar)))
+                    local withdrawAll=math.floor(math.min(economy.jar,1e12))
+                    pane[#pane+1]=button("depositAll","Put in max",24,y,(w-8)/2,44,function()if depositAll>0 then send("economy","deposit",depositAll) end end,{background="#276849",["font-size"]="18px"})
+                    pane[#pane+1]=button("withdrawAll","Take out max",24+(w+8)/2,y,(w-8)/2,44,function()if withdrawAll>0 then send("economy","withdraw",withdrawAll) end end,{["font-size"]="18px"});y+=56
                     pane[#pane+1]=button("jarParty","Start a cookie party",24,y,w,48,function()workPage[2]("Charity")end,{background="#544479",["font-size"]="21px"});y+=56
 
                 end
@@ -941,17 +948,17 @@ return function()
                     local gain=Model.ascensionGain(state)
                     pane[#pane+1]=box("starHowTo",24,y,w,160,"#403447",{
                         label("starHowToTitle","How to get star chips",12,10,w-24,32,22,"#ffe3a3",{["text-align"]="center"}),
-                        label("starHowToSteps",state.prestige==0 and "Bake 1 trillion cookies, then rebirth to get your first star chip." or "Bake to the next star goal, then rebirth to collect your star chips.",16,50,w-32,64,19,"#fff4df",{["text-align"]="center"}),
+                        label("starHowToSteps",state.prestige==0 and "Bake "..number(Model.Balance.RebirthCookies).." cookies, then rebirth for your first star chip." or "Bake to the next star goal, then rebirth to collect your star chips.",16,50,w-32,64,19,"#fff4df",{["text-align"]="center"}),
                         label("starChipRule","1 star earned = 1 chip to spend",12,122,w-24,28,17,"#b6e6bf",{["text-align"]="center"}),
                     },{["border-radius"]="10px"});y+=172
                     pane[#pane+1]=box("starReward",24,y,w,230,"#34283f",{
                         picture("starPicture","Stars",(w-100)/2,12,100,100),
                         label("starGain",gain>0 and "+"..number(gain).." stars ready!" or "Your next big step",12,122,w-24,38,27,"#ffe3a3",{["text-align"]="center"}),
-                        label("starBonus","Each star = +1% building baking",12,166,w-24,48,18,"#b6e6bf",{["text-align"]="center"}),
+                        label("starBonus","Each star = +"..number(Model.Balance.StarProductionBonus*100).."% building baking",12,166,w-24,48,18,"#b6e6bf",{["text-align"]="center"}),
                     },{["border-radius"]="12px",border="1px solid #967446"});y+=242
                     local total=(state.pastEarned or 0)+(state.earned or 0)
                     local nextStar=state.prestige+gain+1
-                    local goal=nextStar^3*1e12
+                    local goal=nextStar^3*Model.Balance.RebirthCookies
                     pane[#pane+1]=box("starProgress",24,y,w,132,"#302a35",{
                         label("starUnlock","Bake "..number(math.max(0,goal-total)).." more cookies",12,8,w-24,54,20,"#fff1cd",{["text-align"]="center"}),
                         box("starProgressTrack",16,72,w-32,10,"#17141e",{box("starProgressFill",0,0,(w-32)*math.clamp(total/goal,0,1),10,"#eac36d")},{["border-radius"]="5px"}),
@@ -1000,7 +1007,7 @@ return function()
                     if state.earned<1e6 then
                         text("lumpUnlock","Bake 1 million cookies to grow sugar lumps",48)
                     else
-                        local minutes=math.ceil(math.max(0,20*3600-state.lumpTime)/60)
+                        local minutes=math.ceil(math.max(0,Model.Balance.SugarLumpSeconds-state.lumpTime)/60)
                         text("lumpNext","Next lump: "..math.floor(minutes/60).."h "..(minutes%60).."m",34)
                     end
                     local found=false

@@ -9,6 +9,7 @@ const end=source.indexOf('\n                else\n                    local artW
 assert(start>=0 && end>start);
 const code=`
 local Model={Fundraisers={{name="30 min",seconds=1800,cost=500,multiplier=1.5},{name="1 hour",seconds=3600,cost=1000,multiplier=1.8},{name="4 hours",seconds=14400,cost=2500,multiplier=2.5},{name="8 hours",seconds=28800,cost=5000,multiplier=3}}}
+function Model.fundraiserCost(_,index)return Model.Fundraisers[index].cost end
 local function render(balance,charity,now,pending,friends,width)
  local state={charityPending=pending,serverNow=now,socialPlayers=friends or {},playerId=1}
  local economy={jar=balance,charity=charity}

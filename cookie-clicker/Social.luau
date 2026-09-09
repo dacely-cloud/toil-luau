@@ -6,6 +6,12 @@ return function(Model)
         {seconds=14400,name="4 hours",cost=2500,multiplier=2.5},
         {seconds=28800,name="8 hours",cost=5000,multiplier=3},
     }
+    function Model.fundraiserCost(s,index)
+        local tier=Model.Fundraisers[index]
+        if not tier then return math.huge end
+        local rate=Model.deliveryAmount(s,{Min=0,Seconds=1})
+        return math.floor(math.max(tier.cost,math.min(1e12,rate*tier.seconds*.05)))
+    end
     local function integer(n,max)
         return type(n)=="number" and n==n and n>=0 and n<=max and n%1==0
     end
@@ -14,8 +20,10 @@ return function(Model)
         local c=e and e.charity
         if type(c)~="table" or not integer(c.tier,4) or c.tier<1 or not integer(c.endsAt,1e12) then return end
         local tier=Model.Fundraisers[c.tier]
-        if not integer(c.pot,tier.cost*tier.multiplier+6400) or not integer(c.stolen,tier.cost) then return end
-        local restored={tier=c.tier,endsAt=c.endsAt,pot=c.pot,stolen=c.stolen,helpers={},thieves={},participants=0}
+        local cost=c.cost==nil and tier.cost or c.cost
+        if not integer(cost,1e12) or cost<tier.cost then return end
+        if not integer(c.pot,cost*tier.multiplier+6400) or not integer(c.stolen,cost) then return end
+        local restored={tier=c.tier,cost=cost,endsAt=c.endsAt,pot=c.pot,stolen=c.stolen,helpers={},thieves={},participants=0}
         for _,key in {"helpers","thieves"} do
             if type(c[key])=="table" then
                 for id,value in c[key] do
@@ -32,16 +40,17 @@ return function(Model)
         if not integer(tierIndex,4) or tierIndex<1 then return false,"Choose a fundraiser duration." end
         if s.economy.charity then return false,"Collect your current fundraiser first." end
         local tier=Model.Fundraisers[tierIndex]
-        if s.economy.jar<tier.cost then return false,"Deposit "..tier.cost.." cookies into your jar first." end
-        s.economy.jar-=tier.cost
-        s.economy.charity={tier=tierIndex,endsAt=now+tier.seconds,pot=math.floor(tier.cost*tier.multiplier),stolen=0,helpers={},thieves={},participants=0}
+        local cost=Model.fundraiserCost(s,tierIndex)
+        if s.economy.jar<cost then return false,"Deposit "..cost.." cookies into your jar first." end
+        s.economy.jar-=cost
+        s.economy.charity={tier=tierIndex,cost=cost,endsAt=now+tier.seconds,pot=math.floor(cost*tier.multiplier),stolen=0,helpers={},thieves={},participants=0}
         return true,"Fundraiser started! Friends can help until it finishes."
     end
     function Model.claimFundraiser(s,now)
         local c=s.economy.charity
         if not c or now<c.endsAt then return false,"Your fundraiser is not finished yet." end
         s.economy.charity=nil -- Consume before granting so repeated claims cannot pay twice.
-        local principal=Model.Fundraisers[c.tier].cost
+        local principal=c.cost or Model.Fundraisers[c.tier].cost
         s.cookies+=math.min(principal,c.pot)
         Model.award(s,math.max(0,c.pot-principal))
         return true,"Fundraiser complete! Collected "..c.pot.." cookies."
@@ -63,9 +72,10 @@ return function(Model)
             if c.thieves[id] then return false,"You already tried this fundraiser." end
             if actor.economy.stamina<10 then return false,"Stealing takes 10 stamina." end
             local tier=Model.Fundraisers[c.tier]
+            local cost=c.cost or tier.cost
             -- At most 25% of the starting investment can be stolen, in total.
-            local remaining=math.max(0,math.floor(tier.cost*.25)-c.stolen)
-            local amount=math.min(remaining,math.max(1,math.floor(tier.cost*.05*(1+math.clamp(stealBonus or 0,0,1))*(1-math.clamp(insurance or 0,0,.9)))))
+            local remaining=math.max(0,math.floor(cost*.25)-c.stolen)
+            local amount=math.min(remaining,math.max(1,math.floor(cost*.05*(1+math.clamp(stealBonus or 0,0,1))*(1-math.clamp(insurance or 0,0,.9)))))
             if amount<=0 then return false,"This fundraiser's remaining cookies are protected." end
             actor.economy.stamina-=10;c.thieves[id]=true;c.participants+=1;c.stolen+=amount;c.pot-=amount
             Model.award(actor,amount)

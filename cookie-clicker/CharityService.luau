@@ -2,7 +2,7 @@ local CharityService={}
 function CharityService.new(Model,store,persistence,now)
     local service={}
     local function summary(record)
-        return {tier=record.tier,endsAt=record.endsAt,pot=record.pot,stolen=record.stolen}
+        return {tier=record.tier,cost=record.cost or Model.Fundraisers[record.tier].cost,endsAt=record.endsAt,pot=record.pot,stolen=record.stolen}
     end
     function service.refresh(session,userId)
         local e=session.state.economy;local ref=e.charityRef
@@ -28,7 +28,7 @@ function CharityService.new(Model,store,persistence,now)
         if not persistence.save(session,false) then return false,"Waiting for your save. Your action will retry." end
         if session.closing or not session.ready then return false,"This will finish when you rejoin." end
         local record,message,definite
-        if pending.kind=="start" then record,message,definite=store.create(userId,pending.fundSequence,pending.tier,pending.startedAt,pending.insurance)
+        if pending.kind=="start" then record,message,definite=store.create(userId,pending.fundSequence,pending.tier,pending.startedAt,pending.insurance,pending.cost)
         elseif pending.kind=="claim" then record,message,definite=store.claim(userId,pending.fundSequence,pending.operation,now())
         else record,message,definite=store.visit(pending.owner,pending.fundSequence,userId,pending.operation,pending.kind,now(),pending.bonus) end
         if not record and not definite then return false,message end
@@ -64,9 +64,10 @@ function CharityService.new(Model,store,persistence,now)
         if kind=="start" then
             local tier=type(arg)=="number" and arg%1==0 and Model.Fundraisers[arg]
             if not tier or e.charity or e.charityRef then return false,"Collect your fundraiser or choose a duration." end
-            if e.jar<tier.cost then return false,"Put "..tier.cost.." cookies in your jar first." end
-            pending.cost=tier.cost;pending.tier=arg;pending.startedAt=now();pending.insurance=math.min(.75,Model.empireBonus(session.state))
-            pending.fundSequence=operation;e.jar-=tier.cost
+            local cost=Model.fundraiserCost(session.state,arg)
+            if e.jar<cost then return false,"Put "..cost.." cookies in your jar first." end
+            pending.cost=cost;pending.tier=arg;pending.startedAt=now();pending.insurance=math.min(.75,Model.empireBonus(session.state))
+            pending.fundSequence=operation;e.jar-=cost
         elseif kind=="claim" then
             if not e.charityRef then return false,"Start a fundraiser first." end
             pending.owner=userId;pending.fundSequence=e.charityRef.sequence

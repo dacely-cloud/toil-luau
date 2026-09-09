@@ -1,14 +1,21 @@
 -- Pure reward rules. Ownership and receipt verification belong to the server.
 return function(Model,Config)
     Model.MonetizationConfig=Config
+    local passStats={}
+    for _,key in Config.PassOrder do
+        local function index(reward)
+            if reward.Kind=="Bundle" then for _,grant in reward.Grants do index(grant) end
+            elseif reward.Kind=="Multiplier" then
+                local entries=passStats[reward.Stat] or {};passStats[reward.Stat]=entries
+                entries[#entries+1]={key=key,multiplier=reward.Multiplier}
+            end
+        end
+        index(Config.Passes[key].Reward)
+    end
     function Model.passFactor(s,stat)
         local factor=1
-        local function visit(reward)
-            if reward.Kind=="Bundle" then for _,grant in reward.Grants do visit(grant) end
-            elseif reward.Kind=="Multiplier" and reward.Stat==stat then factor*=reward.Multiplier end
-        end
-        for _,key in Config.PassOrder do
-            if s.passes and s.passes[key]==true then visit(Config.Passes[key].Reward) end
+        for _,entry in passStats[stat] or {} do
+            if s.passes and s.passes[entry.key]==true then factor*=entry.multiplier end
         end
         return factor
     end
@@ -18,7 +25,7 @@ return function(Model,Config)
         local production=0
         for i,b in Model.Buildings do production+=b.cps*s.buildings[i]*Model.multiplier(s,i) end
         -- Stable building output only: no golden/friend boosts or recursive job rewards.
-        production*=Model.productionFactor(s)
+        production*=Model.productionFactor(s)/(Model.collectionBonus(s)*(1+Model.empireBonus(s)))
         local base=math.max(job.cookies,production*job.energy*Model.Balance.JobProductionSecondsPerEnergy)
         return math.floor(base*Model.collectionBonus(s)*(1+Model.empireBonus(s))^2*Model.passFactor(s,"JobReward")*Model.passFactor(s,"CookieGain"))
     end

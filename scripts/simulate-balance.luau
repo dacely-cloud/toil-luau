@@ -12,7 +12,7 @@ local function simulate(name,clicks,jobs,seconds)
         local function offer(kind,id,cost,after)
             local delta=after-before
             if delta>0 then
-                local roi=cost/delta
+                local roi=cost/delta+math.max(0,cost-s.cookies)/math.max(1,before)
                 if not best or roi<best.roi then best={kind=kind,id=id,cost=cost,roi=roi} end
             end
         end
@@ -38,9 +38,11 @@ local function simulate(name,clicks,jobs,seconds)
         return best
     end
     local nextBuy=choose()
+    local clickCarry=0
     for time=1,seconds do
         Model.tick(s,1)
-        if clicks>0 then local amount=clicks*Model.clickPower(s);s.clicks+=clicks;s.handmade+=amount;Model.award(s,amount) end
+        clickCarry+=clicks
+        while clickCarry>=1 do Model.click(s);clickCarry-=1 end
         if jobs then
             local job
             for _,j in Model.Jobs do if Model.jobLevel(s)>=j.level then job=j end end
@@ -49,6 +51,7 @@ local function simulate(name,clicks,jobs,seconds)
             if s.goldenUntil>s.played and s.goldenId%2==1 then Model.collectGolden(s,s.goldenId) end
         end
         local bought=false
+        if time%30==0 then nextBuy=choose() end
         while nextBuy and s.cookies>=nextBuy.cost do
             local ok
             if nextBuy.kind=="building" then ok=Model.trade(s,nextBuy.id,1,false)
@@ -57,7 +60,7 @@ local function simulate(name,clicks,jobs,seconds)
             assert(ok,"simulator quote mismatch")
             bought=true;nextBuy=choose()
         end
-        for _,m in {{"Farm",s.buildings[3]>0},{"Bank",s.buildings[6]>0},{"Tower",s.buildings[8]>0},{"Level3",Model.jobLevel(s)>=3},{"Level5",Model.jobLevel(s)>=5},{"10M",s.earned>=1e7},{"1T",s.earned>=1e12},{"Rebirth",Model.ascensionGain(s)>0}} do
+        for _,m in {{"Farm",s.buildings[3]>0},{"Bank",s.buildings[6]>0},{"Tower",s.buildings[8]>0},{"FinalBuilding",s.buildings[20]>0},{"Level3",Model.jobLevel(s)>=3},{"Level5",Model.jobLevel(s)>=5},{"10M",s.earned>=1e7},{"1T",s.earned>=1e12},{"Rebirth",Model.ascensionGain(s)>0}} do
             if m[2] and not milestones[m[1]] then milestones[m[1]]=time;print(name,m[1],time,"seconds") end
         end
         if time%3600==0 then print(name,"HOUR",time/3600,"earned",s.earned,"CPS",Model.cps(s),"click",Model.clickPower(s),"level",Model.jobLevel(s)) end
@@ -66,3 +69,4 @@ end
 simulate("active",2,true,14400)
 simulate("casual",.5,true,14400)
 simulate("bakery_only",2,false,14400)
+simulate("long_run",2,true,86400)

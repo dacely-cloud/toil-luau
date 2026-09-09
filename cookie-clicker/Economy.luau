@@ -27,7 +27,7 @@ return function(Model)
         return type(value)=="number" and value==value and value>=0 and value<math.huge and math.min(value,limit) or 0
     end
     function Model.initEconomy(s)
-        s.economy={xp=0,energy=100,stamina=100,inventory={},collection={},properties={},jar=0,buildingXpHigh={},upgradeXpClaimed={}}
+        s.economy={xp=0,tapXpProgress=0,energy=100,stamina=100,inventory={},collection={},properties={},jar=0,buildingXpHigh={},upgradeXpClaimed={}}
     end
     function Model.restoreEconomy(s,data)
         local saved=type(data.economy)=="table" and data.economy or {}
@@ -57,7 +57,9 @@ return function(Model)
             local validOwner=type(owner)=="number" and owner==owner and owner%1==0 and math.abs(owner)<=9007199254740991
             local clean={kind=kind,operation=e.charitySequence,fundSequence=fund,owner=owner}
             if kind=="start" and validFund and type(charityPending.tier)=="number" and charityPending.tier%1==0 and Model.Fundraisers[charityPending.tier] then
-                clean.tier=charityPending.tier;clean.cost=Model.Fundraisers[clean.tier].cost
+                clean.tier=charityPending.tier
+                local baseCost=Model.Fundraisers[clean.tier].cost
+                clean.cost=math.max(baseCost,math.floor(number(charityPending.cost,1e12)))
                 clean.startedAt=number(charityPending.startedAt,1e12);clean.insurance=number(charityPending.insurance,.75)
                 e.charityPending=clean
             elseif kind=="claim" and validFund and e.charityRef and e.charityRef.sequence==fund then e.charityPending=clean
@@ -79,6 +81,7 @@ return function(Model)
             e.empireDonation={empireId=e.empireId,sequence=e.empireSequence,amount=pending.amount}
         end
         for _,key in {"xp","jar"} do e[key]=number(saved[key],1e15) end
+        e.tapXpProgress=math.floor(number(saved.tapXpProgress,9))
         e.energy=number(saved.energy,110);e.stamina=number(saved.stamina,100)
         for _,item in Model.Items do
             e.inventory[item.id]=math.floor(number(type(saved.inventory)=="table" and saved.inventory[item.id],1e12))
@@ -151,7 +154,14 @@ return function(Model)
             local item=find(Model.Items,arg)
             if not item or (e.inventory[arg] or 0)<1 or e.collection[arg] then return false,"Own this item first. Each item can be displayed once." end
             e.inventory[arg]-=1;e.collection[arg]=true
-            return true,"Item displayed! Jobs and properties now reward more cookies."
+            return true,"Item displayed! Baking, jobs and properties now reward more cookies."
+        elseif action=="sellItem" then
+            local item=find(Model.Items,arg)
+            if not item or item.exclusive or not e.collection[arg] or (e.inventory[arg] or 0)<1 then return false,"Display one first, then sell your spare items." end
+            local refund=math.floor(item.price*.25)
+            e.inventory[arg]-=1;s.cookies+=refund
+            -- Selling an item is a refund, not newly baked cookies or XP.
+            return true,"Sold one spare item for "..refund.." cookies."
         elseif action=="property" then
             local p=find(Model.Properties,arg)
             local price=Model.propertyPrice(s,arg)

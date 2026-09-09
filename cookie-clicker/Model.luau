@@ -116,7 +116,13 @@ function Model.clickPower(state,cps)
     local tapping=(state.heavenly and state.heavenly.tapping and 1.1 or 1)*(state.spirit=="clicking" and 1.1 or 1)
     local share=Model.Balance.ClickProductionShare
     for _,u in clickUpgrades do if state.upgrades[u.id] then share+=Model.Balance.ClickUpgradeShare end end
-    return Model.baseClickPower(state)+(cps or Model.cps(state))*share*tapping
+    local production=cps or Model.cps(state)
+    -- Wrinklers hold passive cookies only; arriving or feeding must not nerf taps.
+    if state.buddies and state.buildings[2]>=10 and #state.wrinklers>0 then
+        local property=Model.propertyIncome(state)
+        production=property+(production-property)/(1-#state.wrinklers*.05)
+    end
+    return Model.baseClickPower(state)+production*share*tapping
 end
 function Model.checkAchievements(state)
 	for _,a in achievements do
@@ -133,6 +139,11 @@ end
 function Model.click(state)
 	local value = Model.clickPower(state)
 	state.clicks += 1
+    local economy=state.economy
+    economy.tapXpProgress=(economy.tapXpProgress or 0)+1
+    if economy.tapXpProgress>=10 then
+        economy.tapXpProgress-=10;economy.xp=math.min(1e15,economy.xp+1)
+    end
 	state.handmade += value
 	Model.award(state, value)
 	return value
@@ -166,25 +177,27 @@ function Model.price(state, index, quantity, sell)
 	local total = 0
 	for j = 0, quantity - 1 do
 		local exponent = sell and (owned - j - 1) or (owned + j)
-		total += b.price * 1.15 ^ exponent
+        local unit=b.price*1.15^exponent
+		total += sell and math.floor(unit*.25) or math.ceil(unit)
 	end
-	return math.ceil(total * (sell and 0.25 or 1))
+	return total
 end
 function Model.trade(state, index, quantity, sell)
 	if not Model.Buildings[index] or (quantity ~= 1 and quantity ~= 10 and quantity ~= 100) then return false end
 	local amount = sell and math.min(state.buildings[index], quantity) or quantity
 	if amount == 0 then return false end
-	-- The original quotes a rounded geometric sum but transacts each unit.
-	-- Bulk buy buys as many as affordable, up to the selected quantity.
+	-- Quote and charge the same per-unit rounding. Bulk buys remain bounded by funds.
 	local traded = 0
 	for _ = 1, amount do
-		local price = math.ceil(Model.Buildings[index].price * 1.15 ^ state.buildings[index])
+		local unit=Model.Buildings[index].price*1.15^(state.buildings[index]-(sell and 1 or 0))
+		local price=math.ceil(unit)
 		if sell then
-			state.cookies += math.floor(price * 0.25)
+			state.cookies += math.floor(unit * 0.25)
 			state.buildings[index] -= 1
-			state.earned = math.max(state.earned, state.cookies)
-		elseif price <= state.cookies then
-			state.cookies -= price
+		elseif price <= state.cookies+(price>=1e12 and price*1e-14 or 0) then
+            -- At late-game magnitudes doubles lose individual-cookie precision.
+            -- Absorb only rounding noise so an exactly quoted bulk order completes.
+			state.cookies = math.max(0,state.cookies-price)
 			state.buildings[index] += 1
 		else break end
 		traded += 1
@@ -230,7 +243,9 @@ function Model.collectGolden(state,id)
 		state.frenzyUntil=state.played+30
 		return "Double baking for 30 seconds!"..huntMessage
 	end
-	local reward=math.max(25,math.floor(Model.cps(state)*60+state.cookies*.1))
+    local rate=Model.cps(state)
+    -- Hoarding purchased/offline cookies must not compound without limit.
+	local reward=math.max(25,math.floor(rate*60+math.min(state.cookies*.1,rate*120)))
 	if state.spirit=="luck" then reward=math.floor(reward*1.2) end
 	Model.award(state,reward)
 	return "Lucky cookie! You got "..reward.." extra cookies!"..huntMessage

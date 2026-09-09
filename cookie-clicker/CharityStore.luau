@@ -34,15 +34,17 @@ function CharityStore.new(Model,store)
         end)
         return ok and type(r)=="table" and r.version==1 and copy(r) or nil
     end
-    function service.create(owner,sequence,tierIndex,now,insurance)
+    function service.create(owner,sequence,tierIndex,now,insurance,investment)
         if not int(tierIndex,4) or tierIndex<1 then return nil,"Choose a duration.",true end
         local tier=Model.Fundraisers[tierIndex]
+        local cost=investment==nil and tier.cost or investment
+        if not int(cost,1e12) or cost<tier.cost then return nil,"Invalid investment.",true end
         return change(owner,sequence,function(old)
             if old then
                 if old.version==1 and old.owner==owner and old.sequence==sequence then return old end
                 return nil,"This fundraiser cannot be replaced."
             end
-            return {version=1,owner=owner,sequence=sequence,tier=tierIndex,endsAt=now+tier.seconds,pot=math.floor(tier.cost*tier.multiplier),stolen=0,insurance=math.clamp(insurance or 0,0,.75),visitors={},visits=0}
+            return {version=1,owner=owner,sequence=sequence,tier=tierIndex,cost=cost,endsAt=now+tier.seconds,pot=math.floor(cost*tier.multiplier),stolen=0,insurance=math.clamp(insurance or 0,0,.75),visitors={},visits=0}
         end)
     end
     function service.import(owner,sequence,legacy,insurance)
@@ -56,7 +58,7 @@ function CharityStore.new(Model,store)
                     visitors[id]=visitors[id] or {};visitors[id][kind]={operation=0,cookies=0,xp=0};visits+=1
                 end
             end
-            return {version=1,owner=owner,sequence=sequence,tier=legacy.tier,endsAt=legacy.endsAt,pot=legacy.pot,stolen=legacy.stolen,insurance=math.clamp(insurance or 0,0,.75),visitors=visitors,visits=visits}
+            return {version=1,owner=owner,sequence=sequence,tier=legacy.tier,cost=legacy.cost or Model.Fundraisers[legacy.tier].cost,endsAt=legacy.endsAt,pot=legacy.pot,stolen=legacy.stolen,insurance=math.clamp(insurance or 0,0,.75),visitors=visitors,visits=visits}
         end)
     end
     function service.visit(owner,sequence,actor,operation,kind,now,bonus)
@@ -84,7 +86,8 @@ function CharityStore.new(Model,store)
             local reward,xp=50,20
             if kind=="steal" then
                 local tier=Model.Fundraisers[r.tier]
-                reward=math.min(math.max(0,math.floor(tier.cost*.25)-r.stolen),math.max(1,math.floor(tier.cost*.05*(1+math.clamp(bonus or 0,0,1))*(1-r.insurance))))
+                local cost=r.cost or tier.cost
+                reward=math.min(math.max(0,math.floor(cost*.25)-r.stolen),math.max(1,math.floor(cost*.05*(1+math.clamp(bonus or 0,0,1))*(1-r.insurance))))
                 if reward<=0 then return nil,"These cookies are protected." end
                 r.pot-=reward;r.stolen+=reward;xp=0
             else r.pot+=100 end
@@ -102,7 +105,7 @@ function CharityStore.new(Model,store)
                 return nil,"Already collected."
             end
             if now<r.endsAt then return nil,"Still growing. Come back later!" end
-            r.claimed={operation=operation,cookies=r.pot,principal=Model.Fundraisers[r.tier].cost}
+            r.claimed={operation=operation,cookies=r.pot,principal=r.cost or Model.Fundraisers[r.tier].cost}
             return r
         end)
     end

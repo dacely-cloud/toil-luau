@@ -1,0 +1,933 @@
+[
+  {
+    "path": [
+      "ReplicatedFirst",
+      "LocalScript"
+    ],
+    "class": "LocalScript",
+    "bytes": 599,
+    "sha256": "007ff335a40247d185923f5b1c377b61b85e527937f5cfe621171646fa719904",
+    "adler32": 388091773,
+    "file": "ReplicatedFirst/LocalScript.client.luau"
+  },
+  {
+    "path": [
+      "StarterPlayer",
+      "StarterPlayerScripts",
+      "ToilDemo"
+    ],
+    "class": "LocalScript",
+    "bytes": 184,
+    "sha256": "8afe803d721c0a8fa1f19654c727c40d4188b16b0c561df22e98bc5c0bbf8084",
+    "adler32": 1320828787,
+    "file": "StarterPlayer/StarterPlayerScripts/ToilDemo.client.luau"
+  },
+  {
+    "path": [
+      "ReplicatedStorage",
+      "TS",
+      "css",
+      "loader"
+    ],
+    "class": "ModuleScript",
+    "bytes": 17978,
+    "sha256": "00ff2e103c1b8dc9f48288f9e4b4b55713547068ebec425ee0d29337f1615256",
+    "adler32": 4212231650,
+    "file": "ReplicatedStorage/TS/css/loader.luau"
+  },
+  {
+    "path": [
+      "ReplicatedStorage",
+      "ToilRuntime"
+    ],
+    "class": "ModuleScript",
+    "bytes": 48305,
+    "sha256": "8c2e1ecf6e9719605fd6fb6565100410fb2ebf68c4b685638499ff8ee9cb33f2",
+    "adler32": 3243974881,
+    "file": "ReplicatedStorage/ToilRuntime.luau"
+  },
+  {
+    "path": [
+      "ReplicatedStorage",
+      "MenuButtonConfig"
+    ],
+    "class": "ModuleScript",
+    "bytes": 2094,
+    "sha256": "618a87b5ac9a5c92415298f5396d6534d043defe5c6210e17f72ba0befc57c7c",
+    "adler32": 2610930894,
+    "file": "ReplicatedStorage/MenuButtonConfig.luau"
+  },
+  {
+    "path": [
+      "ReplicatedStorage",
+      "Images2Config"
+    ],
+    "class": "ModuleScript",
+    "bytes": 5682,
+    "sha256": "b4c0a007d9a36f1f6cc5ee956d4e5a98c221d7135b22605c1a02707cf8d6535d",
+    "adler32": 3403533292,
+    "file": "ReplicatedStorage/Images2Config.luau"
+  },
+  {
+    "path": [
+      "ReplicatedStorage",
+      "CookieBackgrounds"
+    ],
+    "class": "ModuleScript",
+    "bytes": 4284,
+    "sha256": "fc1e79979f6c0f732caff26e4dc35118d18960f68a23c1a9c10f3a778ba8974e",
+    "adler32": 4167244690,
+    "file": "ReplicatedStorage/CookieBackgrounds.luau"
+  },
+  {
+    "path": [
+      "ReplicatedStorage",
+      "ImageConfig"
+    ],
+    "class": "ModuleScript",
+    "bytes": 10541,
+    "sha256": "69ff96d391629b84a63337350466449c1271516e014da376b8ab5fe2b46a1813",
+    "adler32": 1488570817,
+    "file": "ReplicatedStorage/ImageConfig.luau"
+  },
+  {
+    "path": [
+      "ReplicatedStorage",
+      "rbxts_include"
+    ],
+    "class": "ModuleScript",
+    "bytes": 94,
+    "sha256": "08cda33da7596ae5897989c51f7564773910fe131667c4f25e773308e8d10de4",
+    "adler32": 1214128689,
+    "file": "ReplicatedStorage/rbxts_include.luau"
+  },
+  {
+    "path": [
+      "ReplicatedStorage",
+      "rbxts_include",
+      "RuntimeLib"
+    ],
+    "class": "ModuleScript",
+    "bytes": 6018,
+    "sha256": "4f7183154d504d5f20e5d20f208b4c6542a712038923665be58c75aafd043f68",
+    "adler32": 2786434183,
+    "file": "ReplicatedStorage/rbxts_include/RuntimeLib.luau"
+  },
+  {
+    "path": [
+      "ReplicatedStorage",
+      "rbxts_include",
+      "Promise"
+    ],
+    "class": "ModuleScript",
+    "bytes": 60896,
+    "sha256": "5d69cf99a9741048855decb1d8cb5d7668f362f40c769d1500ce8f9c20dd319f",
+    "adler32": 1739553803,
+    "file": "ReplicatedStorage/rbxts_include/Promise.luau"
+  },
+  {
+    "path": [
+      "ReplicatedStorage",
+      "node_modules"
+    ],
+    "class": "ModuleScript",
+    "bytes": 94,
+    "sha256": "08cda33da7596ae5897989c51f7564773910fe131667c4f25e773308e8d10de4",
+    "adler32": 1214128689,
+    "file": "ReplicatedStorage/node_modules.luau"
+  },
+  {
+    "path": [
+      "ReplicatedStorage",
+      "TS"
+    ],
+    "class": "ModuleScript",
+    "bytes": 2470,
+    "sha256": "229cd8a1f6a17d016208e09a45c7056c66db51bca13adbf6015ab85094b3d24c",
+    "adler32": 870142866,
+    "file": "ReplicatedStorage/TS.luau"
+  },
+  {
+    "path": [
+      "ReplicatedStorage",
+      "node_modules",
+      "@toil",
+      "react",
+      "jsx-runtime.js"
+    ],
+    "class": "ModuleScript",
+    "bytes": 850,
+    "sha256": "1eb807c6b569546242245fa0ab48dca503ad8c79bd1399e724188e8e3434ae8a",
+    "adler32": 3325305180,
+    "file": "ReplicatedStorage/node_modules/@toil/react/jsx-runtime.js.luau"
+  },
+  {
+    "path": [
+      "ReplicatedStorage",
+      "node_modules",
+      "@toil",
+      "react",
+      "jsx-dev-runtime.js"
+    ],
+    "class": "ModuleScript",
+    "bytes": 858,
+    "sha256": "232f1dde6fd3598bee2b93ab974a39d089954edba8dfda291fdaef1205a43402",
+    "adler32": 3828818996,
+    "file": "ReplicatedStorage/node_modules/@toil/react/jsx-dev-runtime.js.luau"
+  },
+  {
+    "path": [
+      "ReplicatedStorage",
+      "node_modules",
+      "@toil",
+      "react",
+      "index.js"
+    ],
+    "class": "ModuleScript",
+    "bytes": 826,
+    "sha256": "fe949982c2d52816e8b9504fa8d3b6477e464054452c699356f9665d8d9d0c78",
+    "adler32": 1337464822,
+    "file": "ReplicatedStorage/node_modules/@toil/react/index.js.luau"
+  },
+  {
+    "path": [
+      "ReplicatedStorage",
+      "node_modules",
+      "@toil",
+      "react",
+      "cjs",
+      "react-jsx-runtime.development.js"
+    ],
+    "class": "ModuleScript",
+    "bytes": 19271,
+    "sha256": "5b9f980482d1157d5703dc6a2fc2d68916ee8bb96c6c81f900f9ac66566d3355",
+    "adler32": 3879932096,
+    "file": "ReplicatedStorage/node_modules/@toil/react/cjs/react-jsx-runtime.development.js.luau"
+  },
+  {
+    "path": [
+      "ReplicatedStorage",
+      "node_modules",
+      "@toil",
+      "react",
+      "cjs",
+      "react-jsx-dev-runtime.development.js"
+    ],
+    "class": "ModuleScript",
+    "bytes": 18777,
+    "sha256": "566b6c1dada5c9abe65a8521c17d0dfbf0a362e2ec938877101f48e633d3807b",
+    "adler32": 769156128,
+    "file": "ReplicatedStorage/node_modules/@toil/react/cjs/react-jsx-dev-runtime.development.js.luau"
+  },
+  {
+    "path": [
+      "ReplicatedStorage",
+      "node_modules",
+      "@toil",
+      "react",
+      "cjs",
+      "react.development.js"
+    ],
+    "class": "ModuleScript",
+    "bytes": 65138,
+    "sha256": "33f95e140767ec5fae56f569908e4324d799bdd4d21cf93c11838ef64279e1b9",
+    "adler32": 1070126261,
+    "file": "ReplicatedStorage/node_modules/@toil/react/cjs/react.development.js.luau"
+  },
+  {
+    "path": [
+      "ReplicatedStorage",
+      "node_modules",
+      "@toil",
+      "react-reconciler",
+      "index.js"
+    ],
+    "class": "ModuleScript",
+    "bytes": 1331,
+    "sha256": "334568b3715c15b572a462b9e56bd6c9a0242eda864cc25a0ce78aa7535aeb8d",
+    "adler32": 1285605386,
+    "file": "ReplicatedStorage/node_modules/@toil/react-reconciler/index.js.luau"
+  },
+  {
+    "path": [
+      "ReplicatedStorage",
+      "node_modules",
+      "@toil",
+      "react-reconciler",
+      "cjs",
+      "react-reconciler.development.js"
+    ],
+    "class": "ModuleScript",
+    "bytes": 1079444,
+    "sha256": "ae4d427171f7dbacf981fe759a101d6207c7c6c7f201bb490bdf1279ed161c90",
+    "adler32": 1675993634,
+    "file": "ReplicatedStorage/node_modules/@toil/react-reconciler/cjs/react-reconciler.development.js.luau"
+  },
+  {
+    "path": [
+      "ReplicatedStorage",
+      "node_modules",
+      "@toil",
+      "scheduler",
+      "index.js"
+    ],
+    "class": "ModuleScript",
+    "bytes": 842,
+    "sha256": "eeeddeb8d153cfd8994c34648aef1208fd1c142519e2483b6e67669a572f4e07",
+    "adler32": 4171112118,
+    "file": "ReplicatedStorage/node_modules/@toil/scheduler/index.js.luau"
+  },
+  {
+    "path": [
+      "ReplicatedStorage",
+      "node_modules",
+      "@toil",
+      "scheduler",
+      "cjs",
+      "scheduler.development.js"
+    ],
+    "class": "ModuleScript",
+    "bytes": 18944,
+    "sha256": "29e6799b3bdbc80dd235a9bb6427e10c2e8f6511f93d9c16137cd2d7959fefa8",
+    "adler32": 409699776,
+    "file": "ReplicatedStorage/node_modules/@toil/scheduler/cjs/scheduler.development.js.luau"
+  },
+  {
+    "path": [
+      "ReplicatedStorage",
+      "TS",
+      "host"
+    ],
+    "class": "ModuleScript",
+    "bytes": 13879,
+    "sha256": "ddd72f7b73fd7faebff89260c0e5dbf5da802f9ecaa2b5485569c1e47b17dfe6",
+    "adler32": 1304335273,
+    "file": "ReplicatedStorage/TS/host.luau"
+  },
+  {
+    "path": [
+      "ReplicatedStorage",
+      "CookieClicker",
+      "App"
+    ],
+    "class": "ModuleScript",
+    "bytes": 165860,
+    "sha256": "7188772441193e65df0989ed282875fe126ab9de36c8568de7c5db74e4c33b36",
+    "adler32": 1806862430,
+    "file": "ReplicatedStorage/CookieClicker/App.luau"
+  },
+  {
+    "path": [
+      "ReplicatedStorage",
+      "CookieClicker",
+      "Model"
+    ],
+    "class": "ModuleScript",
+    "bytes": 14791,
+    "sha256": "92c90a384a1a2b0dfdaba26402b27d1a3df71cf3eab94b2370fd41b53438efb7",
+    "adler32": 3876729809,
+    "file": "ReplicatedStorage/CookieClicker/Model.luau"
+  },
+  {
+    "path": [
+      "ReplicatedStorage",
+      "CookieClicker",
+      "Persistence"
+    ],
+    "class": "ModuleScript",
+    "bytes": 4139,
+    "sha256": "eb089579be999a4bb83c7eb7569e9b91c76abe0a436f9900eeaf46fefb8d6bf5",
+    "adler32": 3066003736,
+    "file": "ReplicatedStorage/CookieClicker/Persistence.luau"
+  },
+  {
+    "path": [
+      "ReplicatedStorage",
+      "CookieClicker",
+      "Audio"
+    ],
+    "class": "ModuleScript",
+    "bytes": 1313,
+    "sha256": "87d4e302ed652543e921db570db3ac69e93fa956bb9f243ee597a03ba8a139db",
+    "adler32": 93107343,
+    "file": "ReplicatedStorage/CookieClicker/Audio.luau"
+  },
+  {
+    "path": [
+      "ReplicatedStorage",
+      "CookieClicker",
+      "Layout"
+    ],
+    "class": "ModuleScript",
+    "bytes": 614,
+    "sha256": "fa29cd0f5d75a7fcc3be82614d2c0342e8abc239b61f119588a80a91467bb02d",
+    "adler32": 3258112030,
+    "file": "ReplicatedStorage/CookieClicker/Layout.luau"
+  },
+  {
+    "path": [
+      "ReplicatedStorage",
+      "CookieClicker",
+      "LateGame"
+    ],
+    "class": "ModuleScript",
+    "bytes": 13860,
+    "sha256": "c5d8d0b54d23de1a329475a9cef44920eb514d7bbe9338547da9d0aa56f0ff0d",
+    "adler32": 434158817,
+    "file": "ReplicatedStorage/CookieClicker/LateGame.luau"
+  },
+  {
+    "path": [
+      "ReplicatedStorage",
+      "CookieClicker",
+      "Icons"
+    ],
+    "class": "ModuleScript",
+    "bytes": 3919,
+    "sha256": "5c9cf346969d7871b6cc6ce38c4e78516f4a05eca50d8ae1264fdf8690fc29e0",
+    "adler32": 775655152,
+    "file": "ReplicatedStorage/CookieClicker/Icons.luau"
+  },
+  {
+    "path": [
+      "ReplicatedStorage",
+      "CookieClicker",
+      "Economy"
+    ],
+    "class": "ModuleScript",
+    "bytes": 27856,
+    "sha256": "a4e37e70a22fe5b73d6c863aa463820bcae733ef7e5d4776a555600432a5562e",
+    "adler32": 4241610081,
+    "file": "ReplicatedStorage/CookieClicker/Economy.luau"
+  },
+  {
+    "path": [
+      "ReplicatedStorage",
+      "CookieClicker",
+      "Social"
+    ],
+    "class": "ModuleScript",
+    "bytes": 5226,
+    "sha256": "4049ce3ab71e142c11e0d6dc1f6f6e82764d718d6adf68b52ee521c2f3e2c613",
+    "adler32": 3224015108,
+    "file": "ReplicatedStorage/CookieClicker/Social.luau"
+  },
+  {
+    "path": [
+      "ReplicatedStorage",
+      "CookieClicker",
+      "EmpireStore"
+    ],
+    "class": "ModuleScript",
+    "bytes": 6758,
+    "sha256": "1576d348912967277eee5df8bf34c1d5350d4613514fa0898db0f599c78d940e",
+    "adler32": 2571068541,
+    "file": "ReplicatedStorage/CookieClicker/EmpireStore.luau"
+  },
+  {
+    "path": [
+      "ReplicatedStorage",
+      "TS",
+      "host",
+      "animations"
+    ],
+    "class": "ModuleScript",
+    "bytes": 15592,
+    "sha256": "04263ba381e076de2d297fb86f8ce54270e5f31a081b6d82d33307788e1ebf00",
+    "adler32": 892521771,
+    "file": "ReplicatedStorage/TS/host/animations.luau"
+  },
+  {
+    "path": [
+      "ReplicatedStorage",
+      "CookieClicker",
+      "EmpireService"
+    ],
+    "class": "ModuleScript",
+    "bytes": 7727,
+    "sha256": "66f240bec0036a6cc006cda48508e3570d941b75587951fe392049ecd77c54dd",
+    "adler32": 980861930,
+    "file": "ReplicatedStorage/CookieClicker/EmpireService.luau"
+  },
+  {
+    "path": [
+      "ReplicatedStorage",
+      "CookieClicker",
+      "CharityStore"
+    ],
+    "class": "ModuleScript",
+    "bytes": 6643,
+    "sha256": "e26776c7c2d4cf014c053079190b19720a21bf5647956e21fefe637b8b057c35",
+    "adler32": 3285146536,
+    "file": "ReplicatedStorage/CookieClicker/CharityStore.luau"
+  },
+  {
+    "path": [
+      "ReplicatedStorage",
+      "CookieClicker",
+      "CharityService"
+    ],
+    "class": "ModuleScript",
+    "bytes": 5395,
+    "sha256": "b10204b10b128ba650787fae2352fbb4b7e0b8e4262f9cad8196f128d3a01cd0",
+    "adler32": 57081345,
+    "file": "ReplicatedStorage/CookieClicker/CharityService.luau"
+  },
+  {
+    "path": [
+      "ReplicatedStorage",
+      "CookieClicker",
+      "ImageNames"
+    ],
+    "class": "ModuleScript",
+    "bytes": 1857,
+    "sha256": "7bda7f37442442347cb56d610ea91e9f25e382a22d1e7030245df78a1c59d4da",
+    "adler32": 1405323574,
+    "file": "ReplicatedStorage/CookieClicker/ImageNames.luau"
+  },
+  {
+    "path": [
+      "ReplicatedStorage",
+      "CookieClicker",
+      "FeedbackQueue"
+    ],
+    "class": "ModuleScript",
+    "bytes": 913,
+    "sha256": "31a3ac50727e6bc525725ecf59a9b328a223c9fbfcfa09e618b067b2c772be6e",
+    "adler32": 4201124123,
+    "file": "ReplicatedStorage/CookieClicker/FeedbackQueue.luau"
+  },
+  {
+    "path": [
+      "ReplicatedStorage",
+      "CookieClicker",
+      "FriendBoost"
+    ],
+    "class": "ModuleScript",
+    "bytes": 1487,
+    "sha256": "f50c7a8f3e31e4430181864977c5bbc009eb679a349abbebb5927e6431db93c9",
+    "adler32": 667536694,
+    "file": "ReplicatedStorage/CookieClicker/FriendBoost.luau"
+  },
+  {
+    "path": [
+      "ReplicatedStorage",
+      "CookieClicker",
+      "Monetization"
+    ],
+    "class": "ModuleScript",
+    "bytes": 5125,
+    "sha256": "fa12f7489a362fb202007ff0feb324dd4812531612bb7a6fed6e544863fce57b",
+    "adler32": 2136571708,
+    "file": "ReplicatedStorage/CookieClicker/Monetization.luau"
+  },
+  {
+    "path": [
+      "ReplicatedStorage",
+      "CookieClicker",
+      "MonetizationConfig"
+    ],
+    "class": "ModuleScript",
+    "bytes": 16270,
+    "sha256": "7632e8e9bad74aca242081d161978bd7adaac382cc293cdeb6907f8b4e8ee343",
+    "adler32": 1479218525,
+    "file": "ReplicatedStorage/CookieClicker/MonetizationConfig.luau"
+  },
+  {
+    "path": [
+      "ReplicatedStorage",
+      "CookieClicker",
+      "PurchaseService"
+    ],
+    "class": "ModuleScript",
+    "bytes": 2145,
+    "sha256": "174fc8ec618ead1fa689bd54a82fb2f519ff37e9bc734d053ca65bb9205b225f",
+    "adler32": 3156128583,
+    "file": "ReplicatedStorage/CookieClicker/PurchaseService.luau"
+  },
+  {
+    "path": [
+      "ReplicatedStorage",
+      "CookieClicker",
+      "RobloxMonetization"
+    ],
+    "class": "ModuleScript",
+    "bytes": 4190,
+    "sha256": "9325d2035eaa654aee5200ca222e447d9799476bfa7b5839406fad517254565c",
+    "adler32": 3318192432,
+    "file": "ReplicatedStorage/CookieClicker/RobloxMonetization.luau"
+  },
+  {
+    "path": [
+      "ReplicatedStorage",
+      "TS",
+      "host",
+      "engine-types"
+    ],
+    "class": "ModuleScript",
+    "bytes": 1440,
+    "sha256": "78b753585a67c4b555c6680c59dc3aa67e735eaf48d754e19eb26772f4c72b55",
+    "adler32": 1717165771,
+    "file": "ReplicatedStorage/TS/host/engine-types.luau"
+  },
+  {
+    "path": [
+      "ReplicatedStorage",
+      "CookieClicker",
+      "PremiumShop"
+    ],
+    "class": "ModuleScript",
+    "bytes": 6748,
+    "sha256": "c8cda1f0d866e172cb38512f7adaead4eaad9373194abe4885f22bd8cbb9f81d",
+    "adler32": 3117686458,
+    "file": "ReplicatedStorage/CookieClicker/PremiumShop.luau"
+  },
+  {
+    "path": [
+      "ReplicatedStorage",
+      "CookieClicker",
+      "EmpireRoster"
+    ],
+    "class": "ModuleScript",
+    "bytes": 1558,
+    "sha256": "38015ed98233f7a6691c413099c9af610d0b52f90968e91fbbb0530dd5c1273d",
+    "adler32": 120194373,
+    "file": "ReplicatedStorage/CookieClicker/EmpireRoster.luau"
+  },
+  {
+    "path": [
+      "ReplicatedStorage",
+      "CookieClicker",
+      "PromoPopups"
+    ],
+    "class": "ModuleScript",
+    "bytes": 3843,
+    "sha256": "f6284bd9c5943b14036c54b1353aaad4c220a242685931aadc18551d6fd71565",
+    "adler32": 3871716228,
+    "file": "ReplicatedStorage/CookieClicker/PromoPopups.luau"
+  },
+  {
+    "path": [
+      "ReplicatedStorage",
+      "CookieClicker",
+      "BalanceConfig"
+    ],
+    "class": "ModuleScript",
+    "bytes": 1369,
+    "sha256": "a8189da2fc615ba8da54f4c229be29ec1dde340388d361a2a28f250761c417f4",
+    "adler32": 3964912126,
+    "file": "ReplicatedStorage/CookieClicker/BalanceConfig.luau"
+  },
+  {
+    "path": [
+      "ReplicatedStorage",
+      "Packages",
+      "Ripple"
+    ],
+    "class": "ModuleScript",
+    "bytes": 73,
+    "sha256": "87d5616b4464198e9726ccd45099a5219263817ae854d03400f3a3dffa08c481",
+    "adler32": 71178773,
+    "file": "ReplicatedStorage/Packages/Ripple.luau"
+  },
+  {
+    "path": [
+      "ReplicatedStorage",
+      "Packages",
+      "_Index",
+      "littensy_ripple@0.10.2",
+      "ripple"
+    ],
+    "class": "ModuleScript",
+    "bytes": 1002,
+    "sha256": "4bdf7aacd0edebcbd409030fe1d30f7e7dee810e160bd08bf7f0612e387fd2e5",
+    "adler32": 4271268350,
+    "file": "ReplicatedStorage/Packages/_Index/littensy_ripple@0.10.2/ripple.luau"
+  },
+  {
+    "path": [
+      "ReplicatedStorage",
+      "Packages",
+      "_Index",
+      "littensy_ripple@0.10.2",
+      "ripple",
+      "spring"
+    ],
+    "class": "ModuleScript",
+    "bytes": 9431,
+    "sha256": "a9335982c544727bf0d690cfb9507c5a7a636bba15434015a968dfcd1de55786",
+    "adler32": 3067421414,
+    "file": "ReplicatedStorage/Packages/_Index/littensy_ripple@0.10.2/ripple/spring.luau"
+  },
+  {
+    "path": [
+      "ReplicatedStorage",
+      "Packages",
+      "_Index",
+      "littensy_ripple@0.10.2",
+      "ripple",
+      "easing"
+    ],
+    "class": "ModuleScript",
+    "bytes": 5160,
+    "sha256": "5ec5256dde25cf99ca5f2d2eea7c46d087c52240e9cd2ef5cdd9b75f1cc80948",
+    "adler32": 1685649249,
+    "file": "ReplicatedStorage/Packages/_Index/littensy_ripple@0.10.2/ripple/easing.luau"
+  },
+  {
+    "path": [
+      "ReplicatedStorage",
+      "Packages",
+      "_Index",
+      "littensy_ripple@0.10.2",
+      "ripple",
+      "tween"
+    ],
+    "class": "ModuleScript",
+    "bytes": 5906,
+    "sha256": "1ccd0090481c363e42a65c23542ec10a3fee91300d2206ee27a38e59b754dfbe",
+    "adler32": 2472986647,
+    "file": "ReplicatedStorage/Packages/_Index/littensy_ripple@0.10.2/ripple/tween.luau"
+  },
+  {
+    "path": [
+      "ReplicatedStorage",
+      "Packages",
+      "_Index",
+      "littensy_ripple@0.10.2",
+      "ripple",
+      "types"
+    ],
+    "class": "ModuleScript",
+    "bytes": 245,
+    "sha256": "d4cb5f5d537ea6ef5ce59cd6a11932033ef52f16787c914a89c8fcea511b78ca",
+    "adler32": 1385977592,
+    "file": "ReplicatedStorage/Packages/_Index/littensy_ripple@0.10.2/ripple/types.luau"
+  },
+  {
+    "path": [
+      "ReplicatedStorage",
+      "TS",
+      "host",
+      "path2d"
+    ],
+    "class": "ModuleScript",
+    "bytes": 418,
+    "sha256": "8f002b46114c94966be74f18568fdb561421f53f91b2f8d5417da99e6e1a3b34",
+    "adler32": 196905824,
+    "file": "ReplicatedStorage/TS/host/path2d.luau"
+  },
+  {
+    "path": [
+      "ReplicatedStorage",
+      "Packages",
+      "_Index",
+      "littensy_ripple@0.10.2",
+      "ripple",
+      "config"
+    ],
+    "class": "ModuleScript",
+    "bytes": 717,
+    "sha256": "37f1189b0997ec090781956dbb321b82ca3a6a5cf25d1cecd87de1c6b2219be8",
+    "adler32": 2090395074,
+    "file": "ReplicatedStorage/Packages/_Index/littensy_ripple@0.10.2/ripple/config.luau"
+  },
+  {
+    "path": [
+      "ReplicatedStorage",
+      "Packages",
+      "_Index",
+      "littensy_ripple@0.10.2",
+      "ripple",
+      "motion"
+    ],
+    "class": "ModuleScript",
+    "bytes": 7107,
+    "sha256": "e59bc93b08914ef0dee9ca12a43eead976595d45090390dd75ee6ba64b0e818c",
+    "adler32": 1082553912,
+    "file": "ReplicatedStorage/Packages/_Index/littensy_ripple@0.10.2/ripple/motion.luau"
+  },
+  {
+    "path": [
+      "ReplicatedStorage",
+      "Packages",
+      "_Index",
+      "littensy_ripple@0.10.2",
+      "ripple",
+      "utils",
+      "oklab"
+    ],
+    "class": "ModuleScript",
+    "bytes": 2888,
+    "sha256": "a3c53f9039a0af0dbc28e74802b2968bf86c8bde4710839c178ce988ad3f757a",
+    "adler32": 3437122972,
+    "file": "ReplicatedStorage/Packages/_Index/littensy_ripple@0.10.2/ripple/utils/oklab.luau"
+  },
+  {
+    "path": [
+      "ReplicatedStorage",
+      "Packages",
+      "_Index",
+      "littensy_ripple@0.10.2",
+      "ripple",
+      "utils",
+      "scheduler"
+    ],
+    "class": "ModuleScript",
+    "bytes": 1491,
+    "sha256": "cb10885bce8f3a4db0d357b7a7ec9e4f734c32c9829b4702bc3d3c602d17fa01",
+    "adler32": 2460866877,
+    "file": "ReplicatedStorage/Packages/_Index/littensy_ripple@0.10.2/ripple/utils/scheduler.luau"
+  },
+  {
+    "path": [
+      "ReplicatedStorage",
+      "Packages",
+      "_Index",
+      "littensy_ripple@0.10.2",
+      "ripple",
+      "utils",
+      "merge"
+    ],
+    "class": "ModuleScript",
+    "bytes": 283,
+    "sha256": "a6d2e35ada450f081624a83af7f2dd6d89cefe510b3760e37c39f76bbb8b0fe7",
+    "adler32": 2844941259,
+    "file": "ReplicatedStorage/Packages/_Index/littensy_ripple@0.10.2/ripple/utils/merge.luau"
+  },
+  {
+    "path": [
+      "ReplicatedStorage",
+      "Packages",
+      "_Index",
+      "littensy_ripple@0.10.2",
+      "ripple",
+      "utils",
+      "intermediate"
+    ],
+    "class": "ModuleScript",
+    "bytes": 5603,
+    "sha256": "cdf16ae243164309819566ce32515a792e9a734ed82a7408e960b55eb6330dcc",
+    "adler32": 235827059,
+    "file": "ReplicatedStorage/Packages/_Index/littensy_ripple@0.10.2/ripple/utils/intermediate.luau"
+  },
+  {
+    "path": [
+      "ReplicatedStorage",
+      "Packages",
+      "_Index",
+      "littensy_ripple@0.10.2",
+      "ripple",
+      "utils",
+      "signal"
+    ],
+    "class": "ModuleScript",
+    "bytes": 736,
+    "sha256": "bb09cb7f570368fc2569627ed32e6b5621c0a3f1ffbacb8164673fd3bf3f4a25",
+    "adler32": 2777931884,
+    "file": "ReplicatedStorage/Packages/_Index/littensy_ripple@0.10.2/ripple/utils/signal.luau"
+  },
+  {
+    "path": [
+      "ReplicatedStorage",
+      "Packages",
+      "_Index",
+      "littensy_ripple@0.10.2",
+      "ripple",
+      "utils",
+      "interpolate"
+    ],
+    "class": "ModuleScript",
+    "bytes": 1498,
+    "sha256": "79e222a532bfe3888846ab7e0c02ee0f0795c0c0a1d13bd6d86efaa1f9afdde6",
+    "adler32": 773313422,
+    "file": "ReplicatedStorage/Packages/_Index/littensy_ripple@0.10.2/ripple/utils/interpolate.luau"
+  },
+  {
+    "path": [
+      "ReplicatedStorage",
+      "Packages",
+      "_Index",
+      "littensy_ripple@0.10.2",
+      "ripple",
+      "utils",
+      "spawn"
+    ],
+    "class": "ModuleScript",
+    "bytes": 519,
+    "sha256": "0b8a38726fc6605f89a2e0272eb73e8a7f4b18d8e35e2169336306f87c59c6bc",
+    "adler32": 1930207328,
+    "file": "ReplicatedStorage/Packages/_Index/littensy_ripple@0.10.2/ripple/utils/spawn.luau"
+  },
+  {
+    "path": [
+      "ServerScriptService",
+      "CookieClickerServer"
+    ],
+    "class": "Script",
+    "bytes": 20976,
+    "sha256": "d64888b79a559d623f75cd8f9c8a4dc03340215f04329ad913ca396f8ba5087a",
+    "adler32": 110743918,
+    "file": "ServerScriptService/CookieClickerServer.server.luau"
+  },
+  {
+    "path": [
+      "ReplicatedStorage",
+      "TS",
+      "host",
+      "roblox-host"
+    ],
+    "class": "ModuleScript",
+    "bytes": 71232,
+    "sha256": "800ca9ee1e4dd7f00abfeae0c536d3770a4e68c9e8458c34dbd47099288eff04",
+    "adler32": 2278588482,
+    "file": "ReplicatedStorage/TS/host/roblox-host.luau"
+  },
+  {
+    "path": [
+      "ServerStorage",
+      "MonetizationConfig"
+    ],
+    "class": "ModuleScript",
+    "bytes": 16270,
+    "sha256": "7632e8e9bad74aca242081d161978bd7adaac382cc293cdeb6907f8b4e8ee343",
+    "adler32": 1479218525,
+    "file": "ServerStorage/MonetizationConfig.luau"
+  },
+  {
+    "path": [
+      "TestService",
+      "LuauLSP_Settings"
+    ],
+    "class": "ModuleScript",
+    "bytes": 1422,
+    "sha256": "ead44b4ab2c991d1f2f035a1776ba38e3d2f89123c0f30e08aa33798952c66e7",
+    "adler32": 2999703823,
+    "file": "TestService/LuauLSP_Settings.luau"
+  },
+  {
+    "path": [
+      "ReplicatedStorage",
+      "TS",
+      "polyfills"
+    ],
+    "class": "ModuleScript",
+    "bytes": 3728,
+    "sha256": "f54202193d9dc690035887a241fc288fd801461554664b1c9361cb50b26b91de",
+    "adler32": 3892426086,
+    "file": "ReplicatedStorage/TS/polyfills.luau"
+  },
+  {
+    "path": [
+      "ReplicatedStorage",
+      "TS",
+      "css",
+      "engine"
+    ],
+    "class": "ModuleScript",
+    "bytes": 38413,
+    "sha256": "221f5f3180e6e04d3b20e4f24deae218390677692229be42e712ba867ba88004",
+    "adler32": 3437534743,
+    "file": "ReplicatedStorage/TS/css/engine.luau"
+  }
+]

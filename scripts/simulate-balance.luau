@@ -1,8 +1,8 @@
 -- Deterministic pacing model, not a claim about real player retention.
 -- Chooses the best marginal production payback, waits to afford it, and buys
--- through the real game rules. Click awards are aggregated once per second.
+-- through the real game rules. Whole clicks are executed once per simulated second.
 local Model=require("../cookie-clicker/Model")
-local function simulate(name,clicks,jobs,seconds)
+local function simulate(name,clicks,jobs,seconds,rebirth)
     local s=Model.new()
     local milestones={}
     local function rate()local cps=Model.cps(s);return cps+clicks*Model.clickPower(s,cps)end
@@ -63,6 +63,24 @@ local function simulate(name,clicks,jobs,seconds)
         for _,m in {{"Farm",s.buildings[3]>0},{"Bank",s.buildings[6]>0},{"Tower",s.buildings[8]>0},{"FinalBuilding",s.buildings[20]>0},{"Level3",Model.jobLevel(s)>=3},{"Level5",Model.jobLevel(s)>=5},{"10M",s.earned>=1e7},{"1T",s.earned>=1e12},{"Rebirth",Model.ascensionGain(s)>0}} do
             if m[2] and not milestones[m[1]] then milestones[m[1]]=time;print(name,m[1],time,"seconds") end
         end
+        if rebirth and Model.ascensionGain(s)>=math.max(1,s.prestige) then
+            local earned=s.earned
+            -- A retained cursor boost helps the next bakery from its first tap.
+            if s.heavenly.slot then
+                for _,u in Model.Upgrades do
+                    if u.click and s.upgrades[u.id] then
+                        assert(Model.advancedAction(s,"permanent",u.id));break
+                    end
+                end
+            end
+            assert(Model.advancedAction(s,"ascend"))
+            for _,key in {"baking","tapping","slot"} do
+                local cost=key=="slot" and 3 or 1
+                if not s.heavenly[key] and s.chips>=cost then Model.advancedAction(s,"heavenly",key) end
+            end
+            print(name,"RESTART",time,"stars",s.prestige,"run earned",earned,"retained CPS",Model.cps(s))
+            nextBuy=choose()
+        end
         if time%3600==0 then print(name,"HOUR",time/3600,"earned",s.earned,"CPS",Model.cps(s),"click",Model.clickPower(s),"level",Model.jobLevel(s)) end
     end
 end
@@ -70,3 +88,4 @@ simulate("active",2,true,14400)
 simulate("casual",.5,true,14400)
 simulate("bakery_only",2,false,14400)
 simulate("long_run",2,true,86400)
+simulate("repeated_rebirth",2,true,86400,true)

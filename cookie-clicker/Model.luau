@@ -30,10 +30,10 @@ end
 Model.Upgrades = {
 	{ id = "fingers", name = "Reinforced index finger", description = "The mouse and cursors are twice as efficient.", price = 100, building = 1, required = 1, click = true },
 	{ id = "cream", name = "Carpal tunnel prevention cream", description = "The mouse and cursors are twice as efficient.", price = 500, building = 1, required = 1, click = true },
-	{ id = "ambidextrous", name = "Ambidextrous", description = "The mouse and cursors are twice as efficient.", price = 10000, building = 1, required = 10, click = true },
+	{ id = "ambidextrous", name = "Ambidextrous", description = "The mouse and cursors are twice as efficient.", price = 2500, building = 1, required = 10, click = true },
 	{ id = "rolling", name = "Forwards from grandma", description = "Grandmas are twice as efficient.", price = 1000, building = 2, required = 1 },
 	{ id = "steel", name = "Steel-plated rolling pins", description = "Grandmas are twice as efficient.", price = 5000, building = 2, required = 5 },
-	{ id = "lubricated", name = "Lubricated dentures", description = "Grandmas are twice as efficient.", price = 50000, building = 2, required = 25 },
+	{ id = "lubricated", name = "Lubricated dentures", description = "Grandmas are twice as efficient.", price = 25000, building = 2, required = 25 },
 	{ id = "hoes", name = "Cheap hoes", description = "Farms are twice as efficient.", price = 11000, building = 3, required = 1 },
 	{ id = "fertilizer", name = "Fertilizer", description = "Farms are twice as efficient.", price = 55000, building = 3, required = 5 },
 	{ id = "picks", name = "Sugar gas", description = "Mines are twice as efficient.", price = 120000, building = 4, required = 1 },

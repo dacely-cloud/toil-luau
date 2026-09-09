@@ -1,4 +1,18 @@
 local Model=require("./Model")
+-- Test each upgrade at its unlock point too: an enormous unrelated bakery can
+-- hide small changes below floating-point precision in the saturated case.
+for _,u in Model.Upgrades do
+    local s=Model.new();s.cookies=u.price;s.buildings[u.building]=u.required
+    local before=Model.snapshot(s)
+    assert(Model.buyUpgrade(s,u.id),"purchase failed: "..u.id)
+    local after=Model.snapshot(s)
+    assert(after.cps>before.cps,"upgrade did not improve production: "..u.id)
+    assert(after.clickPower>before.clickPower,"upgrade did not improve taps: "..u.id)
+    assert(Model.click(s)==after.clickPower,"displayed and awarded tap differ: "..u.id)
+    local power=Model.clickPower(s)
+    assert(not Model.buyUpgrade(s,u.id),"duplicate purchase accepted: "..u.id)
+    assert(Model.clickPower(s)==power,"rejected purchase changed taps: "..u.id)
+end
 for _,u in Model.Upgrades do
     for _,boosted in {false,true} do
         local s=Model.new();s.cookies=1e100

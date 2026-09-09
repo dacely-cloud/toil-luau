@@ -2,6 +2,7 @@
 return {
     RebirthCookies=1e7,
     StarProductionBonus=.05,
+    StarBonusSoftcap=100,
     MaxBuildingBasePayback=3600,
     EnergySeconds=5,
     StaminaSeconds=15,

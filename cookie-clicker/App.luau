@@ -651,15 +651,20 @@ return function()
                         local locked=Model.jobLevel(state)<job.level
                         local ready=not locked and economy.energy>=job.energy
                         local reward=Model.jobReward(state,job)
+                        local jobY=y
+                        local jobSignature=table.concat({w,jobY,uiFont,reward,tostring(locked),tostring(ready)},"|")
+                        pane[#pane+1]=remember(viewCache,"jobCard"..job.id,jobSignature,function()
                         local card={
                             picture("jobPicture",ImageNames.jobs[job.id],12,14,52,52),
-                            label("jobTitle",job.name,76,10,w-88,30,21,"#fff4df"),
-                            label("jobRewards",number(reward).." cookies  |  +"..job.xp.." XP",76,44,w-88,28,19,"#ffe3a3"),
-                            label("jobDrop",math.floor(job.chance*100).."% item chance",14,80,w-150,28,16,"#ddd2ff"),
-                            button("doJob"..job.id,locked and "Level "..job.level or "Do it!",w-128,78,114,48,function()send("economy","job",job.id)end,{background=ready and "#276849" or "#51483d",["font-size"]="22px"}),
-                            label("jobEnergy",job.energy.." energy",14,110,w-150,26,18,"#9fdcf6"),
+                            label("jobTitle",job.name,76,10,w-88,52,21,"#fff4df"),
+                            label("jobRewards",number(reward).." cookies",14,72,w-28,36,19,"#ffe3a3"),
+                            label("jobXp","+"..job.xp.." XP",14,112,w-150,28,18,"#b6e6bf"),
+                            label("jobDrop",math.floor(job.chance*100).."% item chance",14,174,w-28,26,16,"#ddd2ff"),
+                            button("doJob"..job.id,locked and "Level "..job.level or "Do it!",w-128,120,114,48,function()send("economy","job",job.id)end,{background=ready and "#276849" or "#51483d",["font-size"]="22px"}),
+                            label("jobEnergy",job.energy.." energy",14,142,w-150,26,18,"#9fdcf6"),
                         }
-                        pane[#pane+1]=box("jobCard"..job.id,24,y,w,146,"#342d25",card,{border="1px solid #827052",["border-radius"]="12px",["--zone-background"]=ImageNames.jobBackgrounds[job.id]});y+=158
+                        return box("jobCard"..job.id,24,jobY,w,210,"#342d25",card,{border="1px solid #827052",["border-radius"]="12px",["--zone-background"]=ImageNames.jobBackgrounds[job.id]})
+                        end);y+=222
                     end
                 elseif workPage[1]=="Properties" then
                     text("propertyIncome","Your places: +"..number(Model.propertyIncome(state),true).." cookies / sec",38)
@@ -839,12 +844,12 @@ return function()
                         for i,tier in Model.Fundraisers do
                             local cost=Model.fundraiserCost(state,i)
                             local ready=economy.jar>=cost and not state.charityPending
-                            pane[#pane+1]=box("partyTier"..i,24,y,w,154,"#342d25",{
+                            pane[#pane+1]=box("partyTier"..i,24,y,w,178,"#342d25",{
                                 picture("partyPicture","CookieFestival",12,12,56,56),
                                 label("partyDuration",tier.name,80,10,w-92,28,23,"#fff4df"),
-                                label("partyReward",number(math.floor(cost*tier.multiplier)).." cookies back",80,42,w-92,30,19,"#b6e6bf"),
-                                button("startCharity"..i,(ready and "Start: " or "Need: ")..number(cost).." from jar",12,90,w-24,50,function()if ready then send("fundraiser","start",i) else workPage[2]("Jar") end end,{background=ready and "#276849" or "#51483d",["font-size"]="20px"}),
-                            },{["border-radius"]="12px",["--zone-background"]="CookieCharity"});y+=166
+                                label("partyReward",number(math.floor(cost*tier.multiplier)).." cookies back",80,42,w-92,54,19,"#b6e6bf"),
+                                button("startCharity"..i,(ready and "Start: " or "Need: ")..number(cost).." from jar",12,114,w-24,50,function()if ready then send("fundraiser","start",i) else workPage[2]("Jar") end end,{background=ready and "#276849" or "#51483d",["font-size"]="20px"}),
+                            },{["border-radius"]="12px",["--zone-background"]="CookieCharity"});y+=190
                         end
                         text("partyChanges","Friends can add cookies. Thieves can take some.",48)
                     end
@@ -954,7 +959,7 @@ return function()
                     pane[#pane+1]=box("starReward",24,y,w,230,"#34283f",{
                         picture("starPicture","Stars",(w-100)/2,12,100,100),
                         label("starGain",gain>0 and "+"..number(gain).." stars ready!" or "Your next big step",12,122,w-24,38,27,"#ffe3a3",{["text-align"]="center"}),
-                        label("starBonus","Each star = +"..number(Model.Balance.StarProductionBonus*100).."% building baking",12,166,w-24,48,18,"#b6e6bf",{["text-align"]="center"}),
+                        label("starBonus","Baking bonus: +"..number((Model.starMultiplier(state.prestige)-1)*100,true).."% → +"..number((Model.starMultiplier(state.prestige+gain)-1)*100,true).."%",12,166,w-24,48,18,"#b6e6bf",{["text-align"]="center"}),
                     },{["border-radius"]="12px",border="1px solid #967446"});y+=242
                     local total=(state.pastEarned or 0)+(state.earned or 0)
                     local nextStar=state.prestige+gain+1
@@ -964,6 +969,7 @@ return function()
                         box("starProgressTrack",16,72,w-32,10,"#17141e",{box("starProgressFill",0,0,(w-32)*math.clamp(total/goal,0,1),10,"#eac36d")},{["border-radius"]="5px"}),
                         label("starProgressHint","Next star: "..number(goal).." baked in total",12,94,w-24,28,15,"#cbbbd7",{["text-align"]="center"}),
                     },{["border-radius"]="10px"});y+=144
+                    text("starGrowth","First "..number(Model.Balance.StarBonusSoftcap).." stars: +"..number(Model.Balance.StarProductionBonus*100).."% baking each. After that, each star adds a smaller boost.",76)
                     text("freshWarning","Rebirth resets cookies, buildings, regular boosts and Adventure activities.",76)
                     if confirmFresh[1] then
                         text("freshDetails","Your ingredients, garden, helpers, magic and wrinklers also reset.",70)

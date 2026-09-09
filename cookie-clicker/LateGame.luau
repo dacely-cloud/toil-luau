@@ -69,8 +69,15 @@ return function(Model)
         s.buddyBank=0;for _,w in s.wrinklers do s.buddyBank+=w.bank end
         return earned
     end
+    function Model.starMultiplier(stars)
+        stars=math.max(0,stars or 0)
+        local cap=Model.Balance.StarBonusSoftcap
+        -- Preserve opening rewards; taper later gains without removing stars/chips.
+        local effective=stars<=cap and stars or cap*(1+math.log(stars/cap))
+        return 1+effective*Model.Balance.StarProductionBonus
+    end
 	function Model.productionFactor(s)
-		return (1+(s.prestige or 0)*Model.Balance.StarProductionBonus)*(s.heavenly and s.heavenly.baking and 1.1 or 1)*(s.spirit=="baking" and 1.1 or 1)*(1+Model.empireBonus(s))*Model.milkMultiplier(s)*Model.collectionBonus(s)
+		return Model.starMultiplier(s.prestige)*(s.heavenly and s.heavenly.baking and 1.1 or 1)*(s.spirit=="baking" and 1.1 or 1)*(1+Model.empireBonus(s))*Model.milkMultiplier(s)*Model.collectionBonus(s)
 	end
 	function Model.ascensionGain(s)
 		return math.max(0,math.floor(((s.pastEarned+s.earned)/Model.Balance.RebirthCookies)^(1/3))-s.prestige)

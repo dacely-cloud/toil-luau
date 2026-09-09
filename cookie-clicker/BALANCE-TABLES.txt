@@ -1,0 +1,166 @@
+BUILDING | base price | base CPS | base payback seconds | 25-owned upgrade payback
+01 Cursor | 15 | 0.1 | 150.0 | 1500.0
+02 Grandma | 100 | 1 | 100.0 | 1000.0
+03 Farm | 1100 | 8 | 137.5 | 1375.0
+04 Mine | 12000 | 47 | 255.3 | 2553.2
+05 Factory | 130000 | 260 | 500.0 | 5000.0
+06 Bank | 1.4e+06 | 1400 | 1000.0 | 10000.0
+07 Temple | 2e+07 | 7800 | 2564.1 | 25641.0
+08 Wizard tower | 1.584e+08 | 44000 | 3600.0 | 36000.0
+09 Shipment | 9.36e+08 | 260000 | 3600.0 | 36000.0
+10 Alchemy lab | 5.76e+09 | 1.6e+06 | 3600.0 | 36000.0
+11 Portal | 3.6e+10 | 1e+07 | 3600.0 | 36000.0
+12 Time machine | 2.34e+11 | 6.5e+07 | 3600.0 | 36000.0
+13 Antimatter condenser | 1.548e+12 | 4.3e+08 | 3600.0 | 36000.0
+14 Prism | 1.044e+13 | 2.9e+09 | 3600.0 | 36000.0
+15 Chancemaker | 7.56e+13 | 2.1e+10 | 3600.0 | 36000.0
+16 Fractal engine | 5.4e+14 | 1.5e+11 | 3600.0 | 36000.0
+17 Javascript console | 3.96e+15 | 1.1e+12 | 3600.0 | 36000.0
+18 Idleverse | 2.988e+16 | 8.3e+12 | 3600.0 | 36000.0
+19 Cortex baker | 2.304e+17 | 6.4e+13 | 3600.0 | 36000.0
+20 You | 1.836e+18 | 5.1e+14 | 3600.0 | 36000.0
+UPGRADE | id | building | required | cost | click upgrade
+fingers	Cursor	1	100	true
+cream	Cursor	1	500	true
+ambidextrous	Cursor	10	2500	true
+rolling	Grandma	1	1000	false
+steel	Grandma	5	5000	false
+lubricated	Grandma	25	25000	false
+hoes	Farm	1	11000	false
+fertilizer	Farm	5	55000	false
+picks	Mine	1	120000	false
+conveyor	Factory	1	1300000	false
+building_1_5	Cursor	5	750	true
+building_1_25	Cursor	25	3750	true
+building_1_50	Cursor	50	18750	true
+building_1_100	Cursor	100	93750	true
+building_2_50	Grandma	50	125000	false
+building_2_100	Grandma	100	625000	false
+building_3_25	Farm	25	275000	false
+building_3_50	Farm	50	1375000	false
+building_3_100	Farm	100	6875000	false
+building_4_5	Mine	5	600000	false
+building_4_25	Mine	25	3000000	false
+building_4_50	Mine	50	15000000	false
+building_4_100	Mine	100	75000000	false
+building_5_5	Factory	5	6500000	false
+building_5_25	Factory	25	32500000	false
+building_5_50	Factory	50	162500000	false
+building_5_100	Factory	100	812500000	false
+building_6_1	Bank	1	14000000	false
+building_6_5	Bank	5	70000000	false
+building_6_25	Bank	25	350000000	false
+building_6_50	Bank	50	1750000000	false
+building_6_100	Bank	100	8750000000	false
+building_7_1	Temple	1	200000000	false
+building_7_5	Temple	5	1000000000	false
+building_7_25	Temple	25	5000000000	false
+building_7_50	Temple	50	25000000000	false
+building_7_100	Temple	100	125000000000	false
+building_8_1	Wizard tower	1	1584000000	false
+building_8_5	Wizard tower	5	7920000000	false
+building_8_25	Wizard tower	25	39600000000	false
+building_8_50	Wizard tower	50	198000000000	false
+building_8_100	Wizard tower	100	990000000000	false
+building_9_1	Shipment	1	9360000000	false
+building_9_5	Shipment	5	46800000000	false
+building_9_25	Shipment	25	234000000000	false
+building_9_50	Shipment	50	1170000000000	false
+building_9_100	Shipment	100	5850000000000	false
+building_10_1	Alchemy lab	1	57600000000	false
+building_10_5	Alchemy lab	5	288000000000	false
+building_10_25	Alchemy lab	25	1440000000000	false
+building_10_50	Alchemy lab	50	7200000000000	false
+building_10_100	Alchemy lab	100	36000000000000	false
+building_11_1	Portal	1	360000000000	false
+building_11_5	Portal	5	1800000000000	false
+building_11_25	Portal	25	9000000000000	false
+building_11_50	Portal	50	45000000000000	false
+building_11_100	Portal	100	225000000000000	false
+building_12_1	Time machine	1	2340000000000	false
+building_12_5	Time machine	5	11700000000000	false
+building_12_25	Time machine	25	58500000000000	false
+building_12_50	Time machine	50	292500000000000	false
+building_12_100	Time machine	100	1462500000000000	false
+building_13_1	Antimatter condenser	1	15480000000000	false
+building_13_5	Antimatter condenser	5	77400000000000	false
+building_13_25	Antimatter condenser	25	387000000000000	false
+building_13_50	Antimatter condenser	50	1935000000000000	false
+building_13_100	Antimatter condenser	100	9675000000000000	false
+building_14_1	Prism	1	104400000000000	false
+building_14_5	Prism	5	522000000000000	false
+building_14_25	Prism	25	2610000000000000	false
+building_14_50	Prism	50	13050000000000000	false
+building_14_100	Prism	100	65250000000000000	false
+building_15_1	Chancemaker	1	756000000000000	false
+building_15_5	Chancemaker	5	3780000000000000	false
+building_15_25	Chancemaker	25	18900000000000000	false
+building_15_50	Chancemaker	50	94500000000000000	false
+building_15_100	Chancemaker	100	472500000000000000	false
+building_16_1	Fractal engine	1	5400000000000000	false
+building_16_5	Fractal engine	5	27000000000000000	false
+building_16_25	Fractal engine	25	135000000000000000	false
+building_16_50	Fractal engine	50	675000000000000000	false
+building_16_100	Fractal engine	100	3375000000000000000	false
+building_17_1	Javascript console	1	39600000000000000	false
+building_17_5	Javascript console	5	198000000000000000	false
+building_17_25	Javascript console	25	990000000000000000	false
+building_17_50	Javascript console	50	4950000000000000000	false
+building_17_100	Javascript console	100	24750000000000000000	false
+building_18_1	Idleverse	1	298800000000000000	false
+building_18_5	Idleverse	5	1494000000000000000	false
+building_18_25	Idleverse	25	7470000000000000000	false
+building_18_50	Idleverse	50	37350000000000000000	false
+building_18_100	Idleverse	100	186750000000000000000	false
+building_19_1	Cortex baker	1	2304000000000000000	false
+building_19_5	Cortex baker	5	11520000000000000000	false
+building_19_25	Cortex baker	25	57600000000000000000	false
+building_19_50	Cortex baker	50	288000000000000000000	false
+building_19_100	Cortex baker	100	1.44e+21	false
+building_20_1	You	1	18360000000000000000	false
+building_20_5	You	5	91800000000000000000	false
+building_20_25	You	25	459000000000000000000	false
+building_20_50	You	50	2.295e+21	false
+building_20_100	You	100	1.1475e+22	false
+JOBS | level | energy | cookies | XP | minutes to regenerate cost
+dishes	1	5	30	10	0.4166666666666667
+deliver	2	10	100	25	0.8333333333333334
+cater	5	20	400	60	1.6666666666666667
+festival	10	35	1500	130	2.9166666666666665
+PROPERTIES | price | CPS | payback
+stand	500	1	500
+store	5000	12	416.6666666666667
+market	50000	140	357.14285714285717
+ITEMS | price | bonus
+spatula	250	0.01
+apron	1500	0.02
+mixer	10000	0.04
+crown	100000	0.08
+goldenWhisk	inf	0.03
+starApron	inf	0.03
+FUNDRAISERS | minutes | cost | net payout before fees/visits | net per second
+30 minutes	30	500	250	0.1388888888888889
+1 hour	60	1000	800	0.2222222222222222
+4 hours	240	2500	3750	0.2604166666666667
+8 hours	480	5000	10000	0.3472222222222222
+PASSES | id | goal
+VIP	1966305446	+10% cookies from baking and jobs, and +10% maximum Energy.
+JobRewards2x	1969293886	Every job you finish pays double.
+PropertyIncome2x	1967864115	Every property you own earns double income.
+EnergyRegen2x	1970309616	Your Energy comes back twice as fast, for ever.
+StaminaRegen2x	1970583608	Your Stamina comes back twice as fast, for ever.
+NoDepositFee	1970047588	Bank your cookies with no fee taken off the top.
+PRODUCTS | id | goal
+StarterPack	3711874011	50,000 cookies + an exclusive Golden whisk and Star apron.
+EnergyRefill	3711874016	Refill your Energy bar to full, right now.
+StaminaRefill	3711874021	Refill your Stamina bar to full, right now.
+CookieDelivery	3711874025	A crate of cookies delivered straight to your stash.
+CookieJackpot	3711874031	A huge cookie delivery, growing with your bakery.
+GrandmasCrate	3711874043	One surprise item for your collection.
+BakersCrate	3711874037	One item. Better chances for rare treasures.
+SantasCrate	3711874051	The legendary crate. The best rewards in the bakery.
+Shield4h	3711873983	Nobody can steal from you for 4 hours.
+Shield8h	3711875190	Nobody can steal from you for 8 hours.
+Shield24h	3711875195	Nobody can steal from you for a full day.
+MARKET ROUND TRIP	cookie loss	25000	new earned	0	principal	242000
+CPS BENCHMARK	10000	0.030208099982701242

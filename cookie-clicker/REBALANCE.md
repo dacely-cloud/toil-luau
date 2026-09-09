@@ -6,6 +6,26 @@ paid entitlements are retained. Already-maxed accounts are not reset.
 
 ## Changes
 
+### Rebirth follow-up
+
+Rebirth progression was still too fast after the building rebalance. Goals now
+use `100 billion * totalStars^4`, replacing `1 billion * totalStars^3`. First,
+second, third and tenth cumulative star goals are 100 billion, 1.6 trillion,
+8.1 trillion and 1 quadrillion. The UI calls the same `Model.starGoal` function
+used to verify reward thresholds. Existing stars, chips and boosts are preserved;
+accounts above the new earned entitlement wait until their next cumulative goal.
+
+The same expanded simulation now reaches first rebirth at 10,979 seconds (3.05h)
+normally, or 6,297 seconds (1.75h) with all passes, ten friends and eight taps/sec.
+At 24 hours the repeating-rebirth profiles have four/eight stars respectively,
+down from 32/256 under the preceding curve. These are continuous-play estimates,
+not guarantees or optimal strategies. Previously recorded multi-day results below
+describe the building-only change before this stricter star curve.
+
+Thirty game suites and the Stars UI regression pass. Exact threshold tests check
+early/exact grants, prior-run earnings, duplicate rebirth attempts and legacy
+ownership. The new goals were verified in Studio server model states after sync.
+
 The former one-hour base-payback cap made every late building similarly cheap.
 The cap now grows by 1.65 per tier after Bank, keeping original prices where
 they are lower. The first six prices remain unchanged. Later building upgrade

@@ -5,6 +5,13 @@ local function validId(id) return type(id)=="number" and id==id and id%1==0 and 
 local function copy(v)if type(v)~="table" then return v end;local r={};for k,x in v do r[k]=copy(x) end;return r end
 function CharityStore.new(Model,store)
     local service={}
+    function service.protect(owner,untilTime)
+        if not validId(owner) or type(untilTime)~="number" or untilTime~=untilTime or untilTime<0 or untilTime>=1e12 then return false end
+        local ok,result=pcall(function()
+            return store:UpdateAsync("shield_"..owner,function(old)return math.max(type(old)=="number" and old or 0,untilTime)end)
+        end)
+        return ok and type(result)=="number" and result>=untilTime
+    end
     local function key(owner,sequence)
         if not validId(owner) or not int(sequence,1e12) or sequence<1 then return nil end
         return "fund_"..owner.."_"..sequence
@@ -54,6 +61,14 @@ function CharityStore.new(Model,store)
     end
     function service.visit(owner,sequence,actor,operation,kind,now,bonus)
         if not validId(actor) or actor==owner or not int(operation,1e12) or operation<1 or (kind~="help" and kind~="steal") then return nil,"Choose another fundraiser.",true end
+        local protected=false
+        if kind=="steal" then
+            local ok,expiry=pcall(function()
+                return store:UpdateAsync("shield_"..owner,function(old)return old or 0 end)
+            end)
+            if not ok then return nil,"Checking this bakery's shield. Try again soon.",false end
+            protected=type(expiry)=="number" and expiry>now
+        end
         return change(owner,sequence,function(r)
             if not r or r.version~=1 then return nil,"Fundraiser not found." end
             local id=tostring(actor)
@@ -64,6 +79,7 @@ function CharityStore.new(Model,store)
                 return nil,"You already visited this fundraiser."
             end
             if r.claimed or now>=r.endsAt then return nil,"This fundraiser has finished." end
+            if protected then return nil,"This bakery has an active shield." end
             if r.visits>=64 then return nil,"This fundraiser is full." end
             local reward,xp=50,20
             if kind=="steal" then

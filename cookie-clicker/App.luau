@@ -93,12 +93,21 @@ shopBackdrop=function(name,w,h)
     for i=1,#name do seed=(seed*31+string.byte(name,i))%2147483647 end
     local rng=Random.new(seed)
     local kids={}
-    for i=1,3 do
-        local size=math.min(h*.95,92)*rng:NextNumber(.8,1.2)
-        local x=(i-.5)*w/3-size/2+rng:NextNumber(-w*.06,w*.06)
-        local y=rng:NextNumber(-size*.2,math.max(0,h-size*.65))
+    local perimeter=2*(w+h)
+    local count=math.clamp(math.floor(perimeter/70),8,12)
+    for i=1,count do
+        local size=math.min(h*.52,44)*rng:NextNumber(.8,1.1)
+        -- Spread small icons around all four edges, leaving the middle clear.
+        local distance=(i-1+rng:NextNumber(.2,.8))*perimeter/count
+        local inset=size*rng:NextNumber(.08,.28)
+        local cx,cy
+        if distance<w then cx,cy=distance,inset
+        elseif distance<w+h then cx,cy=w-inset,distance-w
+        elseif distance<2*w+h then cx,cy=2*w+h-distance,h-inset
+        else cx,cy=inset,perimeter-distance end
+        local x,y=cx-size/2,cy-size/2
         local rotation=rng:NextInteger(-35,35)
-        for j,offset in {{0,0},{-3,0},{3,0},{0,-3},{0,3}} do
+        for j,offset in {{0,0},{-2,0},{2,0},{0,-2},{0,2}} do
             kids[#kids+1]=picture("scatter"..i.."_"..j,name,x+offset[1],y+offset[2],size,size,{rotation=tostring(rotation),opacity=j==1 and "0.32" or "0.14"})
         end
     end
@@ -246,6 +255,7 @@ local function Cursors(props)
 	end
 	return box("cursorOrbit",210,props.y+135,360,360,nil,kids,{rotation="0",animation=not props.reducedMotion and "orbit 120s linear infinite" or ""})
 end
+local PremiumShop=require(script.Parent.PremiumShop)(React,{label=label,box=box,button=button,style=style,number=number},Model)
 return function()
 	local remote = script.Parent:WaitForChild("Action")
 	local snapshot = Model.snapshot(Model.new())
@@ -340,7 +350,7 @@ return function()
         local previous=React.useRef("")
         refreshResources=function(nextState)
             local economy=nextState.economy
-            local signature=tostring(economy.xp)..":"..math.floor(economy.energy)..":"..math.floor(economy.stamina)
+            local signature=tostring(economy.xp)..":"..math.floor(economy.energy)..":"..math.floor(economy.stamina)..":"..Model.maxEnergy(nextState)
             if signature~=previous.current then previous.current=signature;value[2](nextState) end
         end
         local state=value[1]
@@ -349,9 +359,10 @@ return function()
         local resourceStatus={}
         for i,resource in {"energy","stamina"} do
             local x=(i-1)*(meterWidth+12)
-            resourceStatus[#resourceStatus+1]=label(resource.."Amount",(resource=="energy" and "Energy " or "Stamina ")..math.floor(state.economy[resource]).."/100",x,0,meterWidth,19,14,resource=="energy" and "#a6ddeb" or "#dabbed")
+            local maximum=resource=="energy" and Model.maxEnergy(state) or 100
+            resourceStatus[#resourceStatus+1]=label(resource.."Amount",(resource=="energy" and "Energy " or "Stamina ")..math.floor(state.economy[resource]).."/"..maximum,x,0,meterWidth,19,14,resource=="energy" and "#a6ddeb" or "#dabbed")
             resourceStatus[#resourceStatus+1]=box(resource.."Meter",x,20,meterWidth,3,"#393331",{
-                box("fill",0,0,meterWidth*math.clamp(state.economy[resource]/100,0,1),3,resource=="energy" and "#6abed5" or "#b18bcc"),
+                box("fill",0,0,meterWidth*math.clamp(state.economy[resource]/maximum,0,1),3,resource=="energy" and "#6abed5" or "#b18bcc"),
             })
         end
         resourceStatus[#resourceStatus+1]=label("workStatus","Lv "..Model.jobLevel(state),width-64,-27,64,22,14,"#f5d58f",{["text-align"]="right"})
@@ -406,8 +417,8 @@ return function()
         refreshCounters = state[2]
         return e(React.Fragment, nil,
             label("cookieCount", number(snapshot.cookies) .. (math.floor(snapshot.cookies) == 1 and " cookie" or " cookies"), 12, 56, props.width-24, 32, 31, "#ffffff", {["text-align"]="center"}),
-            label("cps", number(snapshot.cps, true).." / sec",12,88,props.width*.55-12,23,17,"#ffffff",{["text-align"]="right"}),
-            label("friendBoost","Friend boost +"..(snapshot.friendCount or 0).."%",props.width*.55+8,88,props.width*.45-20,23,15,"#b6e6bf",{["text-align"]="left"}),
+            label("cps", number(snapshot.cps, true).." / sec",12,88,props.width-158,23,17,"#ffffff",{["text-align"]="right"}),
+            label("friendBoost","Friend boost +"..(snapshot.friendCount or 0).."%",props.width-134,88,126,23,15,"#b6e6bf",{["text-align"]="left"}),
             label("bonusTimer",(snapshot.frenzyUntil or 0)>snapshot.played and ("Double baking! "..math.ceil(snapshot.frenzyUntil-snapshot.played).."s left") or "",12,116,props.width-24,22,16,"#f4d28a",{["text-align"]="center"}))
     end
 
@@ -444,7 +455,7 @@ return function()
 			elseif empireEdit[1] and tab=="Work" then empireEdit[2](false)
 			elseif tab=="Work" and workPage[1]~="Jobs" then workPage[2]("Jobs")
 			elseif tab=="Adventure" and adventurePage[1]~="Home" then adventurePage[2]("Home")
-			elseif tab=="Options" or tab=="Stats" then setTab("More")
+			elseif tab=="Options" or tab=="Stats" or tab=="Treat Shop" then setTab("More")
 			elseif tab~="Buildings" then setTab("Buildings")
 			elseif mobile and page=="More" then setPage("Bake")
 			else return false end
@@ -546,6 +557,9 @@ return function()
 			if tab == "More" then
                 pane[#pane+1]=button("openOptions","Options",24,68,centerW-48,52,function()setTab("Options")end)
                 pane[#pane+1]=button("openStats","Stats",24,132,centerW-48,52,function()setTab("Stats")end)
+                pane[#pane+1]=button("openPremium","Passes & goodies",24,196,centerW-48,60,function()setTab("Treat Shop")end,{background="#765a27"})
+            elseif tab == "Treat Shop" then
+                pane[#pane+1]=e(PremiumShop,{key="premiumShop",state=state,width=centerW-48})
             elseif tab == "Stats" then
 				local stats = {
 					{ "Cookies in bank", number(state.cookies) }, { "Cookies baked (all time)", number(state.earned) },
@@ -601,7 +615,7 @@ return function()
                     for _,job in Model.Jobs do
                         local locked=Model.jobLevel(state)<job.level
                         local ready=not locked and economy.energy>=job.energy
-                        local reward=math.floor(job.cookies*Model.collectionBonus(state)*(1+Model.empireBonus(state))^2)
+                        local reward=Model.jobReward(state,job)
                         local card={
                             picture("jobPicture",ImageNames.jobs[job.id],12,14,52,52),
                             label("jobTitle",job.name,76,10,w-88,30,21,"#fff4df"),
@@ -618,7 +632,7 @@ return function()
                         local card={
                             picture("propertyArt",ImageNames.properties[property.id],12,18,56,56),
                             label("propertyName",property.name,80,10,w-92,28,22,"#fff4df"),
-                            label("propertyCount","Own "..(economy.properties[property.id] or 0).."  |  +"..number(property.income*Model.collectionBonus(state)*(1+Model.empireBonus(state))^2,true).." / sec each",80,44,w-92,40,18,"#b6e6bf"),
+                            label("propertyCount","Own "..(economy.properties[property.id] or 0).."  |  +"..number(property.income*Model.collectionBonus(state)*(1+Model.empireBonus(state))^2*Model.friendMultiplier(state)*Model.passFactor(state,"PropertyIncome")*Model.passFactor(state,"CookieGain"),true).." / sec each",80,44,w-92,40,18,"#b6e6bf"),
                             button("buyProperty"..property.id,"Buy: "..number(Model.propertyPrice(state,property.id)),12,94,w-24,48,function()send("economy","property",property.id)end,{background="#276849",["font-size"]="21px"}),
                         }
                         if property.id=="stand" then
@@ -628,8 +642,9 @@ return function()
                     end
                 elseif workPage[1]=="Shop" or workPage[1]=="Bag" or workPage[1]=="Collection" then
                     text("collectionHelp","Collection boost: +"..math.floor((Model.collectionBonus(state)-1)*100+.5).."% cookies",38)
-                    local rarityColors={Common="#b4c4d0",Uncommon="#89cf9e",Rare="#93b5ff",Legendary="#f5cd70"}
+                    local rarityColors={Common="#b4c4d0",Uncommon="#89cf9e",Rare="#93b5ff",Legendary="#f5cd70",Exclusive="#e9a5f0"}
                     for _,item in Model.Items do
+                        if workPage[1]=="Shop" and item.exclusive then continue end
                         local owned=economy.inventory[item.id] or 0
                         local displayed=economy.collection[item.id]
                         local card={picture("itemArt",ImageNames.items[item.id],8,8,66,66),
@@ -801,7 +816,8 @@ return function()
                     end
                     pane[#pane+1]=button("depositCookies","Put in",controlsX,y+108,controlsW,48,function()send("economy","deposit",jarAmount[1])end,{background="#276849",["font-size"]="22px"})
                     pane[#pane+1]=button("withdrawCookies","Take out",controlsX,y+164,controlsW,48,function()send("economy","withdraw",jarAmount[1])end,{["font-size"]="22px"})
-                    y+=228
+                    pane[#pane+1]=label("depositFee","Deposit fee: "..number(Model.depositFee(state,jarAmount[1])).." cookies",24,y+218,w,30,16,"#dfcba6")
+                    y+=258
                     pane[#pane+1]=button("jarParty","Start a cookie party",24,y,w,48,function()workPage[2]("Charity")end,{background="#544479",["font-size"]="21px"});y+=56
 
                 end
@@ -1021,7 +1037,7 @@ return function()
 			end
 			center[#center + 1] = e("scroll", { key = "menuPanel"..tab..workPage[1]..adventurePage[1], id = "menuPanel", style = style(0, 160, centerW, math.max(30,h-164), { background = "#241f19", ["overflow-x"]="hidden", ["overflow-y"]="scroll" }) }, table.unpack(pane))
 		end
-		local store = { stripes("storeStripes", storeW, h, "#24221f", "#2a2723"), label("storeTitle", "Store", 10, 7, boostW - 20, 42, 36, "#fff2dd", titleStyle) }
+		local store = { stripes("storeStripes", storeW, h, "#24221f", "#2a2723"), label("storeTitle", "Store", 10, 7, boostW - 156, 42, 36, "#fff2dd", titleStyle),button("storePremium","Passes & goodies",boostW-146,8,136,44,function()setPage("More");setTab("Treat Shop")end,{background="#765a27",["font-size"]="15px"}) }
 		local upgrades = {}
 		for _, u in Model.Upgrades do
 			if not state.upgrades[u.id] and state.buildings[u.building] >= u.required then upgrades[#upgrades + 1] = u end
@@ -1153,6 +1169,8 @@ return function()
 	local priceCache = {}
 	local function pageSignature()
 		local storeVisible=not mobile or currentPage=="Shop"
+		local monetizationSignature=tostring(snapshot.paidRandomAllowed)..":"..tostring(snapshot.shieldUntil)
+		for _,key in Model.MonetizationConfig.PassOrder do monetizationSignature..=":"..tostring(snapshot.passes and snapshot.passes[key]) end
 		local parts = {tostring(math.floor(Model.jobLevel(snapshot)/5)), snapshot.bakery, snapshot.saveStatus or "", tostring(snapshot.cps), tostring(snapshot.clickPower), tostring(snapshot.soundEnabled), tostring(snapshot.soundVolume), tostring(snapshot.reducedMotion), tostring(snapshot.goldenId), tostring((snapshot.goldenUntil or 0)>snapshot.played), tostring(snapshot.ready), tostring(snapshot.earned < 50), tostring(snapshot.earned < 1000)}
 		for i, b in Model.Buildings do
 			parts[#parts+1] = tostring(snapshot.buildings[i])
@@ -1172,7 +1190,7 @@ return function()
 			end
 		end
 		for _, a in Model.Achievements do parts[#parts+1] = tostring(snapshot.achievements[a[1]] == true) end
-		return table.concat(parts,"|")
+		return monetizationSignature.."|"..table.concat(parts,"|")
 	end
 	local function update(force)
 		revision += 1

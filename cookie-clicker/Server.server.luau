@@ -6,7 +6,14 @@ local RunService = game:GetService("RunService")
 local DataStoreService = game:GetService("DataStoreService")
 local HttpService = game:GetService("HttpService")
 local folder = RS:WaitForChild("CookieClicker")
+local configSource=game:GetService("ServerStorage"):WaitForChild("MonetizationConfig")
+local Config=require(configSource)
+local oldCatalog=folder:FindFirstChild("LiveMonetizationConfig")
+if oldCatalog then oldCatalog:Destroy() end
+local liveCatalog=configSource:Clone();liveCatalog.Name="LiveMonetizationConfig";liveCatalog.Parent=folder
 local Model = require(folder:WaitForChild("Model"))
+require(folder:WaitForChild("Monetization"))(Model,Config)
+assert(#Config.verify()==0,"Invalid monetization config")
 local Persistence = require(folder:WaitForChild("Persistence"))
 local remote = folder:FindFirstChild("Action") or Instance.new("RemoteEvent")
 remote.Name, remote.Parent = "Action", folder
@@ -58,7 +65,8 @@ local function notice(session, kind, message)
 end
 local function send(player, session)
 	if not player.Parent then return end
-	local snapshot = Model.snapshot(session.state)
+	local snapshot = Model.snapshot(session.state,true)
+    snapshot.paidRandomAllowed=session.paidRandomAllowed==true
 	snapshot.saveStatus = session.saveStatus
 	snapshot.ready = session.ready and not session.closing
 	snapshot.events = session.events
@@ -87,6 +95,7 @@ local function send(player, session)
     snapshot.socialPlayers=publicPlayers
 	remote:FireClient(player,snapshot)
 end
+local monetization=require(folder:WaitForChild("RobloxMonetization"))(Model,Config,folder,sessions,persistence,charityStore,notice,send)
 empireChanged=function(record)
     publicUpdated=-math.huge
     for teammate,entry in sessions do
@@ -107,8 +116,13 @@ local function load(player)
 	local pending={state=Model.new(),ready=false,tokens=40,saveStatus="Opening your bakery..."}
 	sessions[player]=pending
 	local token=HttpService:GenerateGUID(false)
+	local passes,entitlementsReady=monetization.entitlements(player)
+	while not entitlementsReady and player.Parent and sessions[player]==pending and not shuttingDown do
+		pending.saveStatus="Checking your owned passes...";send(player,pending);task.wait(5)
+		passes,entitlementsReady=monetization.entitlements(player)
+	end
 	while player.Parent and sessions[player]==pending and not shuttingDown do
-		local session, reason = persistence.load("player_"..player.UserId,token)
+		local session, reason = persistence.load("player_"..player.UserId,token,passes)
 		if session then
 			if not player.Parent or shuttingDown then persistence.save(session,true); return end
 			session.tokens=40
@@ -118,6 +132,7 @@ local function load(player)
 			session.saveStatus=studio and "Test game: progress resets when testing stops" or "Your bakery is saved"
 			session.seenAchievements=table.clone(session.state.achievements)
 			sessions[player]=session
+            task.spawn(function()monetization.policy(player,session);send(player,session)end)
             session.state.friendCount=friendBoost.count(player)
             task.spawn(function()
                 for _=1,10 do
@@ -184,6 +199,7 @@ remote.OnServerEvent:Connect(function(player, action, index, quantity, sell)
 		notice(session,"error","Please wait while we open your saved bakery."); send(player,session); return
 	end
 	local state=session.state
+    if session.purchaseBusy then return end
 	if action=="empire" then
         if index=="declineInvite" then session.empireInvite=nil;send(player,session);return end
         if index=="invite" then
@@ -242,6 +258,9 @@ remote.OnServerEvent:Connect(function(player, action, index, quantity, sell)
             other=Players:GetPlayerByUserId(quantity);target=other and sessions[other]
             if not target or not target.ready or target.closing or not target.state.economy.charityRef then
                 notice(session,"error","That fundraiser is not available.");send(player,session);return
+            end
+            if index=="steal" and (target.state.shieldUntil or 0)>os.time() then
+                notice(session,"error","This bakery has an active shield.");send(player,session);return
             end
         end
         session.lastCharityAction=os.clock();session.charityBusy=true

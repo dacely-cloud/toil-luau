@@ -11,6 +11,8 @@ return function(Model)
         {id="apron",name="Lucky apron",rarity="Uncommon",price=1500,bonus=.02},
         {id="mixer",name="Silver mixer",rarity="Rare",price=10000,bonus=.04},
         {id="crown",name="Cookie crown",rarity="Legendary",price=100000,bonus=.08},
+        {id="goldenWhisk",name="Golden whisk",rarity="Exclusive",price=math.huge,bonus=.03,exclusive=true},
+        {id="starApron",name="Star apron",rarity="Exclusive",price=math.huge,bonus=.03,exclusive=true},
     }
     Model.Properties={
         {id="stand",name="Cookie stand",price=500,income=1},
@@ -77,9 +79,9 @@ return function(Model)
             e.empireDonation={empireId=e.empireId,sequence=e.empireSequence,amount=pending.amount}
         end
         for _,key in {"xp","jar"} do e[key]=number(saved[key],1e15) end
-        for _,key in {"energy","stamina"} do e[key]=number(saved[key],100) end
+        e.energy=number(saved.energy,110);e.stamina=number(saved.stamina,100)
         for _,item in Model.Items do
-            e.inventory[item.id]=math.floor(number(type(saved.inventory)=="table" and saved.inventory[item.id],1000000))
+            e.inventory[item.id]=math.floor(number(type(saved.inventory)=="table" and saved.inventory[item.id],1e12))
             e.collection[item.id]=type(saved.collection)=="table" and saved.collection[item.id]==true or false
         end
         for _,property in Model.Properties do
@@ -116,12 +118,12 @@ return function(Model)
     function Model.propertyIncome(s)
         local income=0
         for _,p in Model.Properties do income+=p.income*(s.economy.properties[p.id] or 0) end
-        return income*Model.collectionBonus(s)*(1+Model.empireBonus(s))^2*Model.friendMultiplier(s)
+        return income*Model.collectionBonus(s)*(1+Model.empireBonus(s))^2*Model.friendMultiplier(s)*Model.passFactor(s,"PropertyIncome")*Model.passFactor(s,"CookieGain")
     end
     function Model.economyTick(s,dt)
         local e=s.economy
-        e.energy=math.min(100,e.energy+dt/30)
-        e.stamina=math.min(100,e.stamina+dt/45)
+        e.energy=math.min(Model.maxEnergy(s),e.energy+dt/30*Model.passFactor(s,"EnergyRegen"))
+        e.stamina=math.min(100,e.stamina+dt/45*Model.passFactor(s,"StaminaRegen"))
         Model.award(s,Model.propertyIncome(s)*dt)
     end
     function Model.economyAction(s,action,arg,roll)
@@ -133,14 +135,14 @@ return function(Model)
             -- Validate the injected roll before spending anything.
             if type(roll)~="number" or roll~=roll or roll<0 or roll>=1 then return false,"Try this job again." end
             e.energy-=job.energy;e.xp+=job.xp
-            local reward=math.floor(job.cookies*Model.collectionBonus(s)*(1+Model.empireBonus(s))^2)
+            local reward=Model.jobReward(s,job)
             Model.award(s,reward)
             local dropped=roll<job.chance
             if dropped then e.inventory[job.item]=math.min(1000000,(e.inventory[job.item] or 0)+1) end
             return true,"Job done! +"..reward.." cookies, +"..job.xp.." XP"..(dropped and ", plus an item!" or "!")
         elseif action=="item" then
             local item=find(Model.Items,arg)
-            if not item or s.cookies<item.price or (e.inventory[arg] or 0)>=1000000 then return false,"Not enough cookies, or your inventory is full." end
+            if not item or item.exclusive or s.cookies<item.price or (e.inventory[arg] or 0)>=1000000 then return false,"Not enough cookies, or your inventory is full." end
             s.cookies-=item.price;e.inventory[arg]=(e.inventory[arg] or 0)+1
             return true,"Added "..item.name.." to your inventory."
         elseif action=="collect" then
@@ -158,7 +160,7 @@ return function(Model)
             if type(arg)~="number" or arg~=arg or arg%1~=0 or arg<=0 or arg>1e12 then return false,"Choose a valid cookie amount." end
             if action=="deposit" then
                 if s.cookies<arg or e.jar+arg>1e15 then return false,"Not enough cookies, or the jar is full." end
-                s.cookies-=arg;e.jar+=arg
+                s.cookies-=arg;e.jar+=arg-Model.depositFee(s,arg)
             else
                 if e.jar<arg then return false,"Your jar does not have that many cookies." end
                 e.jar-=arg;s.cookies+=arg -- Moving cookies does not count as new earnings.

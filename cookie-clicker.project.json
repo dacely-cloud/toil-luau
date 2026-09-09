@@ -13,6 +13,7 @@
       "CookieBackgrounds": { "$path": ".studio-stage/CookieBackgrounds.luau" },
       "MenuButtonConfig": { "$path": ".studio-stage/MenuButtonConfig.luau" }
     },
+    "ServerStorage": { "$className": "ServerStorage", "$path": ".studio-stage/ServerStorage" },
     "ServerScriptService": { "$className": "ServerScriptService", "$path": ".studio-stage/ServerScriptService" },
     "StarterPlayer": {
       "$className": "StarterPlayer",

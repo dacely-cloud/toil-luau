@@ -59,6 +59,7 @@ return function(Model)
             actor.economy.xp+=20;Model.award(actor,50)
             return true,"You helped! +50 cookies and +20 XP."
         elseif action=="steal" then
+            if (target.shieldUntil or 0)>now then return false,"This bakery has an active shield." end
             if c.thieves[id] then return false,"You already tried this fundraiser." end
             if actor.economy.stamina<10 then return false,"Stealing takes 10 stamina." end
             local tier=Model.Fundraisers[c.tier]

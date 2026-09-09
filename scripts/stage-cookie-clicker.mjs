@@ -13,3 +13,6 @@ for (const name of ['ImageConfig', 'Images2Config', 'CookieBackgrounds', 'MenuBu
 fs.copyFileSync(path.join(game, 'Bootstrap.client.luau'), path.join(stage, 'StarterPlayerScripts', 'ToilDemo.client.luau'));
 fs.copyFileSync(path.join(game, 'Server.server.luau'), path.join(stage, 'ServerScriptService', 'CookieClickerServer.server.luau'));
 console.log('Cookie Clicker staged. Sync existing instances with node scripts/stage-to-sync.mjs.');
+for (const name of ['MonetizationConfig','Monetization','PurchaseService','RobloxMonetization','PremiumShop']) fs.copyFileSync(path.join(game,name+'.luau'),path.join(stage,'CookieClicker',name+'.luau'));
+fs.mkdirSync(path.join(stage,'ServerStorage'),{recursive:true});
+fs.copyFileSync(path.join(game,'MonetizationConfig.luau'),path.join(stage,'ServerStorage','MonetizationConfig.luau'));

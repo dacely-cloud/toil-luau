@@ -23,7 +23,8 @@ Model.tick(combined,1)
 assert(rate==14 and math.abs(combined.cookies-before-rate)<.00001, "displayed combined income matches actual awards")
 local earned=s.earned
 assert(Model.economyAction(s,"deposit",100))
-assert(Model.economyAction(s,"withdraw",100))
+assert(s.economy.jar==95,"5% deposit fee")
+assert(Model.economyAction(s,"withdraw",95))
 assert(s.earned==earned and s.economy.jar==0)
 for _,bad in {-1,0,1.5,math.huge,0/0,"100",{}} do
     assert(not Model.economyAction(s,"deposit",bad))

@@ -76,7 +76,7 @@ function Model.cps(state)
 	local value = 0
 	for i, b in Model.Buildings do value += b.cps * state.buildings[i] * Model.multiplier(state, i) end
 	local retained=state.buddies and state.buildings[2]>=10 and (1-#state.wrinklers*.05) or 1
-	return value * retained * Model.productionFactor(state) * Model.friendMultiplier(state) * ((state.frenzyUntil or 0)>state.played and 2 or 1) * ((state.gardenBoostUntil or 0)>state.played and 1.05 or 1) + Model.propertyIncome(state)
+	return value * retained * Model.productionFactor(state) * Model.friendMultiplier(state) * Model.passFactor(state,"CookieGain") * ((state.frenzyUntil or 0)>state.played and 2 or 1) * ((state.gardenBoostUntil or 0)>state.played and 1.05 or 1) + Model.propertyIncome(state)
 end
 function Model.setVolume(state,percent)
 	if type(percent)~="number" or percent~=percent or percent<0 or percent>100 or percent%1~=0 then return false end
@@ -86,7 +86,7 @@ end
 function Model.clickPower(state)
 	local value = 1
 	for _, u in Model.Upgrades do if u.click and state.upgrades[u.id] then value *= 2 end end
-	return value * (state.heavenly and state.heavenly.tapping and 1.1 or 1) * (state.spirit=="clicking" and 1.1 or 1)*(1+Model.empireBonus(state))
+	return value * (state.heavenly and state.heavenly.tapping and 1.1 or 1) * (state.spirit=="clicking" and 1.1 or 1)*(1+Model.empireBonus(state))*Model.passFactor(state,"CookieGain")
 end
 function Model.checkAchievements(state)
 	for _,a in achievements do
@@ -114,7 +114,7 @@ function Model.tick(state, dt)
 	-- Split production at the bonus boundary so a long tick cannot extend it.
 	local base=0
 	for i,b in Model.Buildings do base+=b.cps*state.buildings[i]*Model.multiplier(state,i) end
-	base*=Model.productionFactor(state)*Model.friendMultiplier(state)
+	base*=Model.productionFactor(state)*Model.friendMultiplier(state)*Model.passFactor(state,"CookieGain")
     Model.advancedTick(state,dt,base)
     local start=state.played-dt
     local amount=Model.feedWrinklers(state,dt,function(from,to)
@@ -205,10 +205,10 @@ function Model.collectGolden(state,id)
 	Model.award(state,reward)
 	return "Lucky cookie! You got "..reward.." extra cookies!"..huntMessage
 end
-function Model.snapshot(state)
+function Model.snapshot(state,forClient)
 	local function copy(value)
 		if type(value)~="table" then return value end
-		local result={};for k,v in value do result[k]=copy(v) end;return result
+		local result={};for k,v in value do if not (forClient and value==state and k=="purchaseReceipts") then result[k]=copy(v) end end;return result
 	end
 	local result = copy(state)
 	result.buildings = table.clone(state.buildings)
@@ -227,4 +227,13 @@ installEconomy(Model)
 local installSocial
 if script then installSocial=require(script.Parent.Social) else installSocial=require("./Social") end
 installSocial(Model)
+local installMonetization,monetizationConfig
+if script then
+    installMonetization=require(script.Parent.Monetization)
+    monetizationConfig=require(script.Parent:FindFirstChild("LiveMonetizationConfig") or script.Parent.MonetizationConfig)
+else
+    installMonetization=require("./Monetization")
+    monetizationConfig=require("./MonetizationConfig")
+end
+installMonetization(Model,monetizationConfig)
 return Model

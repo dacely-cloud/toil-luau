@@ -73,6 +73,7 @@ for folder, title, kind in (
 for title in ('ToilRuntime', 'ImageConfig', 'Images2Config', 'CookieBackgrounds', 'MenuButtonConfig'):
     source(child(replicated, title, 'ModuleScript'), STAGE / (title + '.luau'))
 sync(STAGE / 'ServerScriptService', child(root, 'ServerScriptService', 'ServerScriptService'))
+sync(STAGE / 'ServerStorage', child(root, 'ServerStorage', 'ServerStorage'))
 starter = child(root, 'StarterPlayer', 'StarterPlayer')
 sync(STAGE / 'StarterPlayerScripts', child(starter, 'StarterPlayerScripts', 'StarterPlayerScripts'))
 

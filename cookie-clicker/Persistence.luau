@@ -24,6 +24,7 @@ function Persistence.new(Model, store, options)
 		Model.restoreAdvanced(state,data)
 		Model.restoreEconomy(state,data)
 		Model.restoreSocial(state,data)
+		Model.restorePurchases(state,data)
 		state.soundEnabled = data.soundEnabled ~= false
 		Model.setVolume(state,data.soundVolume)
 		state.reducedMotion = data.reducedMotion == true
@@ -39,7 +40,7 @@ function Persistence.new(Model, store, options)
 		end
 		return false, result
 	end
-	function service.load(key, token)
+	function service.load(key, token, passes)
 		local reason = "Could not load your bakery. Retrying..."
 		local ok, data = retry(function()
 			return store:UpdateAsync(key,function(old)
@@ -57,6 +58,7 @@ function Persistence.new(Model, store, options)
 		end)
 		if not ok or not data then return nil, reason end
 		local state = restore(data)
+		state.passes=passes
 		local before = state.cookies
 		if finite(data.savedAt) then Model.tick(state,math.clamp(now()-data.savedAt,0,8*60*60)) end
 		return {key=key,token=token,state=state,offlineCookies=state.cookies-before,leaseUntil=data.session.expires,ready=true,canSave=true}

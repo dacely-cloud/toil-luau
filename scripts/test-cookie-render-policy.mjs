@@ -14,6 +14,7 @@ local refresh=function()renders+=1 end
 local refreshCounters=function()counters+=1 end
 local Model={Buildings={{price=10}},Upgrades={{id="available",price=25,building=1,required=1},{id="locked",price=17,building=1,required=100}},Achievements={}}
 function Model.jobLevel()return 5 end
+Model.MonetizationConfig={PassOrder={"VIP"}}
 function Model.price(_,_,bulk)return 10*bulk end
 local snapshot={cookies=0,earned=100000,buildings={1},upgrades={},achievements={},played=0,bakery="Test",cps=1,clickPower=1,soundEnabled=true,soundVolume=100,reducedMotion=false,goldenId=0,goldenUntil=0,ready=true}
 ${source.slice(start,end)}

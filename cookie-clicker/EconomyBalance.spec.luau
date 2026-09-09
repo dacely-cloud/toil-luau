@@ -11,7 +11,8 @@ for i=1,#Model.Buildings do
         local quote=Model.price(s,i,quantity,true)
         assert(Model.trade(s,i,quantity,true));near(s.cookies,quote);assert(s.earned==0)
     end
-    assert(Model.Buildings[i].price/Model.Buildings[i].cps<=3600)
+    local cap=Model.Balance.MaxBuildingBasePayback*Model.Balance.BuildingPaybackGrowth^math.max(0,i-Model.Balance.BuildingPaybackGrowthStart)
+    assert(Model.Buildings[i].price/Model.Buildings[i].cps<=cap*(1+1e-12))
 end
 -- Taps grant predictable XP without retroactive grants or reset farming.
 local s=Model.new()
@@ -58,7 +59,7 @@ for _,item in Model.Items do
     assert(Model.economyAction(s,"collect",item.id))
     assert(not Model.economyAction(s,"collect",item.id))
 end
-near(Model.cps(s),base*1.21)
+near(Model.cps(s),base*1.38)
 local bank=s.cookies;before=s.earned
 assert(Model.economyAction(s,"item","spatula"))
 assert(Model.economyAction(s,"sellItem","spatula"))

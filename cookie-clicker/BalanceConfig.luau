@@ -7,6 +7,8 @@ return {
     MaxFundraiserInvestment=1e98,
     MaxJarCookies=1e100,
     MaxBuildingBasePayback=3600,
+    BuildingPaybackGrowth=1.65,
+    BuildingPaybackGrowthStart=6,
     EnergySeconds=5,
     StaminaSeconds=15,
     JobProductionSecondsPerEnergy=.5,

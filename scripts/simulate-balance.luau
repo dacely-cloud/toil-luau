@@ -2,8 +2,23 @@
 -- Chooses the best marginal production payback, waits to afford it, and buys
 -- through the real game rules. Whole clicks are executed once per simulated second.
 local Model=require("../cookie-clicker/Model")
-local function simulate(name,clicks,jobs,seconds,rebirth)
+local mode,days=...
+if mode=="baseline" then
+    for _,b in Model.Buildings do b.price=math.min(b.price,b.cps*3600) end
+    for _,u in Model.Upgrades do
+        local tier=u.id:match("^building_%d+_(%d+)$")
+        if tier then
+            local tiers={[1]=1,[5]=2,[25]=3,[50]=4,[100]=5}
+            u.price=Model.Buildings[u.building].price*10*5^(tiers[tonumber(tier)]-1)
+        end
+    end
+end
+local function simulate(name,clicks,jobs,seconds,rebirth,full)
     local s=Model.new()
+    if mode and mode:find("boosted",1,true) then
+        s.passes={};for _,key in Model.MonetizationConfig.PassOrder do s.passes[key]=true end
+        s.friendCount=10
+    end
     local milestones={}
     local function rate()local cps=Model.cps(s);return cps+clicks*Model.clickPower(s,cps)end
     local function choose()
@@ -35,6 +50,21 @@ local function simulate(name,clicks,jobs,seconds,rebirth)
                 offer("property",p.id,price,after)
             end
         end
+        if full then
+            for _,item in Model.Items do
+                if not item.exclusive and not s.economy.collection[item.id] then
+                    s.economy.collection[item.id]=true;local after=rate();s.economy.collection[item.id]=nil
+                    offer("item",item.id,item.price,after)
+                end
+            end
+            for _,d in Model.Decor do
+                if not Model.decorOwned(s,d.id) and Model.decorUnlocked(s,d) then
+                    local price=Model.decorCost(s,d)
+                    s.economy.decor[d.id]=true;local after=rate();s.economy.decor[d.id]=nil
+                    offer("decor",d.id,price,after)
+                end
+            end
+        end
         return best
     end
     local nextBuy=choose()
@@ -50,12 +80,34 @@ local function simulate(name,clicks,jobs,seconds,rebirth)
             Model.goldenTick(s)
             if s.goldenUntil>s.played and s.goldenId%2==1 then Model.collectGolden(s,s.goldenId) end
         end
+        if full then
+            for i=#s.economy.ads,1,-1 do
+                if s.economy.ads[i].remaining<=0 then assert(Model.economyAction(s,"adCollect",i,.99)) end
+            end
+            -- Rebook a short campaign to track growing production, or a longer
+            -- one when its floor pays more per second; reserve at most 10% bank.
+            if time%30==0 then
+                local ad,best=nil,0
+                for _,a in Model.Ads do
+                    local cost=Model.adCost(s,a)
+                    local roi=(Model.adReward(s,a)-cost)/a.seconds
+                    if cost<=s.cookies*.1 and roi>best then ad,best=a,roi end
+                end
+                if ad and #s.economy.ads<Model.adSlots(s) then Model.economyAction(s,"adStart",ad.id) end
+            end
+            if s.buildings[8]>0 and s.magic>=60 then Model.advancedAction(s,"spell","cookies") end
+            if s.buildings[7]>0 and s.spirit~="baking" then Model.advancedAction(s,"spirit","baking") end
+        end
         local bought=false
         if time%30==0 then nextBuy=choose() end
         while nextBuy and s.cookies>=nextBuy.cost do
             local ok
             if nextBuy.kind=="building" then ok=Model.trade(s,nextBuy.id,1,false)
             elseif nextBuy.kind=="upgrade" then ok=Model.buyUpgrade(s,nextBuy.id)
+            elseif nextBuy.kind=="item" then
+                ok=Model.economyAction(s,"item",nextBuy.id)
+                if ok then assert(Model.economyAction(s,"collect",nextBuy.id)) end
+            elseif nextBuy.kind=="decor" then ok=Model.economyAction(s,"buyDecor",nextBuy.id)
             else ok=Model.economyAction(s,"property",nextBuy.id) end
             assert(ok,"simulator quote mismatch")
             bought=true;nextBuy=choose()
@@ -80,8 +132,12 @@ local function simulate(name,clicks,jobs,seconds,rebirth)
             print(name,"RESTART",time,"stars",s.prestige,"run earned",earned,"retained CPS",Model.cps(s))
             nextBuy=choose()
         end
-        if time%3600==0 then print(name,"HOUR",time/3600,"earned",s.earned,"CPS",Model.cps(s),"click",Model.clickPower(s),"level",Model.jobLevel(s)) end
+        if time%(full and 86400 or 3600)==0 then print(name,"HOUR",time/3600,"earned",s.earned,"CPS",Model.cps(s),"click",Model.clickPower(s),"level",Model.jobLevel(s),"last building",s.buildings[20]) end
     end
+end
+if mode then
+    simulate(mode,mode:find("boosted",1,true) and 8 or 2,true,(tonumber(days) or 7)*86400,mode:find("rebirth",1,true)~=nil,true)
+    return
 end
 simulate("active",2,true,14400)
 simulate("casual",.5,true,14400)

@@ -74,7 +74,7 @@ test("twenty building definitions are available", function()
 	local s = Model.new()
 	s.buildings[20] = 1
 	assert(Model.cps(s) == 510e12)
-	assert(Model.Buildings[20].price == 510e12*3600)
+	assert(Model.Buildings[20].price == 510e12*(Model.Balance.MaxBuildingBasePayback*Model.Balance.BuildingPaybackGrowth^(20-Model.Balance.BuildingPaybackGrowthStart)))
 end)
 test("every building has multiple upgrade tiers",function()
 	for i=1,20 do local count=0;for _,u in Model.Upgrades do if u.building==i then count+=1 end end;assert(count>=5)end

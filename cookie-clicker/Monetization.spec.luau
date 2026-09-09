@@ -2,7 +2,7 @@ local Model=require("./Model")
 local Config=require("./MonetizationConfig")
 local PurchaseService=require("./PurchaseService")
 local Persistence=require("./Persistence")
-assert(#Config.verify()==0 and #Config.PassOrder==6 and #Config.ProductOrder==11)
+assert(#Config.verify()==0 and #Config.PassOrder==6 and #Config.ProductOrder==15)
 local function near(a,b)assert(math.abs(a-b)<1e-7,tostring(a).." ~= "..tostring(b))end
 local base=Model.new();base.buildings[2]=10;base.economy.properties.stand=2
 local vip=Model.snapshot(base);vip.passes={VIP=true}

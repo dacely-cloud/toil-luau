@@ -8,9 +8,13 @@ for level=2,30 do
     s.economy.xp=threshold;assert(Model.jobLevel(s)==level)
 end
 assert(Model.jobLevelXp(3)==160 and Model.jobLevelXp(5)==640)
-assert(Images.bakeryBackground(1)==nil and Images.bakeryBackground(2)==nil)
-for index,name in Backgrounds.NAMES do
-    for offset=0,2 do assert(Images.bakeryBackground(index*3+offset)=="CookieBackgrounds/"..name) end
+assert(Model.equippedDecor(s)==nil)
+for _,decor in Model.Decor do
+    s.economy.xp=Model.jobLevelXp(decor.level)-1
+    assert(not Model.decorUnlocked(s,decor))
+    s.economy.xp=Model.jobLevelXp(decor.level)
+    assert(Model.decorUnlocked(s,decor))
+    assert(not Model.decorOwned(s,decor.id),"levels unlock decor but do not grant ownership")
 end
 s=Model.new()
 for _=1,4 do assert(Model.economyAction(s,"job","dishes",.5)) end

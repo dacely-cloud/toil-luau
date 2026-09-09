@@ -172,7 +172,8 @@ return function(Model)
                     e.ads[#e.ads+1]={
                         id=ad.id,
                         remaining=math.min(number(entry.remaining,ad.seconds),ad.seconds),
-                        reward=math.floor(number(entry.reward,1e15)),
+                        reward=math.floor(number(entry.reward,1e100)),
+                        cost=math.floor(number(entry.cost or math.ceil(number(entry.reward,1e100)*.10),1e100)),
                         xp=math.floor(number(entry.xp,1e9)),
                     }
                 end
@@ -379,7 +380,7 @@ return function(Model)
             local cost=Model.adCost(s,ad)
             if s.cookies<cost then return false,"Not enough cookies to book that campaign." end
             s.cookies-=cost
-            e.ads[#e.ads+1]={id=ad.id,remaining=ad.seconds,reward=Model.adReward(s,ad),xp=ad.xp}
+            e.ads[#e.ads+1]={id=ad.id,remaining=ad.seconds,reward=Model.adReward(s,ad),cost=cost,xp=ad.xp}
             return true,ad.name.." is running."
         elseif action=="adRushIntent" then
             if type(arg)~="number" or arg~=arg or arg%1~=0 or arg<1 then return false,"No campaign in that slot." end
@@ -392,7 +393,8 @@ return function(Model)
             if action=="adCancel" then
                 -- A refund of part of the booking fee, so it is returned to the
                 -- bank directly rather than counted as freshly baked cookies.
-                local refund=if ad then math.floor(Model.adCost(s,ad)*Model.Balance.AdCancelRefund) else 0
+                local paid=entry.cost or math.ceil(entry.reward*.10)
+                local refund=math.floor(paid*Model.Balance.AdCancelRefund)
                 table.remove(e.ads,arg)
                 s.cookies+=refund
                 return true,"Campaign cancelled. "..refund.." cookies refunded."
@@ -402,7 +404,9 @@ return function(Model)
             table.remove(e.ads,arg)
             local reward=math.floor(math.max(0,entry.reward))
             local gainedXp=math.floor(math.max(0,entry.xp))
-            Model.award(s,reward)
+            local principal=math.min(reward,entry.cost or math.ceil(entry.reward*.10))
+            s.cookies+=principal
+            Model.award(s,reward-principal)
             e.xp=math.min(1e15,e.xp+gainedXp)
             local dropped=ad~=nil and roll<ad.chance
             if dropped then e.inventory[ad.item]=math.min(1000000,(e.inventory[ad.item] or 0)+1) end

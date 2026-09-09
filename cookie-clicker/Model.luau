@@ -23,9 +23,11 @@ Model.Buildings = {
 	{ name = "Cortex baker", price = 1.9e24, cps = 64e12, icon = "♧", color = "#d2a0ad" },
 	{ name = "You", price = 540e24, cps = 510e12, icon = "✧", color = "#d0bec8" },
 }
--- Keep the opening bakery intact, but avoid multi-year late-game payback.
-for _,building in Model.Buildings do
-    building.price=math.min(building.price,building.cps*Model.Balance.MaxBuildingBasePayback)
+-- Keep opening costs intact. Later tiers must take progressively more work,
+-- instead of every new building resetting to the same one-hour payback.
+for index,building in Model.Buildings do
+    local payback=Model.Balance.MaxBuildingBasePayback*Model.Balance.BuildingPaybackGrowth^math.max(0,index-Model.Balance.BuildingPaybackGrowthStart)
+    building.price=math.min(building.price,building.cps*payback)
 end
 Model.Upgrades = {
 	{ id = "fingers", name = "Reinforced index finger", description = "The mouse and cursors are twice as efficient.", price = 100, building = 1, required = 1, click = true },

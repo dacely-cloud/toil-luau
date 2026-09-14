@@ -585,7 +585,7 @@ local function upgradeBenefit(u, state)
 	if u.click then
 		local before = state.clickPower or Model.clickPower(state)
         local after=table.clone(state);after.upgrades=table.clone(state.upgrades);after.upgrades[u.id]=true
-		return "Each click gives " .. number(Model.clickPower(after),true) .. " cookies instead of " .. number(before,true) .. ".\nEvery automatic cursor tap gets this reward too!"
+		return "Each click gives " .. number(Model.clickPower(after),true) .. " cookies instead of " .. number(before,true) .. ".\nEach cursor tap gives "..number(Model.cursorClickPower(after),true).." cookies after this upgrade."
 	end
 	local building = Model.Buildings[u.building]
 	local before = building.cps * Model.multiplier(state,u.building)
@@ -727,7 +727,9 @@ return function()
 		local size=safeArea and safeArea.AbsoluteSize
 		local width,height=viewport.X-topLeft.X-bottomRight.X,viewport.Y-topLeft.Y-bottomRight.Y
 		if size and size.X>0 and size.Y>0 then width,height=size.X,size.Y end
-		local touchLayout=input.TouchEnabled and (input.PreferredInput==Enum.PreferredInput.Touch or not input.KeyboardEnabled)
+		-- Focus changes can change PreferredInput without changing the device.
+		-- Choose the layout from capability and size, never the last input event.
+		local touchLayout=input.TouchEnabled
 		local layout = Layout.measure(width,height,touchLayout)
 		uiScale, displayWidth, displayHeight, mobile, contentHeight = layout.scale, layout.width, layout.height, layout.mobile, layout.contentHeight
 		landscape=layout.landscape
@@ -801,8 +803,11 @@ return function()
 		elseif not value then
 			feedbackPop.last = nil
 		end
-		return box("feedback",(displayWidth-w)/2,mobile and math.max(0,displayHeight-172) or 42,w,76,value and value.kind=="error" and "#603728" or "#30462c",{
-			label("feedbackText",value and value.text or "",12,8,w-24,60,19,"#ffffff",{["text-align"]="center"})
+		local icon=value and (value.icon or (value.kind=="achievement" and "GoldenCookie"))
+        local textX=icon and 78 or 12
+		return box("feedback",(displayWidth-w)/2,mobile and math.max(0,displayHeight-172) or 42,w,76,value and value.kind=="error" and "#603728" or value and value.kind=="achievement" and "#51401d" or "#30462c",{
+			label("feedbackText",value and value.text or "",textX,8,w-textX-12,60,18,"#ffffff",{["text-align"]=icon and "left" or "center"}),
+            icon and picture("rewardArt",icon,10,10,56,56) or nil,
 		},{display=value and "block" or "none",["z-index"]="100",border="2px solid #dabf81",ref=feedbackPop.bind})
 	end
 	local tooltipHover = 0
@@ -914,7 +919,7 @@ return function()
 		if hover ~= 0 then
 			if type(hover) == "number" then
 				local b = Model.Buildings[hover]
-				name, description, cost = b.name, (hover==1 and ("Each cursor taps every "..Model.CursorPeriod.." seconds for "..number(state.clickPower,true).." cookies.") or ("Each " .. b.name:lower() .. " produces " .. number(b.cps * Model.multiplier(state, hover), true) .. " cookies per second.")).."\nOwned: " .. state.buildings[hover], Model.price(state, hover, bulk, sell)
+				name, description, cost = b.name, (hover==1 and ("Each cursor taps every "..Model.CursorPeriod.." seconds for "..number(Model.cursorClickPower(state),true).." cookies.") or ("Each " .. b.name:lower() .. " produces " .. number(b.cps * Model.multiplier(state, hover), true) .. " cookies per second.")).."\nOwned: " .. state.buildings[hover], Model.price(state, hover, bulk, sell)
 			else
 				local u
 				for _, candidate in Model.Upgrades do if candidate.id == hover then u = candidate; break end end
@@ -974,6 +979,31 @@ return function()
 	-- Anything inside that cache showing a live number goes stale -- the banner
 	-- read "40 / 100" while the bank said 86. This refreshes on its own tick,
 	-- exactly as the counters above do, and reads the snapshot directly.
+    local refreshDailyShortcut=function()end
+    local function DailyShortcut(props)
+        local tick=React.useState(0)
+        local signature=React.useRef("")
+        refreshDailyShortcut=function()
+            local d=snapshot.economy.daily
+            local parts={d and tostring(d.day) or ""}
+            for _,g in Model.DailyGoals do
+                parts[#parts+1]=d and (tostring(d.claimed[g.id]==true)..":"..tostring((d.progress[g.id] or 0)>=g.target)) or ""
+            end
+            local nextSignature=table.concat(parts,"|")
+            if signature.current~=nextSignature then signature.current=nextSignature;tick[2](tick[1]+1) end
+        end
+        local d=snapshot.economy.daily
+        local claimed,ready=0,0
+        for _,g in Model.DailyGoals do
+            if d and d.claimed[g.id] then claimed+=1
+            elseif d and (d.progress[g.id] or 0)>=g.target then ready+=1 end
+        end
+        local width=math.min(270,props.width-48)
+        return button("dailyShortcut","",-props.offset+(props.width-width)/2,props.height-(mobile and 68 or 44),width,44,props.open,
+            {background=ready>0 and "#635020" or "#203b48",border=ready>0 and "2px solid #e9bf58" or "1px solid #68838c",["border-radius"]="10px",["z-index"]="8"},
+            {picture("dailyShortcutArt","GoldenCookie",9,6,32,32),
+             label("dailyShortcutText",ready>0 and ("Collect reward! "..ready) or ("Daily goals  "..claimed.."/3"),49,6,width-58,32,18,ready>0 and "#fff0bc" or "#ffffff",{["text-align"]="center"})})
+    end
 	local function Onboarding(props)
 		local tick=React.useState(0)
 		refreshOnboarding=tick[2]
@@ -990,6 +1020,25 @@ return function()
 				ready="You can afford a "..Model.Buildings[1].name:lower(),
 				cta="Open the shop",target="shop",
 				progress=math.clamp(state.cookies/price,0,1),first=true}
+		elseif (state.economy.jobsDone or 0)==0 and Model.jobLevel(state)>=Model.Jobs[1].level then
+			-- Energy is the point of this step, so the bar is the energy bar and
+			-- the line names the cost against it. Cookies are not the constraint
+			-- here and a cookie bar would say nothing.
+			local job=Model.Jobs[1]
+			local energy,maxEnergy=state.economy.energy,Model.maxEnergy(state)
+			-- Energy stays on screen in BOTH states. It only showed while short
+			-- before, and a bakery starts at full, so in practice it never showed
+			-- at all -- which was the whole point of the step.
+			local energyLine="Energy "..math.floor(energy).." / "..maxEnergy.."  ·  costs "..job.energy
+			step={image=ImageNames.jobs[job.id],
+				-- On a phone the whole panel lives behind one button a new player
+				-- has no reason to press, so this is where it gets named.
+				hint=if mobile then "Tap MORE to find jobs and shops" else "Jobs pay far more than tapping",
+				goal=energyLine,ready=energyLine,
+				readyHint=job.name.." pays "..number(Model.jobReward(state,job)).." cookies",
+				cta="Open Jobs",target="jobs",
+				progress=math.clamp(energy/math.max(1,maxEnergy),0,1),
+				enough=energy>=job.energy}
 		else
 			local ownsUpgrade=false
 			for _,u in Model.Upgrades do if state.upgrades[u.id] then ownsUpgrade=true; break end end
@@ -1026,21 +1075,22 @@ return function()
 		local bannerW=leftW-32
 		-- Once it is affordable the count stops being progress and starts being
 		-- nonsense -- "101 / 15" -- so the bar gives way to the thing to do next.
-		local ready=step.progress>=1
+		local ready=if step.enough~=nil then step.enough else step.progress>=1
 		local banner={
-			buildingPicture("bannerIcon",step.icon,12,16,52,52),
-			label("bannerHint",step.hint,76,8,bannerW-88,22,15,"#b3c6d4"),
+			-- (ready is decided above so the hint can react to it)
+			if step.image then picture("bannerIcon",step.image,12,16,52,52) else buildingPicture("bannerIcon",step.icon,12,16,52,52),
+			label("bannerHint",if ready and step.readyHint then step.readyHint else step.hint,76,8,bannerW-88,22,15,"#b3c6d4"),
 			label("bannerGoal",if ready then step.ready else step.goal,76,30,bannerW-88,22,16,"#fff4df"),
 		}
 		if not ready then
 			banner[#banner+1]=box("bannerTrack",76,60,bannerW-92,8,"#12242f",{
 				box("bannerFill",0,0,(bannerW-92)*step.progress,8,"#6abed5",{},{["border-radius"]="4px",border="none"}),
 			},{["border-radius"]="4px",border="none"})
-		elseif mobile then
+		elseif mobile or step.target~="shop" then
 			banner[#banner+1]=button("bannerGo",step.cta.."  →",76,54,math.min(200,bannerW-92),26,function()props.navigate(step.target)end,{background="#276849",["font-size"]="14px",["border-radius"]="6px"})
 		else
-			-- On desktop the store is already on screen; a button with nowhere to
-			-- send anyone is worse than a line telling you where to look.
+			-- Only the store has nowhere to send a desktop player -- it is already
+			-- on screen. Jobs and Properties are tabs, so they still get a button.
 			banner[#banner+1]=label("bannerWhere","Buy it in the store on the right  →",76,54,bannerW-92,24,14,"#8fd3a4")
 		end
 		return box("firstRunBanner",-bakeryOffset+16,132,bannerW,84,"rgba(11,24,34,0.78)",banner,{["border-radius"]="12px",border="1px solid #2c4a5e",["z-index"]="6"})
@@ -1169,18 +1219,25 @@ return function()
 		left[#left+1]=e(Onboarding,{key="onboarding",leftW=leftW,bakeryOffset=bakeryOffset,navigate=function(target)
 			if target=="shop" then
 				if mobile then setPage("Shop") end
+			elseif target=="jobs" then
+				if mobile then setPage("More") end
+				setTab("Work");workPage[2]("Jobs")
 			else
 				if mobile then setPage("More") end
 				setTab("Work");workPage[2]("Properties")
 			end
 			setHover(0)
 		end})
+        left[#left+1]=e(DailyShortcut,{key="dailyShortcut",width=leftW,height=h,offset=bakeryOffset,open=function()
+            if mobile then setPage("More") end
+            setTab("Work");workPage[2]("Goals");setHover(0)
+        end})
 		left[#left + 1] = box("milk", -bakeryOffset, h - milkHeight, leftW, milkHeight, "linear-gradient(90deg, #e8e7dd, #a8bfca)",{}, {["z-index"]="0"})
 		left[#left + 1] = box("milkWave",-bakeryOffset-80,h-milkHeight,leftW+160,12,nil,{
 			e("path2d",{key="milkFoam",id="milkFoam",color="#faf5e8",thickness=8,controlPoints=wave.points})
 		},{animation=not state.reducedMotion and "milkFlow 4s linear infinite" or "",transition="top 0.8s ease-out",["z-index"]="1"})
         local milkBonus,milkProgress=Model.milkBonus(state)
-        left[#left+1]=label("milkBonus","Milk +"..milkBonus.."% · "..(unlocked==#Model.Achievements and "All badges!" or milkProgress.."/5 badges"),-bakeryOffset+8,h-66,leftW-16,24,14,"#f0f5f8",{["z-index"]="2",background="rgba(20,31,41,0.8)",["text-align"]="center",["border-radius"]="8px"})
+        left[#left+1]=label("milkBonus","Milk +"..milkBonus.."% · "..(unlocked==#Model.Achievements and "All badges!" or milkProgress.."/5 badges"),-bakeryOffset+8,h-(mobile and 96 or 72),leftW-16,24,14,"#f0f5f8",{["z-index"]="2",background="rgba(20,31,41,0.8)",["text-align"]="center",["border-radius"]="8px"})
 		left[#left + 1] = label("version", "v1", -bakeryOffset+leftW-28, h - 22, 24, 20, 10, "#516572",{["z-index"]="2"})
             return left
         end)
@@ -1195,7 +1252,7 @@ return function()
         -- Cleared in place: the entrance configs hold a reference to this table.
         if paneKey~=entrancePane then entrancePane=paneKey;table.clear(entranceSeen) end
         -- Jobs owns the Adventure/Work pair, so it stays lit for either of them.
-        local jobsOpen=tab=="Adventure" or (tab=="Work" and (workPage[1]=="Jobs" or workPage[1]=="Ads"))
+        local jobsOpen=tab=="Adventure" or (tab=="Work" and (workPage[1]=="Jobs" or workPage[1]=="Ads" or workPage[1]=="Goals"))
         local innerTabs=jobsOpen and (tab~="Adventure" or adventurePage[1]=="Home")
         -- The rail sizes itself to the column: eight destinations plus the
         -- burger, never scrolling, never competing for width.
@@ -1242,6 +1299,11 @@ return function()
         for i,section in workSections do
             local name=section[1]
             local active=if name=="Jobs" then jobsOpen else tab=="Work" and workPage[1]==name
+            -- Tapping the section you are already in closes it and hands the
+            -- panel back to the buildings list. Stricter than `active` on
+            -- purpose: the Jobs tile stays lit across Adventure and Ads, and
+            -- tapping it from one of those should take you to Jobs, not close it.
+            local onThisSection=tab=="Work" and workPage[1]==name
             local kids={
                 picture("navPicture",section[2],(navItemW-navIcon)/2,4,navIcon,navIcon),
                 label("navName",name,1,navLabelY,navItemW-2,navLabelH,11,active and "#fff8ec" or "#9d9081",{["text-align"]="center"}),
@@ -1259,7 +1321,10 @@ return function()
             else
                 navX0,navY0=0,8+(i-1)*navPitch
             end
-            navItems[#navItems+1]=button("nav"..name,"",navX0,navY0,navItemW,navItemH,function()setTab("Work");workPage[2](name)end,{background=active and "#241f19" or "none",border="none"},kids)
+            navItems[#navItems+1]=button("nav"..name,"",navX0,navY0,navItemW,navItemH,function()
+                if onThisSection then setTab("Buildings") else setTab("Work");workPage[2](name) end
+                setHover(0)
+            end,{background=active and "#241f19" or "none",border="none"},kids)
         end
         local burgerX,burgerY
         if mobile then burgerX,burgerY=navCell(navSlots) else burgerX,burgerY=0,8+#workSections*navPitch end
@@ -1303,17 +1368,21 @@ return function()
                 {id="Adventure",text="Adventure",width=110},
                 {id="Work",text="Work",width=78},
                 {id="Ads",text=if roomy then "Advertisements" else "Ads",width=if roomy then 148 else 62},
+                {id="Goals",text="Goals",width=76},
             }
-            local pillsW=-14
-            for _,pill in pills do pillsW+=pill.width+14 end
+            local gap=6
+            local pillWidth=math.min(120,(centerW-24-gap*(#pills-1))/#pills)
+            for _,pill in pills do pill.width=pillWidth end
+            local pillsW=#pills*pillWidth+(#pills-1)*gap
             local pillX=(centerW-pillsW)/2
             for _,pill in pills do
-                local active=if pill.id=="Adventure" then tab=="Adventure" else tab=="Work" and workPage[1]==(if pill.id=="Ads" then "Ads" else "Jobs")
+                local destination=if pill.id=="Work" then "Jobs" else pill.id
+                local active=if pill.id=="Adventure" then tab=="Adventure" else tab=="Work" and workPage[1]==destination
                 center[#center+1]=button("inner"..pill.id,pill.text,pillX,12,pill.width,30,function()
                     if pill.id=="Adventure" then setTab("Adventure");adventurePage[2]("Home")
-                    else setTab("Work");workPage[2](if pill.id=="Ads" then "Ads" else "Jobs") end
+                    else setTab("Work");workPage[2](destination) end
                 end,{background=active and "#3a3025" or "none",border="none",color=active and "#fff0d8" or "#8a7f6d",["border-radius"]="999px",["font-size"]="15px"})
-                pillX+=pill.width+14
+                pillX+=pill.width+gap
             end
         end
         local contentY=if innerTabs then 50 else 6
@@ -1327,7 +1396,7 @@ return function()
                     rows[#rows+1]=remember(viewCache,"buildingScene"..i,rowSignature,function()
                     local children = {
                         label("ownedTitle" .. i, b.name, 18, 6, 390, 26, 24, "#ffffff"),
-						label("ownedCps" .. i, number((i==1 and state.clickPower/Model.CursorPeriod or b.cps*Model.multiplier(state,i))*state.buildings[i], true) .. " cookies / second", 18, 35, 400, 22, 14, "#ddd4c6"),
+						label("ownedCps" .. i, number((i==1 and Model.cursorClickPower(state)/Model.CursorPeriod or b.cps*Model.multiplier(state,i))*state.buildings[i], true) .. " cookies / second", 18, 35, 400, 22, 14, "#ddd4c6"),
 						label("ownedCount" .. i, tostring(state.buildings[i]), centerW - 110, 6, 72, 48, 40, "#e2d7c5", { ["text-align"] = "right" }),
 					}
 					for k = 1, math.min(state.buildings[i], 14) do
@@ -1425,7 +1494,50 @@ return function()
                 local function action(id,title,kind,arg)
                     pane[#pane+1]=button(id,title,24,y,w,48,function()send("economy",kind,arg)end,{["font-size"]="18px"});y+=56
                 end
-                if workPage[1]=="Jobs" then
+                if workPage[1]=="Goals" then
+                    local daily=economy.daily or {progress={},claimed={}}
+                    text("dailyHeading","Today's goals",30)
+                    local remaining=86400-(snapshot.serverNow or 0)%86400
+                    text("dailyReset","New goals in "..math.floor(remaining/3600).."h "..math.floor(remaining%3600/60).."m",24)
+                    local finished=0
+                    for _,goal in Model.DailyGoals do
+                        local done=daily.claimed[goal.id]==true
+                        if done then finished+=1 end
+                        local count=math.min(goal.target,daily.progress[goal.id] or 0)
+                        local ready=count>=goal.target and not done
+                        local card={
+                            picture("goalArt",goal.image,12,12,52,52),
+                            label("goalName",goal.name,76,8,w-88,42,19,"#fff4df"),
+                            label("goalReward","5 XP + "..(goal.energy>0 and goal.energy.." energy" or goal.stamina.." stamina"),76,50,w-88,24,15,"#b6e6bf"),
+                            box("goalTrack",12,82,w-24,8,"#171d20",{box("goalFill",0,0,(w-24)*count/goal.target,8,done and "#80c88b" or "#e9a827",{},{border="none"})},{border="none"}),
+                            button("claimDaily"..goal.id,done and "Collected!" or ready and "Collect reward" or count.." / "..goal.target,12,100,w-24,44,function()if ready then send("daily",goal.id) end end,{background=ready and "#276849" or "#40392f",["font-size"]="18px"}),
+                        }
+                        pane[#pane+1]=box("dailyCard"..goal.id,24,y,w,156,"#30291f",card,{border="1px solid #6c5736",["border-radius"]="12px"});y+=168
+                    end
+                    pane[#pane+1]=box("dailyBonus",24,y,w,76,"#39331e",{
+                        picture("dailyBonusArt","Flour",12,10,52,52),
+                        label("dailyBonusText",finished==3 and "Flour earned! See you tomorrow." or "Finish all 3: win a sack of flour!",76,8,w-88,60,18,"#fff0bc"),
+                    },{border="1px solid #917346",["border-radius"]="12px"});y+=92
+                    text("progressHeading","Your next discoveries",32)
+                    local shown=0
+                    for _,item in Model.Items do
+                        if item.exclusive or Model.itemTier(state,item)>0 then continue end
+                        shown+=1;if shown>3 then break end
+                        local unlocked=Model.itemUnlocked(state,item)
+                        local price=Model.itemPrice(state,item)
+                        local progress=unlocked and math.min(1,state.cookies/price) or math.min(1,economy.xp/Model.jobLevelXp(item.level))
+                        local line=unlocked and (number(state.cookies).." / "..number(price).." cookies") or ("Level "..Model.jobLevel(state).." / "..item.level)
+                        if shown>1 then pane[#pane+1]=box("mapLink"..shown,64,y-14,4,14,"#6abed5",{},{border="none"}) end
+                        pane[#pane+1]=box("mapItem"..item.id,24,y,w,142,"#242f36",{
+                            picture("mapArt",ImageNames.items[item.id],12,12,60,60,{opacity=unlocked and "1" or "0.5"}),
+                            label("mapName",item.name,84,10,w-96,40,19,"#fff4df"),
+                            label("mapProgress",line,84,52,w-96,30,15,"#b6d4e3"),
+                            box("mapTrack",12,88,w-24,6,"#121c22",{box("mapFill",0,0,(w-24)*progress,6,"#6abed5",{},{border="none"})},{border="none"}),
+                            button("mapOpen"..item.id,unlocked and "Visit shop" or "Earn XP in jobs",12,104,w-24,30,function()workPage[2](unlocked and "Shop" or "Jobs")end,{background="#334b58",["font-size"]="16px"}),
+                        },{border="1px solid #445d6a",["border-radius"]="12px"});y+=156
+                    end
+                    if shown==0 then text("mapComplete","Every item discovered! Grow your collection to 10 and 100 copies.",66) end
+                elseif workPage[1]=="Jobs" then
                     local jobIndex=0
                     for _,job in Model.Jobs do
                         jobIndex+=1
@@ -1433,7 +1545,9 @@ return function()
                         local ready=not locked and economy.energy>=job.energy
                         local reward=Model.jobReward(state,job)
                         local jobY=y
-                        local jobSignature=table.concat({w,jobY,uiFont,reward,tostring(locked),tostring(ready)},"|")
+                        -- Energy is on the card now, so it belongs in the signature -- this card is
+                        -- remembered, and a live number inside a cache freezes.
+                        local jobSignature=table.concat({w,jobY,uiFont,reward,tostring(locked),tostring(ready),math.floor(economy.energy)},"|")
                         pane[#pane+1]=remember(viewCache,"jobCard"..job.id,jobSignature,function()
                         local card={
                             picture("jobPicture",ImageNames.jobs[job.id],12,14,52,52),
@@ -1442,7 +1556,7 @@ return function()
                             label("jobXp","+"..job.xp.." XP",14,112,w-150,28,18,"#b6e6bf"),
                             label("jobDrop",math.floor(job.chance*100).."% item chance",14,174,w-28,26,16,"#ddd2ff"),
                             button("doJob"..job.id,locked and "Level "..job.level or "Do it!",w-128,120,114,48,function()send("economy","job",job.id)end,{background=ready and "#276849" or "#51483d",["font-size"]="22px"}),
-                            label("jobEnergy",job.energy.." energy",14,142,w-150,26,18,"#9fdcf6"),
+                            label("jobEnergy",job.energy.." energy · you have "..math.floor(economy.energy),14,142,w-150,26,18,if economy.energy>=job.energy then "#9fdcf6" else "#e0a58a"),
                         }
                         return box("jobCard"..job.id,24,jobY,w,210,"#342d25",card,{border="1px solid #827052",["border-radius"]="12px",ref=springIn("jobCard"..job.id,jobIndex),["--zone-background"]=ImageNames.jobBackgrounds[job.id]})
                         end);y+=222
@@ -1540,7 +1654,7 @@ return function()
                     local level=Model.jobLevel(state)
                     local owned,bonus=0,Model.decorBonus(state)
                     for _,d in Model.Decor do if Model.decorOwned(state,d.id) then owned+=1 end end
-                    text("decorIntro","Decorate the bakery. Every piece you put up is a permanent boost to everything you bake.",44)
+                    text("decorIntro","Free backgrounds every 3 levels! Buy decorations here for permanent baking boosts.",64)
                     -- The player's level lives up here rather than repeated on
                     -- every locked card: the per-card version ran to 262px and
                     -- the card's text column is 173px on a phone.
@@ -1654,7 +1768,7 @@ return function()
                             if not found then "Not found yet" elseif maxed then "Complete · "..number(owned) else number(owned).." / "..target,
                             4,178,slotW-8,20,13,if maxed then "#e9a827" else "#a2988a",{["text-align"]="center"})
                         card[#card+1]=label("tierPayout",
-                            if tier>0 then "+"..math.floor(Model.itemBonus(state,item)*100+.5).."% boost" else "+"..math.floor(item.bonus*100+.5).."% at 1",
+                            if tier>0 then "+"..number(Model.itemBonus(state,item)*100,true).."% boost" else "+"..math.floor(item.bonus*100+.5).."% at 1",
                             4,198,slotW-8,22,15,if tier>0 then "#b6e6bf" else "#6f6558",{["text-align"]="center"})
                         pane[#pane+1]=box("itemSlot"..item.id,24+((slot-1)%2)*(slotW+16),y+math.floor((slot-1)/2)*234,slotW,222,"#2b2620",card,{border=if maxed then "1px solid #e9a827" elseif found then "1px solid #5c5142" else "1px solid #3f382e",["border-radius"]="12px",ref=springIn("itemSlot"..item.id,slot)})
                     end
@@ -1669,17 +1783,18 @@ return function()
                         local tier,owned=Model.itemTier(state,item)
                         local togo,target=Model.itemNextTier(state,item)
                         local price=Model.itemPrice(state,item)
+                        local unlocked=Model.itemUnlocked(state,item)
                         local card={picture("itemArt",ImageNames.items[item.id],8,8,66,66),
                             label("itemName",item.name,84,8,w-96,28,22,"#fff4df"),
-                            label("rarity",item.rarity.."  |  +"..math.floor(Model.itemBonus(state,item)*100+.5).."% now",84,40,w-96,26,18,rarityColors[item.rarity]),
+                            label("rarity",item.rarity.."  |  +"..number(Model.itemBonus(state,item)*100,true).."% now",84,40,w-96,26,18,rarityColors[item.rarity]),
                             -- What the next threshold is worth, stated plainly, so
                             -- the reason to buy another is on the row that sells it.
-                            label("owned",if target then "In bag: "..number(owned).."  ·  "..number(togo).." more for +"..math.floor(item.bonus*Model.Balance.CollectionTierBonus[tier+1]*100+.5).."%" else "In bag: "..number(owned).."  ·  fully collected",14,78,w-28,26,18,"#e9dcc6"),
+                            label("owned",if target then "Owned: "..number(owned).."  ·  "..number(togo).." more for +"..number(item.bonus*Model.Balance.CollectionTierBonus[tier+1]*100,true).."%" else "Owned: "..number(owned).."  ·  fully collected",14,78,w-28,26,18,"#e9dcc6"),
                         }
                         if workPage[1]=="Shop" then
-                            card[#card+1]=button("buyItem"..item.id,"Buy: "..number(price),12,112,w-24,48,function()send("economy","item",item.id)end,{background=if state.cookies>=price then "#276849" else "#51483d",["font-size"]="21px"})
-                        elseif owned>0 and not item.exclusive then
-                            card[#card+1]=button("sellSpare"..item.id,"Sell 1 · "..number(math.floor(price/Model.Balance.ItemPriceGrowth*.25)),12,112,w-24,48,function()send("economy","sellItem",item.id)end,{background="#544479",["font-size"]="19px"})
+                            card[#card+1]=button("buyItem"..item.id,if unlocked then "Buy: "..number(price) else "Unlocks at level "..item.level,12,112,w-24,48,function()if unlocked then send("economy","item",item.id) end end,{background=if unlocked and state.cookies>=price then "#276849" else "#51483d",["font-size"]="21px"})
+                        elseif owned>1 and (state.economy.inventory[item.id] or 0)>0 and not item.exclusive then
+                            card[#card+1]=button("sellSpare"..item.id,"Sell 1 · "..number(Model.itemSellPrice(state,item)),12,112,w-24,48,function()send("economy","sellItem",item.id)end,{background="#544479",["font-size"]="19px"})
                         else card[#card+1]=label("activeBoost",if owned>0 then "Boost is active" else "None in your bag",14,117,w-28,35,21,if owned>0 then "#b6e6bf" else "#6f6558") end
                         pane[#pane+1]=box("itemCard"..item.id,24,y,w,172,"#342d25",card,{border="1px solid "..rarityColors[item.rarity],["border-radius"]="12px",ref=springIn("itemCard"..item.id,itemIndex),["--zone-background"]=ImageNames.itemBackgrounds[item.id],["--shop-icon"]=workPage[1]=="Shop" and ImageNames.items[item.id] or nil});y+=184
                     end
@@ -1950,7 +2065,7 @@ return function()
                     },{["border-radius"]="12px",border="1px solid #967446"});y+=242
                     local total=(state.pastEarned or 0)+(state.earned or 0)
                     local nextStar=state.prestige+gain+1
-                    local goal=nextStar^3*Model.Balance.RebirthCookies
+                    local goal=Model.starGoal(nextStar)
                     pane[#pane+1]=box("starProgress",24,y,w,132,"#302a35",{
                         label("starUnlock","Bake "..number(math.max(0,goal-total)).." more cookies",12,8,w-24,54,20,"#fff1cd",{["text-align"]="center"}),
                         box("starProgressTrack",16,72,w-32,10,"#17141e",{box("starProgressFill",0,0,(w-32)*math.clamp(total/goal,0,1),10,"#eac36d")},{["border-radius"]="5px"}),
@@ -2277,7 +2392,7 @@ return function()
 			local unlockedBuilding = i <= 2 or state.earned >= Model.Buildings[i - 1].price or state.buildings[i] > 0
 			local affordable = sell and state.buildings[i] > 0 or not sell and state.cookies >= price
 			local cached = productCache[i]
-			local perUnit = i==1 and state.clickPower/Model.CursorPeriod or b.cps * Model.multiplier(state, i)
+			local perUnit = i==1 and Model.cursorClickPower(state)/Model.CursorPeriod or b.cps * Model.multiplier(state, i)
 			local sharePct = (totalCps > 0 and state.buildings[i] > 0) and math.floor(perUnit * state.buildings[i] / totalCps * 100 + .5) or 0
 			local signature = table.concat({tostring(price),tostring(unlockedBuilding),tostring(affordable),tostring(state.buildings[i]),tostring(bulk),tostring(sell),tostring(productW),uiFont,tostring(perUnit),tostring(sharePct)},"|")
 			if cached and cached.signature == signature then
@@ -2310,7 +2425,7 @@ return function()
 		-- was a mistake: that art is a fully dressed bakery and reads as the same
 		-- room as the Tier 1 reward, so buying Tier 1 looked like it did nothing.
 		-- An undecorated bakery has to LOOK undecorated.
-		local ownedDecor=Model.equippedDecor(state)
+		local ownedDecor=Model.bakeryBackground(state)
 		local backgroundName=if ownedDecor then ownedDecor.image else nil
         local bakeryBackground=remember(viewCache,"background",tostring(backgroundName)..":"..leftW..":"..h,function()return backgroundName and picture("bakeryBackground",backgroundName,0,0,leftW,h,{["object-fit"]="cover",["z-index"]="0"}) or stripes("blueStripes",leftW,h,"#173346","#1a3b51") end)
         local children = {
@@ -2422,7 +2537,7 @@ return function()
 		-- signature or the shop keeps offering something already bought.
 		for _,key in Model.MonetizationConfig.ProductOrder do monetizationSignature..=":"..tostring(Model.productOwned(snapshot,key)) end
 		for _,d in Model.Decor do monetizationSignature..=":"..tostring(Model.decorOwned(snapshot,d.id)) end
-		local equipped=Model.equippedDecor(snapshot)
+		local equipped=Model.bakeryBackground(snapshot)
 		local parts = {equipped and equipped.id or "default", snapshot.bakery, snapshot.saveStatus or "", tostring(snapshot.cps), tostring(snapshot.clickPower), tostring(snapshot.soundEnabled), tostring(snapshot.soundVolume), tostring(snapshot.reducedMotion), tostring(snapshot.goldenId), tostring((snapshot.goldenUntil or 0)>snapshot.played), tostring(snapshot.ready), tostring(snapshot.earned < 50), tostring(snapshot.earned < 1000)}
 		local ownedTotal = 0
 		for i, b in Model.Buildings do
@@ -2454,10 +2569,16 @@ return function()
 		-- but starting, cancelling or collecting one has to land immediately.
 		for _, entry in snapshot.economy.ads or {} do parts[#parts+1] = entry.id..":"..math.ceil(entry.remaining) end
 		parts[#parts+1] = tostring(#(snapshot.economy.ads or {}))
+        if currentTab=="Work" and snapshot.economy.daily then
+            local daily=snapshot.economy.daily
+            parts[#parts+1]=tostring(daily.day)
+            for _,goal in Model.DailyGoals do parts[#parts+1]=tostring(daily.progress[goal.id] or 0)..":"..tostring(daily.claimed[goal.id]==true) end
+        end
 		return monetizationSignature.."|"..table.concat(parts,"|")
 	end
 	local function update(force)
 		revision += 1
+        refreshDailyShortcut()
 		if refreshCounters then refreshCounters(revision) end
 		if refreshOnboarding then refreshOnboarding(revision) end
 		local signature = pageSignature()
@@ -2477,7 +2598,7 @@ return function()
 		audio.setEnabled(snapshot.soundEnabled~=false)
 		audio.setVolume(snapshot.soundVolume or 100)
 		for _,event in snapshot.events or {} do
-			if event.id>lastEventId then lastEventId=event.id;notify(event.text,event.kind) end
+			if event.id>lastEventId then lastEventId=event.id;notify(event.text,event.kind,event.icon) end
 		end
 		update(false)
         local invite=snapshot.empireInvite
@@ -2491,7 +2612,7 @@ return function()
 	local safeResize=safeArea:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
 		measureViewport();viewportScale.Scale=uiScale;update(true)
 	end)
-	local inputResize=input:GetPropertyChangedSignal("PreferredInput"):Connect(function()
+	local inputResize=input:GetPropertyChangedSignal("TouchEnabled"):Connect(function()
 		measureViewport();viewportScale.Scale=uiScale;update(true)
 	end)
 	measureViewport();viewportScale.Scale=uiScale;update(true)

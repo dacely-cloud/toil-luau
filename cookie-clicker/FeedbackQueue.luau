@@ -4,13 +4,13 @@ return function(show, schedule, cancel)
     local destroyed=false
     local revision=0
     return {
-        push=function(text,kind)
+        push=function(text,kind,icon)
             if destroyed then return end
-            if current and current.text==text and current.kind==kind then return end
+            if current and current.text==text and current.kind==kind and current.icon==icon then return end
             revision+=1
             local id=revision
             if timer then cancel(timer);timer=nil end
-            current={text=text,kind=kind}
+            current={text=text,kind=kind,icon=icon}
             show(current)
             timer=schedule(kind=="achievement" and 2 or 1.25,function()
                 if destroyed or revision~=id then return end

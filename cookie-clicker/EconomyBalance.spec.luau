@@ -61,9 +61,10 @@ for _,item in Model.Items do
 end
 near(Model.cps(s),base*1.38)
 local bank=s.cookies;before=s.earned
+s.economy.xp=Model.jobLevelXp(2)
 assert(Model.economyAction(s,"item","spatula"))
 assert(Model.economyAction(s,"sellItem","spatula"))
-assert(s.cookies==bank-250+62 and s.earned==before)
+assert(s.cookies==bank-280+62 and s.earned==before)
 assert(not Model.economyAction(s,"sellItem","spatula"))
 assert(not Model.economyAction(s,"sellItem","goldenWhisk"))
 print("PASS balance: all building quotes, bounded payback, tap XP persistence, stock principal/profit, scaled jobs and bounded golden rewards")

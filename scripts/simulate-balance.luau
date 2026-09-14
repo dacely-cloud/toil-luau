@@ -24,11 +24,11 @@ local function simulate(name,clicks,jobs,seconds,rebirth,full)
     local function choose()
         local before=rate()
         local best
-        local function offer(kind,id,cost,after)
+        local function offer(kind,id,cost,after,quantity)
             local delta=after-before
             if delta>0 then
                 local roi=cost/delta+math.max(0,cost-s.cookies)/math.max(1,before)
-                if not best or roi<best.roi then best={kind=kind,id=id,cost=cost,roi=roi} end
+                if not best or roi<best.roi then best={kind=kind,id=id,cost=cost,roi=roi,quantity=quantity} end
             end
         end
         for i=1,#Model.Buildings do
@@ -52,9 +52,16 @@ local function simulate(name,clicks,jobs,seconds,rebirth,full)
         end
         if full then
             for _,item in Model.Items do
-                if not item.exclusive and not s.economy.collection[item.id] then
-                    s.economy.collection[item.id]=true;local after=rate();s.economy.collection[item.id]=nil
-                    offer("item",item.id,item.price,after)
+                local quantity,target=Model.itemNextTier(s,item)
+                if Model.itemUnlocked(s,item) and target then
+                    local previous=s.economy.inventory[item.id]
+                    local cost=0
+                    for _=1,quantity do
+                        cost+=Model.itemPrice(s,item)
+                        s.economy.inventory[item.id]=(s.economy.inventory[item.id] or 0)+1
+                    end
+                    local after=rate();s.economy.inventory[item.id]=previous
+                    offer("item",item.id,cost,after,quantity)
                 end
             end
             for _,d in Model.Decor do
@@ -105,13 +112,14 @@ local function simulate(name,clicks,jobs,seconds,rebirth,full)
             if nextBuy.kind=="building" then ok=Model.trade(s,nextBuy.id,1,false)
             elseif nextBuy.kind=="upgrade" then ok=Model.buyUpgrade(s,nextBuy.id)
             elseif nextBuy.kind=="item" then
-                ok=Model.economyAction(s,"item",nextBuy.id)
-                if ok then assert(Model.economyAction(s,"collect",nextBuy.id)) end
+                for _=1,nextBuy.quantity do assert(Model.economyAction(s,"item",nextBuy.id)) end
+                ok=true
             elseif nextBuy.kind=="decor" then ok=Model.economyAction(s,"buyDecor",nextBuy.id)
             else ok=Model.economyAction(s,"property",nextBuy.id) end
             assert(ok,"simulator quote mismatch")
             bought=true;nextBuy=choose()
         end
+        Model.claimLevelReward(s)
         for _,m in {{"Farm",s.buildings[3]>0},{"Bank",s.buildings[6]>0},{"Tower",s.buildings[8]>0},{"FinalBuilding",s.buildings[20]>0},{"Level3",Model.jobLevel(s)>=3},{"Level5",Model.jobLevel(s)>=5},{"10M",s.earned>=1e7},{"1T",s.earned>=1e12},{"Rebirth",Model.ascensionGain(s)>0}} do
             if m[2] and not milestones[m[1]] then milestones[m[1]]=time;print(name,m[1],time,"seconds") end
         end
@@ -133,7 +141,21 @@ local function simulate(name,clicks,jobs,seconds,rebirth,full)
             nextBuy=choose()
         end
         if time%(full and 86400 or 3600)==0 then print(name,"HOUR",time/3600,"earned",s.earned,"CPS",Model.cps(s),"click",Model.clickPower(s),"level",Model.jobLevel(s),"last building",s.buildings[20]) end
+        if full and not milestones.AllShopItems then
+            local complete=true
+            for _,item in Model.Items do if not item.exclusive and Model.itemTier(s,item)==0 then complete=false;break end end
+            if complete then milestones.AllShopItems=time;print(name,"AllShopItems",time,"seconds") end
+        end
     end
+    local buildingTypes,items,itemCost=0,0,0
+    for _,count in s.buildings do if count>0 then buildingTypes+=1 end end
+    for _,item in Model.Items do
+        if not item.exclusive then
+            itemCost+=item.price
+            if s.economy.collection[item.id] or (s.economy.inventory[item.id] or 0)>0 then items+=1 end
+        end
+    end
+    print(name,"END",seconds,"seconds","earned",s.earned,"bank",s.cookies,"CPS",Model.cps(s),"click",Model.clickPower(s),"level",Model.jobLevel(s),"building types",buildingTypes,"items",items,"base item set cost",itemCost)
 end
 if mode then
     simulate(mode,mode:find("boosted",1,true) and 8 or 2,true,(tonumber(days) or 7)*86400,mode:find("rebirth",1,true)~=nil,true)

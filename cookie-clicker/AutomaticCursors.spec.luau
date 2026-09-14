@@ -8,16 +8,16 @@ for _,count in {0,1,49,50,51,9999,10000} do
     near(batched,count)
 end
 local s=Model.new();s.buildings[1]=10000;s.buildings[2]=7000
-local reward=Model.clickPower(s)
+local reward=Model.cursorClickPower(s)
 near(Model.cps(s),7000+10000*reward/10)
-near(Model.snapshot(s).clickPower,reward)
+near(Model.snapshot(s).clickPower,Model.clickPower(s))
 Model.tick(s,10)
 near(s.cookies,70000+10000*reward)
 assert(s.clicks==0 and s.handmade==0 and s.economy.tapXpProgress==0)
 s=Model.new();s.buildings[1]=1
 local before=Model.clickPower(s);s.upgrades.fingers=true
 assert(Model.clickPower(s)>before*2)
-local expected=Model.clickPower(s)
+local expected=Model.cursorClickPower(s)
 Model.tick(s,10);near(s.cookies,expected)
 local opening=Model.new();opening.buildings[1]=3
 assert(math.floor(Model.cps(opening)*10+.5)/10==.3,"three starting cursors must display 0.3 CPS")

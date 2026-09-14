@@ -9,11 +9,12 @@ end,function(timer)if timer.live then timer.live=false;active-=1 end end)
 feedback.push("Bought cursor","success")
 local old=timers[1]
 assert(old.seconds==1.25)
-feedback.push("Achievement!","achievement")
+feedback.push("Achievement!","achievement","GoldenCookie")
 assert(not old.live and shown[#shown].text=="Achievement!" and timers[2].seconds==2)
+assert(shown[#shown].icon=="GoldenCookie")
 old.callback();assert(shown[#shown].text=="Achievement!","stale expiry cannot hide replacement")
 local count=#shown
-feedback.push("Achievement!","achievement")
+feedback.push("Achievement!","achievement","GoldenCookie")
 assert(#shown==count and #timers==2,"duplicate does not extend display")
 for i=1,30 do feedback.push("Purchase "..i,"success")end
 assert(shown[#shown].text=="Purchase 30" and active==1 and maxActive==1)

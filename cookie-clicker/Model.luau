@@ -121,7 +121,7 @@ end
 function Model.cps(state)
     -- Cursor production is replaced by actual taps. The old base production
     -- remains the input to click scaling so automatic income cannot recurse.
-    return clickProduction(state,true)+state.buildings[1]*Model.clickPower(state)/Model.CursorPeriod
+    return clickProduction(state,true)+state.buildings[1]*Model.cursorClickPower(state)/Model.CursorPeriod
 end
 function Model.setVolume(state,percent)
 	if type(percent)~="number" or percent~=percent or percent<0 or percent>100 or percent%1~=0 then return false end
@@ -133,17 +133,28 @@ function Model.baseClickPower(state)
 	for _, u in clickUpgrades do if state.upgrades[u.id] then value *= 2 end end
 	return value * Model.heavenlyFactor(state,"tapping") * (state.spirit=="clicking" and 1.1 or 1)*(1+Model.empireBonus(state))*Model.passFactor(state,"CookieGain")
 end
-function Model.clickPower(state,cps)
+local function clickProductionShare(state)
     local tapping=Model.heavenlyFactor(state,"tapping")*(state.spirit=="clicking" and 1.1 or 1)
     local share=Model.Balance.ClickProductionShare
     for _,u in clickUpgrades do if state.upgrades[u.id] then share+=Model.Balance.ClickUpgradeShare end end
+    return share*tapping
+end
+function Model.clickPower(state,cps)
     local production=clickProduction(state)
     -- Wrinklers hold passive cookies only; arriving or feeding must not nerf taps.
     if state.buddies and state.buildings[2]>=10 and #state.wrinklers>0 then
         local property=Model.propertyIncome(state)
         production=property+(production-property)/(1-#state.wrinklers*.05)
     end
-    return Model.baseClickPower(state)+production*share*tapping
+    return Model.baseClickPower(state)+production*clickProductionShare(state)
+end
+function Model.cursorClickPower(state)
+    local base=Model.baseClickPower(state)
+    -- The fleet shares a bounded production bonus, rather than every cursor
+    -- independently earning a percentage of the entire bakery. Flat upgraded
+    -- tap power is preserved, and buying cursors always raises total income.
+    local load=state.buildings[1]*clickProductionShare(state)/(Model.CursorPeriod*Model.Balance.CursorProductionBonusCap)
+    return base+(Model.clickPower(state)-base)/(1+load)
 end
 function Model.checkAchievements(state)
 	for _,a in achievements do
@@ -187,7 +198,7 @@ function Model.tick(state, dt, offline)
         table.sort(points)
         for i=2,#points do
             sample.played=(points[i-1]+points[i])*.5
-            cursorAmount+=Model.cursorTaps(state.buildings[1],points[i-1],points[i])*Model.clickPower(sample)
+            cursorAmount+=Model.cursorTaps(state.buildings[1],points[i-1],points[i])*Model.cursorClickPower(sample)
         end
     end
 	state.played += dt
@@ -318,4 +329,6 @@ else
     monetizationConfig=require("./MonetizationConfig")
 end
 installMonetization(Model,monetizationConfig)
+local installDaily=if script then require(script.Parent.DailyGoals) else require("./DailyGoals")
+installDaily(Model)
 return Model

@@ -65,7 +65,10 @@ return function(Model,Config)
         return grants
     end
     function Model.grantProduct(s,grants)
-        Model.award(s,grants.cookies)
+        -- Purchased currency is spendable, but is not baked income for rebirth
+        -- chips. Existing stars and historical earnings remain untouched.
+        local cookies=grants.cookies
+        if type(cookies)=="number" and cookies>0 and cookies<math.huge then s.cookies+=cookies end
         for id,count in grants.items do s.economy.inventory[id]=(s.economy.inventory[id] or 0)+count end
         if grants.energy then s.economy.energy=Model.maxEnergy(s) end
         if grants.stamina then s.economy.stamina=100 end

@@ -55,18 +55,18 @@ return function(Model)
     Model.Items={
         -- Ordered by price so the shop and the collection album both read as one
         -- ladder. Nothing may index this list positionally -- see CrateItems.
-        {id="flour",name="Sack of flour",rarity="Common",price=100,bonus=.01},
-        {id="sugar",name="Bag of sugar",rarity="Common",price=175,bonus=.01},
-        {id="spatula",name="Baking spatula",rarity="Common",price=250,bonus=.01},
-        {id="eggs",name="Fresh eggs",rarity="Common",price=300,bonus=.01},
-        {id="butter",name="Block of butter",rarity="Uncommon",price=700,bonus=.02},
-        {id="milk",name="Bottle of milk",rarity="Uncommon",price=1200,bonus=.02},
-        {id="apron",name="Lucky apron",rarity="Uncommon",price=1500,bonus=.02},
-        {id="dough",name="Perfect dough",rarity="Uncommon",price=2500,bonus=.02},
-        {id="chocolate",name="Chocolate chunks",rarity="Rare",price=6000,bonus=.03},
-        {id="mixer",name="Silver mixer",rarity="Rare",price=10000,bonus=.04},
-        {id="tray",name="Baker's tray",rarity="Rare",price=20000,bonus=.05},
-        {id="crown",name="Cookie crown",rarity="Legendary",price=100000,bonus=.08},
+        {id="flour",name="Sack of flour",rarity="Common",price=100,level=1,bonus=.01},
+        {id="sugar",name="Bag of sugar",rarity="Common",price=175,level=2,bonus=.01},
+        {id="spatula",name="Baking spatula",rarity="Common",price=250,level=2,bonus=.01},
+        {id="eggs",name="Fresh eggs",rarity="Common",price=300,level=3,bonus=.01},
+        {id="butter",name="Block of butter",rarity="Uncommon",price=2500,level=4,bonus=.02},
+        {id="milk",name="Bottle of milk",rarity="Uncommon",price=10000,level=5,bonus=.02},
+        {id="apron",name="Lucky apron",rarity="Uncommon",price=40000,level=6,bonus=.02},
+        {id="dough",name="Perfect dough",rarity="Uncommon",price=150000,level=7,bonus=.02},
+        {id="chocolate",name="Chocolate chunks",rarity="Rare",price=1000000,level=9,bonus=.03},
+        {id="mixer",name="Silver mixer",rarity="Rare",price=5000000,level=11,bonus=.04},
+        {id="tray",name="Baker's tray",rarity="Rare",price=25000000,level=14,bonus=.05},
+        {id="crown",name="Cookie crown",rarity="Legendary",price=250000000,level=20,bonus=.08},
         {id="goldenWhisk",name="Golden whisk",rarity="Exclusive",price=math.huge,bonus=.03,exclusive=true},
         {id="starApron",name="Star apron",rarity="Exclusive",price=math.huge,bonus=.03,exclusive=true},
     }
@@ -83,12 +83,13 @@ return function(Model)
         return type(value)=="number" and value==value and value>=0 and value<math.huge and math.min(value,limit) or 0
     end
     function Model.initEconomy(s)
-        s.economy={xp=0,tapXpProgress=0,energy=100,stamina=100,inventory={},collection={},properties={},jar=0,buildingXpHigh={},upgradeXpClaimed={},ads={},oneTimeProducts={},decor={}}
+        s.economy={xp=0,tapXpProgress=0,energy=100,stamina=100,inventory={},collection={},properties={},jar=0,buildingXpHigh={},upgradeXpClaimed={},ads={},oneTimeProducts={},decor={},jobsDone=0,rewardedLevel=1}
     end
     function Model.restoreEconomy(s,data)
         local saved=type(data.economy)=="table" and data.economy or {}
         local e=s.economy
         -- Lifetime records survive sales, ascension and rejoin. Existing saves
+        if Model.restoreDaily then Model.restoreDaily(s,saved.daily) end
         -- start at current ownership, without granting retroactive XP.
         for i=1,#Model.Buildings do
             local high=type(saved.buildingXpHigh)=="table" and saved.buildingXpHigh[i]
@@ -137,8 +138,12 @@ return function(Model)
             e.empireDonation={empireId=e.empireId,sequence=e.empireSequence,amount=pending.amount}
         end
         e.xp=number(saved.xp,1e15)
+        -- Legacy saves start at their current level; reconnecting must not grant
+        -- a backlog of rewards. Preserve the high-water mark through rebirths.
+        e.rewardedLevel=math.max(1,math.floor(number(saved.rewardedLevel or Model.jobLevel(s),1e9)))
         e.jar=number(saved.jar,Model.Balance.MaxJarCookies)
         e.tapXpProgress=math.floor(number(saved.tapXpProgress,9))
+        e.jobsDone=math.floor(number(saved.jobsDone,1e9))
         e.energy=number(saved.energy,110);e.stamina=number(saved.stamina,100)
         for _,item in Model.Items do
             e.inventory[item.id]=math.floor(number(type(saved.inventory)=="table" and saved.inventory[item.id],1e12))
@@ -189,6 +194,35 @@ return function(Model)
     -- Keep earned XP; the gentler curve immediately benefits existing players.
     function Model.jobLevelXp(level) return 40*(math.max(1,level)-1)^2 end
     function Model.jobLevel(s) return 1+math.floor(math.sqrt(s.economy.xp/40)) end
+    function Model.claimLevelReward(s)
+        local e=s.economy
+        local level=Model.jobLevel(s)
+        local previous=e.rewardedLevel or level
+        if level<=previous then return nil end
+        e.rewardedLevel=level
+        local energy=math.max(0,math.min(Model.maxEnergy(s)-e.energy,(level-previous)*10))
+        local stamina=math.max(0,math.min(100-e.stamina,(level-previous)*5))
+        e.energy+=energy;e.stamina+=stamina
+        local unlocked
+        for _,item in Model.Items do
+            if item.level and item.level>previous and item.level<=level then unlocked=item end
+        end
+        return {level=level,energy=energy,stamina=stamina,item=unlocked and unlocked.id,name=unlocked and unlocked.name}
+    end
+    function Model.feedbackNumber(value)
+        for _,unit in {{1e12,"T"},{1e9,"B"},{1e6,"M"},{1e3,"K"}} do
+            if value>=unit[1] then return tostring(math.floor(value/unit[1]*10+.5)/10)..unit[2] end
+        end
+        return tostring(math.floor(value*10+.5)/10)
+    end
+    function Model.purchaseProgress(s,beforeCps,beforeTap)
+        local cps=Model.cps(s)-beforeCps
+        local tap=Model.clickPower(s)-beforeTap
+        local parts={}
+        if cps>=.05 then table.insert(parts,"+"..Model.feedbackNumber(cps).." cookies/sec") end
+        if tap>=.05 then table.insert(parts,"+"..Model.feedbackNumber(tap).." per tap") end
+        return table.concat(parts," | ")
+    end
     function Model.buildingPurchaseXp(s,index)
         local e=s.economy
         local high=e.buildingXpHigh[index] or 0
@@ -205,9 +239,38 @@ return function(Model)
         e.xp=math.min(1e15,e.xp+10)
         return 10
     end
+    -- Count the copy consumed by the old Display action alongside bag copies.
+    -- No migration deletes or duplicates old items; legacy displayed boosts stay.
+    function Model.itemTier(s,item)
+        local owned=(s.economy.inventory[item.id] or 0)+(s.economy.collection[item.id] and 1 or 0)
+        local tier=0
+        for i,threshold in Model.Balance.CollectionTiers do if owned>=threshold then tier=i end end
+        return tier,owned
+    end
+    function Model.itemNextTier(s,item)
+        local tier,owned=Model.itemTier(s,item)
+        local target=Model.Balance.CollectionTiers[tier+1]
+        return target and target-owned or 0,target,owned
+    end
+    function Model.itemBonus(s,item)
+        local tier=Model.itemTier(s,item)
+        return item.bonus*(Model.Balance.CollectionTierBonus[tier] or 0)
+    end
+    function Model.itemUnlocked(s,item)
+        return not item.exclusive and Model.jobLevel(s)>=(item.level or 1)
+    end
+    function Model.itemPrice(s,item)
+        local _,owned=Model.itemTier(s,item)
+        return math.ceil(item.price*Model.Balance.ItemPriceGrowth^math.min(owned,100))
+    end
+    function Model.itemSellPrice(s,item)
+        -- Drops, gifts and legacy inventories have no purchase receipt. Never
+        -- refund the growing shop quote for a potentially free item.
+        return math.floor(item.price*.25)
+    end
     function Model.collectionBonus(s)
         local bonus=1
-        for _,item in Model.Items do if s.economy.collection[item.id] then bonus+=item.bonus end end
+        for _,item in Model.Items do bonus+=Model.itemBonus(s,item) end
         return bonus
     end
     function Model.propertyPrice(s,id)
@@ -267,6 +330,13 @@ return function(Model)
         local best=nil
         for _,d in Model.Decor do if Model.decorOwned(s,d.id) then best=d end end
         return best
+    end
+    function Model.bakeryBackground(s)
+        local tier=math.min(#Model.Decor,math.floor(Model.jobLevel(s)/3))
+        -- Keep any higher background already purchased. Neither a level between
+        -- milestones nor reaching the end of the art list clears the image.
+        for i,d in Model.Decor do if Model.decorOwned(s,d.id) then tier=math.max(tier,i) end end
+        return Model.Decor[tier]
     end
     function Model.adSlots(s)
         return Model.Balance.AdSlots+(if s.passes and s.passes.VIP==true then Model.Balance.AdSlotsVip else 0)
@@ -335,7 +405,7 @@ return function(Model)
             if e.energy<job.energy then return false,"Not enough energy. It refills over time." end
             -- Validate the injected roll before spending anything.
             if type(roll)~="number" or roll~=roll or roll<0 or roll>=1 then return false,"Try this job again." end
-            e.energy-=job.energy;e.xp+=job.xp
+            e.energy-=job.energy;e.xp+=job.xp;e.jobsDone=(e.jobsDone or 0)+1
             local reward=Model.jobReward(s,job)
             Model.award(s,reward)
             local dropped=roll<job.chance
@@ -343,8 +413,14 @@ return function(Model)
             return true,"Job done! +"..reward.." cookies, +"..job.xp.." XP"..(dropped and ", plus an item!" or "!")
         elseif action=="item" then
             local item=find(Model.Items,arg)
-            if not item or item.exclusive or s.cookies<item.price or (e.inventory[arg] or 0)>=1000000 then return false,"Not enough cookies, or your inventory is full." end
-            s.cookies-=item.price;e.inventory[arg]=(e.inventory[arg] or 0)+1
+            if not item or item.exclusive then return false,"This item is not sold here." end
+            if not Model.itemUnlocked(s,item) then return false,"Reach level "..item.level.." to buy this item." end
+            local price=Model.itemPrice(s,item)
+            if s.cookies<price or (e.inventory[arg] or 0)>=1000000 then return false,"Not enough cookies, or your inventory is full." end
+            local before=Model.itemTier(s,item)
+            s.cookies-=price;e.inventory[arg]=(e.inventory[arg] or 0)+1
+            local after=Model.itemTier(s,item)
+            if after>before then return true,item.name.." x"..Model.Balance.CollectionTiers[after].."! Its boost is now +"..tostring(Model.itemBonus(s,item)*100).."%." end
             return true,"Added "..item.name.." to your inventory."
         elseif action=="collect" then
             local item=find(Model.Items,arg)
@@ -353,8 +429,10 @@ return function(Model)
             return true,"Item displayed! Baking, jobs and properties now reward more cookies."
         elseif action=="sellItem" then
             local item=find(Model.Items,arg)
-            if not item or item.exclusive or not e.collection[arg] or (e.inventory[arg] or 0)<1 then return false,"Display one first, then sell your spare items." end
-            local refund=math.floor(item.price*.25)
+            if not item or item.exclusive or (e.inventory[arg] or 0)<1 then return false,"Own a spare item first." end
+            local _,owned=Model.itemTier(s,item)
+            if owned<=1 then return false,"Keep one item for your collection." end
+            local refund=Model.itemSellPrice(s,item)
             e.inventory[arg]-=1;s.cookies+=refund
             -- Selling an item is a refund, not newly baked cookies or XP.
             return true,"Sold one spare item for "..refund.." cookies."

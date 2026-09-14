@@ -78,14 +78,16 @@ local function filteredName(player,text)
 	end)
 	return ok and result or nil
 end
-local function notice(session, kind, message)
+local rewardImages=require(folder:WaitForChild("ImageNames"))
+local function notice(session, kind, message, icon)
 	session.eventId=(session.eventId or 0)+1
 	session.events=session.events or {}
-	table.insert(session.events,{id=session.eventId,kind=kind,text=message})
+	table.insert(session.events,{id=session.eventId,kind=kind,text=message,icon=icon})
 	if #session.events>8 then table.remove(session.events,1) end
 end
 local function send(player, session)
 	if not player.Parent then return end
+    Model.refreshDaily(session.state,os.time())
     for _,message in EmpireRoster.observe(session,player.UserId,session.empire,memberName) do notice(session,"info",message) end
 	local snapshot = Model.snapshot(session.state,true)
     snapshot.paidRandomAllowed=session.paidRandomAllowed==true
@@ -135,16 +137,30 @@ local function achievements(session)
 			notice(session,"achievement","You did it! "..name)
 		end
 	end
+    local reward=Model.claimLevelReward(session.state)
+    if reward then
+        local text="Level "..reward.level.."!"
+        if reward.energy>0 then text..=" +"..Model.feedbackNumber(reward.energy).." energy" end
+        if reward.stamina>0 then text..=" +"..Model.feedbackNumber(reward.stamina).." stamina" end
+        if reward.name then text..="\n"..reward.name.." unlocked in the shop!" end
+        notice(session,"achievement",text,reward.item and rewardImages.items[reward.item] or "GoldenCookie")
+    end
 end
 local function load(player)
 	if sessions[player] or shuttingDown then return end
 	local pending={state=Model.new(),ready=false,tokens=40,saveStatus="Opening your bakery..."}
 	sessions[player]=pending
 	local token=HttpService:GenerateGUID(false)
+	-- A pass lookup that will not answer must not hold the bakery shut. Three
+	-- quick sweeps, each only re-asking about passes still unknown, and then we
+	-- open regardless: an unknown pass reads as not-owned, which costs an owner
+	-- a boost for a moment, where the old loop cost them the entire game.
 	local passes,entitlementsReady=monetization.entitlements(player)
-	while not entitlementsReady and player.Parent and sessions[player]==pending and not shuttingDown do
-		pending.saveStatus="Checking your owned passes...";send(player,pending);task.wait(5)
-		passes,entitlementsReady=monetization.entitlements(player)
+	local sweeps=1
+	while not entitlementsReady and sweeps<3 and player.Parent and sessions[player]==pending and not shuttingDown do
+		pending.saveStatus="Checking your owned passes...";send(player,pending);task.wait(3)
+		sweeps+=1
+		passes,entitlementsReady=monetization.entitlements(player,passes)
 	end
 	while player.Parent and sessions[player]==pending and not shuttingDown do
 		local session, reason = persistence.load("player_"..player.UserId,token,passes)
@@ -178,6 +194,20 @@ local function load(player)
                 end
             end)
             task.spawn(function() session.empireBusy=true;empireService.refresh(session,player.UserId);empireService.resume(session,player.UserId);session.empireBusy=false;session.charityBusy=true;charityService.refresh(session,player.UserId);charityService.resume(session,player.UserId);session.charityBusy=false end)
+            -- Anything still unknown keeps being chased in the background, so an
+            -- owner who hit a bad minute gets their pass without rejoining.
+            if not entitlementsReady then
+                task.spawn(function()
+                    for _=1,20 do
+                        task.wait(15)
+                        if not player.Parent or session.closing then return end
+                        local merged,done=monetization.entitlements(player,session.state.passes)
+                        session.state.passes=merged
+                        send(player,session)
+                        if done then return end
+                    end
+                end)
+            end
 			if session.offlineCookies>=1 then notice(session,"success","Welcome back! Your bakery made "..math.floor(session.offlineCookies).." cookies while you were away.") end
 			send(player,session)
 			return
@@ -259,17 +289,25 @@ remote.OnServerEvent:Connect(function(player, action, index, quantity, sell)
         if session.state.economy.empireId then session.empireInvite=nil end
         notice(session,ok and "success" or "error",message)
         send(player,session);return
-    elseif action=="click" then Model.click(state); achievements(session); return
+    elseif action=="click" then Model.click(state);Model.recordDaily(state,"clicks",1,os.time()); achievements(session); return
+    elseif action=="daily" then
+        local ok,message,icon=Model.claimDaily(state,index,os.time())
+        notice(session,ok and "achievement" or "error",message,icon)
 	elseif action=="trade" and type(index)=="number" and index%1==0 and Model.Buildings[index] and (quantity==1 or quantity==10 or quantity==100) and type(sell)=="boolean" then
 		local before=state.buildings[index]
+        local high=state.economy.buildingXpHigh[index] or before
+        local beforeCps,beforeTap=Model.cps(state),Model.clickPower(state)
 		local success,xp=Model.trade(state,index,quantity,sell)
 		if success then
+			if not sell then Model.recordDaily(state,"buildings",math.max(0,state.buildings[index]-high),os.time()) end
 			local amount=math.abs(state.buildings[index]-before)
-			notice(session,"success",(sell and "Sold " or "You bought ")..amount.." "..Model.Buildings[index].name..(amount>1 and " buildings!" or "!")..(xp>0 and " +"..xp.." XP" or ""))
+            local gain=not sell and Model.purchaseProgress(state,beforeCps,beforeTap) or ""
+			notice(session,"success",(sell and "Sold " or "Bought ")..amount.." "..Model.Buildings[index].name.."!"..(xp>0 and " +"..xp.." XP" or "")..(gain~="" and "\n"..gain or ""),rewardImages.buildings[index])
 		else notice(session,"error",sell and "You do not own any of these yet." or "Not enough cookies yet. Keep baking!") end
 	elseif action=="upgrade" and type(index)=="string" then
+        local beforeCps,beforeTap=Model.cps(state),Model.clickPower(state)
 		local success,xp=Model.buyUpgrade(state,index)
-		if success then notice(session,"success","Boost bought! Your bakery is stronger now."..(xp>0 and " +"..xp.." XP" or ""))
+		if success then notice(session,"success","Boost bought!"..(xp>0 and " +"..xp.." XP" or "").."\n"..Model.purchaseProgress(state,beforeCps,beforeTap),"CookieBoost")
 		else notice(session,"error","You need more cookies, or already have this boost.") end
     elseif action=="fundraiser" or action=="charity" then
         if session.charityBusy or (session.lastCharityAction and os.clock()-session.lastCharityAction<1) then return end
@@ -296,8 +334,13 @@ remote.OnServerEvent:Connect(function(player, action, index, quantity, sell)
             send(other,target)
         end
     elseif action=="economy" and type(index)=="string" then
+		local beforeTier=0
+        local item
+        if index=="item" then for _,entry in Model.Items do if entry.id==quantity then item=entry;beforeTier=Model.itemTier(state,entry);break end end end
 		local ok,message=Model.economyAction(state,index,quantity,economyRandom:NextNumber())
-		notice(session,ok and "success" or "error",message)
+        if ok and index=="job" then Model.recordDaily(state,"jobs",1,os.time()) end
+		local milestone=ok and item and Model.itemTier(state,item)>beforeTier
+        notice(session,not ok and "error" or milestone and "achievement" or "success",message,item and rewardImages.items[item.id] or index=="job" and rewardImages.jobs[quantity] or nil)
 	elseif action=="advanced" and type(index)=="string" then
 		local ok,message=Model.advancedAction(state,index,quantity)
 		notice(session,ok and "success" or "error",message)

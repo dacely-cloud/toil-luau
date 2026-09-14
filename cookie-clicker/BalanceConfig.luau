@@ -32,4 +32,8 @@ return {
     SugarLumpSeconds=3600,
     ClickProductionShare=.05,
     ClickUpgradeShare=.01,
+    CursorProductionBonusCap=.25,
+    CollectionTiers={1,10,100},
+    CollectionTierBonus={1,1.5,2},
+    ItemPriceGrowth=1.12,
 }
